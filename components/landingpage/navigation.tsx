@@ -3,6 +3,8 @@
 import { Button } from "@/components/ui/button"
 import { AnimatePresence, motion } from "framer-motion"
 import { Menu, X } from "lucide-react"
+import NextImage from "next/image"
+import Link from "next/link"
 import { useState } from "react"
 
 export function Navigation() {
@@ -26,8 +28,13 @@ export function Navigation() {
                             }
                         }}
                     >
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-secondary to-accent flex items-center justify-center">
-                            <span className="font-bold text-white text-[10px]">RC</span>
+                        <div className="relative w-8 h-8">
+                            <NextImage
+                                src="/logos/rc-logo.svg"
+                                alt="RenterCheck Logo"
+                                fill
+                                className="object-contain"
+                            />
                         </div>
                         <span className="text-base font-bold tracking-tight text-foreground">rentercheck.ph</span>
                     </div>
@@ -56,9 +63,11 @@ export function Navigation() {
                     </div>
 
                     <div className="hidden md:block">
-                        <Button size="sm" className="rounded-full cursor-pointer bg-gradient-to-r from-secondary to-accent hover:from-secondary/90 hover:to-accent/90 text-accent-foreground font-semibold px-5 h-8 text-xs shadow-md hover:shadow-lg transition-all duration-300">
-                            Sign in
-                        </Button>
+                        <Link href="/login">
+                            <Button size="sm" className="rounded-full cursor-pointer bg-gradient-to-r from-secondary to-accent hover:from-secondary/90 hover:to-accent/90 text-accent-foreground font-semibold px-5 h-8 text-xs shadow-md hover:shadow-lg transition-all duration-300">
+                                Sign in
+                            </Button>
+                        </Link>
                     </div>
 
                     <button className="md:hidden text-foreground p-2" onClick={() => setIsOpen(!isOpen)}>
