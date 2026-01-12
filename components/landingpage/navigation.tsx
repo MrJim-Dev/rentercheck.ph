@@ -2,13 +2,23 @@
 
 import { Button } from "@/components/ui/button"
 import { AnimatePresence, motion } from "framer-motion"
-import { Menu, X } from "lucide-react"
+import { Menu, X, LogOut } from "lucide-react"
 import NextImage from "next/image"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useTransition } from "react"
+import { useAuth } from "@/lib/auth/auth-provider"
+import { logout } from "@/app/actions/auth"
 
 export function Navigation() {
     const [isOpen, setIsOpen] = useState(false)
+    const [isPending, startTransition] = useTransition()
+    const { user, loading } = useAuth()
+
+    const handleLogout = () => {
+        startTransition(async () => {
+            await logout()
+        })
+    }
 
     return (
         <div className="fixed top-4 left-0 right-0 z-50 flex justify-center px-4">
@@ -63,11 +73,30 @@ export function Navigation() {
                     </div>
 
                     <div className="hidden md:block">
-                        <Link href="/login">
-                            <Button size="sm" className="rounded-full cursor-pointer bg-gradient-to-r from-secondary to-accent hover:from-secondary/90 hover:to-accent/90 text-accent-foreground font-semibold px-5 h-8 text-xs shadow-md hover:shadow-lg transition-all duration-300">
-                                Sign in
-                            </Button>
-                        </Link>
+                        {!loading && (
+                            user ? (
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs text-muted-foreground">
+                                        {user.email}
+                                    </span>
+                                    <Button 
+                                        size="sm" 
+                                        onClick={handleLogout}
+                                        disabled={isPending}
+                                        className="rounded-full cursor-pointer bg-gradient-to-r from-secondary to-accent hover:from-secondary/90 hover:to-accent/90 text-accent-foreground font-semibold px-5 h-8 text-xs shadow-md hover:shadow-lg transition-all duration-300"
+                                    >
+                                        <LogOut className="mr-1.5" size={14} />
+                                        {isPending ? "Signing out..." : "Sign out"}
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Link href="/login">
+                                    <Button size="sm" className="rounded-full cursor-pointer bg-gradient-to-r from-secondary to-accent hover:from-secondary/90 hover:to-accent/90 text-accent-foreground font-semibold px-5 h-8 text-xs shadow-md hover:shadow-lg transition-all duration-300">
+                                        Sign in
+                                    </Button>
+                                </Link>
+                            )
+                        )}
                     </div>
 
                     <button className="md:hidden text-foreground p-2" onClick={() => setIsOpen(!isOpen)}>
@@ -93,9 +122,30 @@ export function Navigation() {
                                 <a href="#trust" className="text-sm font-medium text-muted-foreground hover:text-foreground p-2 hover:bg-white/5 rounded-lg transition-colors" onClick={() => setIsOpen(false)}>
                                     Why us
                                 </a>
-                                <Button size="sm" className="w-full rounded-full bg-gradient-to-r from-secondary to-accent font-semibold">
-                                    Get Started
-                                </Button>
+                                {!loading && (
+                                    user ? (
+                                        <>
+                                            <div className="text-xs text-muted-foreground px-2 py-1">
+                                                {user.email}
+                                            </div>
+                                            <Button 
+                                                size="sm" 
+                                                onClick={handleLogout}
+                                                disabled={isPending}
+                                                className="w-full rounded-full bg-gradient-to-r from-secondary to-accent font-semibold"
+                                            >
+                                                <LogOut className="mr-1.5" size={14} />
+                                                {isPending ? "Signing out..." : "Sign out"}
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Link href="/login">
+                                            <Button size="sm" className="w-full rounded-full bg-gradient-to-r from-secondary to-accent font-semibold">
+                                                Sign in
+                                            </Button>
+                                        </Link>
+                                    )
+                                )}
                             </div>
                         </motion.div>
                     )}

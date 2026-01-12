@@ -4,15 +4,25 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ArrowRight, Github, Lock, Mail } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useTransition } from "react"
+import { login } from "@/app/actions/auth"
 
 export function LoginForm() {
-    const [isLoading, setIsLoading] = useState(false)
+    const [isPending, startTransition] = useTransition()
+    const [error, setError] = useState<string | null>(null)
 
-    async function onSubmit(e: React.FormEvent) {
+    async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
-        setIsLoading(true)
-        setTimeout(() => setIsLoading(false), 2000)
+        setError(null)
+
+        const formData = new FormData(e.currentTarget)
+        
+        startTransition(async () => {
+            const result = await login(formData)
+            if (result?.error) {
+                setError(result.error)
+            }
+        })
     }
 
     return (
@@ -20,6 +30,11 @@ export function LoginForm() {
             <div className="mb-8">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground mb-2">Sign in</h1>
                 <p className="text-sm text-muted-foreground">Enter your credentials to access your account</p>
+                {error && (
+                    <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md">
+                        <p className="text-xs text-destructive">{error}</p>
+                    </div>
+                )}
             </div>
 
             <form onSubmit={onSubmit} className="space-y-4">
@@ -31,6 +46,7 @@ export function LoginForm() {
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 group-focus-within:text-secondary transition-colors" size={16} />
                         <Input
                             type="email"
+                            name="email"
                             placeholder="name@example.com"
                             className="pl-9 h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 transition-all font-medium text-sm"
                             required
@@ -51,6 +67,7 @@ export function LoginForm() {
                     <div className="relative group">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 group-focus-within:text-secondary transition-colors" size={16} />
                         <Input
+                            name="password"
                             type="password"
                             placeholder="••••••••"
                             className="pl-9 h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 transition-all font-medium text-sm"
@@ -61,10 +78,10 @@ export function LoginForm() {
 
                 <Button
                     className="w-full bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity font-bold h-10 mt-2 cursor-pointer"
-                    disabled={isLoading}
+                    disabled={isPending}
                 >
-                    {isLoading ? "Signing in..." : "Sign in"}
-                    {!isLoading && <ArrowRight className="ml-2" size={16} />}
+                    {isPending ? "Signing in..." : "Sign in"}
+                    {!isPending && <ArrowRight className="ml-2" size={16} />}
                 </Button>
             </form>
 
