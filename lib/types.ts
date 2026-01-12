@@ -12,8 +12,13 @@ export type ReportStatus = 'PENDING' | 'VERIFIED' | 'DISPUTED' | 'RESOLVED';
 
 export type IncidentCategory =
     | 'NON_PAYMENT'
+    | 'NON_RETURN'
+    | 'UNPAID_BALANCE'
     | 'PROPERTY_DAMAGE'
+    | 'DAMAGE_DISPUTE'
     | 'LEASE_VIOLATION'
+    | 'FAKE_INFO'
+    | 'THREATS_HARASSMENT'
     | 'ILLEGAL_ACTIVITY'
     | 'OTHER';
 

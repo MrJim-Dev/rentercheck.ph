@@ -38,8 +38,12 @@ export async function updateSession(request: NextRequest) {
   // Protected routes logic
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 
                      request.nextUrl.pathname.startsWith('/signup')
+  const isPublicPage = request.nextUrl.pathname === '/' ||
+                       request.nextUrl.pathname.startsWith('/search') ||
+                       request.nextUrl.pathname.startsWith('/report') ||
+                       request.nextUrl.pathname.startsWith('/renter')
   
-  if (!user && !isAuthPage && request.nextUrl.pathname !== '/') {
+  if (!user && !isAuthPage && !isPublicPage) {
     // If not logged in and trying to access protected route, redirect to home
     const url = request.nextUrl.clone()
     url.pathname = '/'

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, FileWarning } from "lucide-react";
+import Link from "next/link";
 
 export function ImproveAccuracyCard() {
     return (
@@ -28,6 +29,17 @@ export function ImproveAccuracyCard() {
                         <span className="text-xs text-muted-foreground/80">Region, Age Range, etc.</span>
                     </div>
                 </Button>
+                <div className="border-t pt-3 mt-1">
+                    <Link href="/report" className="block">
+                        <Button variant="outline" className="w-full justify-start text-left h-auto py-3 px-4 border-destructive/30 hover:bg-destructive/10 hover:border-destructive/50 group">
+                            <FileWarning className="h-4 w-4 mr-3 text-destructive" />
+                            <div className="flex flex-col items-start gap-1">
+                                <span className="font-medium text-destructive">Report an Incident</span>
+                                <span className="text-xs text-muted-foreground/80 group-hover:text-muted-foreground">Had a bad experience? Let us know</span>
+                            </div>
+                        </Button>
+                    </Link>
+                </div>
             </CardContent>
         </Card>
     );

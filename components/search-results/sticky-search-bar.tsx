@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, LogOut } from "lucide-react";
+import { Search, LogOut, FileWarning } from "lucide-react";
 import { useAuth, signOutClient } from "@/lib/auth/auth-provider";
 import { logout } from "@/app/actions/auth";
 import { useTransition } from "react";
@@ -43,9 +43,16 @@ export function StickySearchBar({ defaultValue = "", onSearch }: StickySearchBar
                         <Button>Search</Button>
                     </div>
                     
+                    <Link href="/report" className="ml-auto">
+                        <Button size="sm" variant="outline" className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                            <FileWarning size={14} />
+                            <span className="hidden sm:inline">Report Incident</span>
+                        </Button>
+                    </Link>
+                    
                     {!loading && (
                         user ? (
-                            <div className="flex items-center gap-3 ml-auto">
+                            <div className="flex items-center gap-3">
                                 <span className="text-sm text-muted-foreground hidden md:inline">
                                     {user.email}
                                 </span>
@@ -61,7 +68,7 @@ export function StickySearchBar({ defaultValue = "", onSearch }: StickySearchBar
                                 </Button>
                             </div>
                         ) : (
-                            <Link href="/login" className="ml-auto">
+                            <Link href="/login">
                                 <Button size="sm" variant="default">
                                     Sign in
                                 </Button>
