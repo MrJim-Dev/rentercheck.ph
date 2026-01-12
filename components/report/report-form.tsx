@@ -43,6 +43,8 @@ import {
     Zap,
     Building,
 } from "lucide-react"
+import { submitIncidentReport, uploadEvidence, type ReportFormData } from "@/app/actions/report"
+import type { Enums } from "@/lib/database.types"
 
 // Incident types matching the spec
 const INCIDENT_TYPES = [
@@ -140,6 +142,8 @@ export function ReportForm() {
     // Form state
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isSubmitted, setIsSubmitted] = useState(false)
+    const [submitError, setSubmitError] = useState<string | null>(null)
+    const [reportId, setReportId] = useState<string | null>(null)
 
     // Validation helpers
     const hasIdentifier = phone.trim() || email.trim() || facebookLink.trim()
@@ -230,14 +234,81 @@ export function ReportForm() {
         setProofFiles(prev => prev.filter(f => f.id !== id))
     }
 
+    // Map proof types to evidence types for the database
+    const proofTypeToEvidenceType = (proofType: ProofType): Enums<"evidence_type"> => {
+        const mapping: Record<ProofType, Enums<"evidence_type">> = {
+            agreement: "RENTAL_AGREEMENT",
+            payment: "PROOF_OF_PAYMENT",
+            conversation: "CONVERSATION",
+            photo: "ITEM_PHOTO",
+            renter_id: "RENTER_ID",
+            renter_photo: "RENTER_PHOTO",
+        }
+        return mapping[proofType]
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!hasRequiredFields) return
 
         setIsSubmitting(true)
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        setIsSubmitted(true)
-        setIsSubmitting(false)
+        setSubmitError(null)
+
+        try {
+            // Prepare form data
+            const formData: ReportFormData = {
+                fullName: fullName.trim(),
+                phone: phone.trim() ? normalizePhone(phone.trim()) : undefined,
+                email: email.trim() || undefined,
+                facebookLink: facebookLink.trim() ? normalizeFacebookLink(facebookLink.trim()) : undefined,
+                renterAddress: renterAddress.trim() || undefined,
+                renterCity: renterCity.trim() || undefined,
+                renterBirthdate: renterBirthdate || undefined,
+                incidentType: incidentType as Enums<"incident_type">,
+                incidentDate: incidentDate,
+                amountInvolved: amountInvolved ? parseFloat(amountInvolved) : undefined,
+                incidentRegion: incidentRegion || undefined,
+                incidentCity: incidentCity.trim() || undefined,
+                incidentPlace: incidentPlace.trim() || undefined,
+                summary: summary.trim(),
+                confirmTruth,
+                confirmBan,
+            }
+
+            // Submit the report
+            const result = await submitIncidentReport(formData)
+
+            if (!result.success || !result.data) {
+                setSubmitError(result.error || "Failed to submit report")
+                setIsSubmitting(false)
+                return
+            }
+
+            const newReportId = result.data.reportId
+            setReportId(newReportId)
+
+            // Upload evidence files
+            const uploadPromises = proofFiles.map(async (proofFile) => {
+                const evidenceType = proofTypeToEvidenceType(proofFile.type)
+                return uploadEvidence(newReportId, evidenceType, proofFile.file)
+            })
+
+            const uploadResults = await Promise.all(uploadPromises)
+            
+            // Check if any uploads failed
+            const failedUploads = uploadResults.filter(r => !r.success)
+            if (failedUploads.length > 0) {
+                console.warn(`${failedUploads.length} evidence files failed to upload`)
+                // Continue anyway - the report is submitted
+            }
+
+            setIsSubmitted(true)
+        } catch (error) {
+            console.error("Error submitting report:", error)
+            setSubmitError("An unexpected error occurred. Please try again.")
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     // Success state
@@ -253,9 +324,14 @@ export function ReportForm() {
                     </div>
 
                     <h2 className="text-2xl font-bold mb-2">Report Submitted!</h2>
-                    <p className="text-muted-foreground mb-6">
+                    <p className="text-muted-foreground mb-2">
                         Your incident report is now under review.
                     </p>
+                    {reportId && (
+                        <p className="text-xs text-muted-foreground mb-4 font-mono">
+                            Report ID: {reportId.slice(0, 8)}...
+                        </p>
+                    )}
 
                     <div className="bg-card border rounded-xl p-5 mb-6 text-left space-y-3">
                         <div className="flex items-center gap-3">
@@ -866,6 +942,17 @@ export function ReportForm() {
                         </div>
                     </label>
                 </div>
+
+                {/* Error message */}
+                {submitError && (
+                    <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30 flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-medium text-destructive text-sm">Submission Failed</p>
+                            <p className="text-sm text-destructive/80">{submitError}</p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Submit button */}
                 <Button

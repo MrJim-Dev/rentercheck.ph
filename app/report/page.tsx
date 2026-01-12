@@ -1,40 +1,14 @@
 "use client"
 
 import { ReportForm } from "@/components/report/report-form"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft, Shield, FileWarning, Clock, CheckCircle } from "lucide-react"
+import { Shield, FileWarning, Clock, CheckCircle } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
+import { AppHeader } from "@/components/shared/app-header"
 
 export default function ReportPage() {
     return (
         <div className="min-h-screen bg-background">
-            {/* Header */}
-            <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/50">
-                <div className="container mx-auto px-4 md:px-6">
-                    <div className="flex items-center justify-between h-16">
-                        <Link href="/" className="flex items-center gap-2">
-                            <Image
-                                src="/logos/rc-logo.svg"
-                                alt="RenterCheck"
-                                width={32}
-                                height={32}
-                                className="w-8 h-8"
-                            />
-                            <span className="font-bold text-lg tracking-tight">
-                                Renter<span className="text-secondary">Check</span>
-                            </span>
-                        </Link>
-
-                        <Button variant="ghost" size="sm" asChild>
-                            <Link href="/search">
-                                <ArrowLeft className="w-4 h-4 mr-2" />
-                                Back to Search
-                            </Link>
-                        </Button>
-                    </div>
-                </div>
-            </header>
+            <AppHeader currentPage="report" />
 
             {/* Main Content */}
             <main className="container mx-auto px-4 md:px-6 py-8 md:py-12">
@@ -111,4 +85,3 @@ export default function ReportPage() {
         </div>
     )
 }
-

@@ -2,19 +2,24 @@
 
 import { ImproveAccuracyCard } from "@/components/search-results/improve-accuracy-card";
 import { ResultCard } from "@/components/search-results/result-card";
-import { StickySearchBar } from "@/components/search-results/sticky-search-bar";
 import { Separator } from "@/components/ui/separator";
 import { searchMockRenters } from "@/lib/mock-data";
 import { RenterProfile } from "@/lib/types";
 import { Lightbulb, SearchX } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { AppHeader } from "@/components/shared/app-header";
 
 function SearchResultsContent() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     const query = searchParams.get("q") || "";
     const [results, setResults] = useState<RenterProfile[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+
+    const handleSearch = (newQuery: string) => {
+        router.push(`/search?q=${encodeURIComponent(newQuery)}`);
+    };
 
     useEffect(() => {
         setIsSearching(true);
@@ -29,7 +34,12 @@ function SearchResultsContent() {
 
     return (
         <div className="min-h-screen bg-muted/10">
-            <StickySearchBar defaultValue={query} />
+            <AppHeader 
+                showSearchBar={true} 
+                searchValue={query} 
+                onSearch={handleSearch}
+                currentPage="search"
+            />
 
             <main className="container mx-auto px-4 md:px-6 py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
