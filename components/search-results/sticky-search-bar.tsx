@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, LogOut } from "lucide-react";
-import { useAuth } from "@/lib/auth/auth-provider";
+import { useAuth, signOutClient } from "@/lib/auth/auth-provider";
 import { logout } from "@/app/actions/auth";
 import { useTransition } from "react";
 import Link from "next/link";
@@ -17,7 +17,10 @@ export function StickySearchBar({ defaultValue = "", onSearch }: StickySearchBar
     const { user, loading } = useAuth();
     const [isPending, startTransition] = useTransition();
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        // First sign out on the client to immediately update UI
+        await signOutClient();
+        // Then call server action to clear server-side cookies
         startTransition(async () => {
             await logout();
         });

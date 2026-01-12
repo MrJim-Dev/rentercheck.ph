@@ -6,7 +6,7 @@ import { Menu, X, LogOut } from "lucide-react"
 import NextImage from "next/image"
 import Link from "next/link"
 import { useState, useTransition } from "react"
-import { useAuth } from "@/lib/auth/auth-provider"
+import { useAuth, signOutClient } from "@/lib/auth/auth-provider"
 import { logout } from "@/app/actions/auth"
 
 export function Navigation() {
@@ -14,7 +14,10 @@ export function Navigation() {
     const [isPending, startTransition] = useTransition()
     const { user, loading } = useAuth()
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        // First sign out on the client to immediately update UI
+        await signOutClient()
+        // Then call server action to clear server-side cookies
         startTransition(async () => {
             await logout()
         })
