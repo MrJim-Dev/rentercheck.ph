@@ -4,10 +4,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { motion } from "framer-motion"
 import { ArrowRight, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 export function HeroSection() {
     const [searchValue, setSearchValue] = useState("")
+    const router = useRouter()
+
+    const handleSearch = () => {
+        if (searchValue.trim()) {
+            router.push(`/search?q=${encodeURIComponent(searchValue)}`)
+        }
+    }
 
     return (
         <section id="hero" className="relative min-h-[90vh] w-full flex items-center justify-center overflow-hidden pt-12 sm:pt-16 px-4 sm:px-6 lg:px-8 bg-background">
@@ -93,6 +101,7 @@ export function HeroSection() {
                                 placeholder="Search by name, email, or phone number..."
                                 value={searchValue}
                                 onChange={(e) => setSearchValue(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                                 autoComplete="off"
                                 className="pl-9 h-9 sm:h-11 bg-transparent border-none text-sm text-foreground placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none autofill:bg-transparent"
                                 style={{
@@ -105,6 +114,7 @@ export function HeroSection() {
                         <Button
                             size="lg"
                             className="bg-gradient-to-r from-secondary to-accent cursor-pointer text-accent-foreground font-semibold h-9 sm:h-11 px-5 text-sm rounded-lg hover:opacity-90 transition-opacity duration-200"
+                            onClick={handleSearch}
                         >
                             Search
                             <ArrowRight className="ml-2" size={14} />
