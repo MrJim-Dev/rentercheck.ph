@@ -86,7 +86,7 @@ const INCIDENT_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
 export default function AdminPage() {
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
     const [adminRole, setAdminRole] = useState<string | null>(null)
-    const [stats, setStats] = useState<Awaited<ReturnType<typeof getAdminStats>>["data"]>(null)
+    const [stats, setStats] = useState<Awaited<ReturnType<typeof getAdminStats>>["data"] | null>(null)
     const [reports, setReports] = useState<Report[]>([])
     const [totalReports, setTotalReports] = useState(0)
     const [isLoading, setIsLoading] = useState(true)

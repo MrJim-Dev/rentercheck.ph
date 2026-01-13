@@ -189,7 +189,7 @@ export default function ReportDetailPage() {
     const status = report.status || "PENDING"
     const statusConfig = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.PENDING
     const StatusIcon = statusConfig.icon
-    const pendingInfoRequests = infoRequests.filter(r => r.status === "PENDING")
+    const pendingInfoRequests = infoRequests.filter(r => !r.is_resolved)
 
     return (
         <div className="min-h-screen bg-background">
