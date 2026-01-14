@@ -55,6 +55,28 @@ const INCIDENT_TYPES = [
     { value: "THREATS_HARASSMENT", label: "Threats/harassment", icon: "⚠️" },
 ] as const
 
+// Rental categories for different types of rental businesses
+const RENTAL_CATEGORIES = [
+    { value: "CAMERA_EQUIPMENT", label: "Camera & Photography", icon: "📷" },
+    { value: "CLOTHING_FASHION", label: "Clothing & Fashion", icon: "👗" },
+    { value: "ELECTRONICS_GADGETS", label: "Electronics & Gadgets", icon: "📱" },
+    { value: "VEHICLE_CAR", label: "Car", icon: "🚗" },
+    { value: "VEHICLE_MOTORCYCLE", label: "Motorcycle", icon: "🏍️" },
+    { value: "VEHICLE_BICYCLE", label: "Bicycle / E-bike", icon: "🚲" },
+    { value: "REAL_ESTATE_CONDO", label: "Condo / Apartment", icon: "🏢" },
+    { value: "REAL_ESTATE_HOUSE", label: "House", icon: "🏠" },
+    { value: "REAL_ESTATE_ROOM", label: "Room / Bedspace", icon: "🛏️" },
+    { value: "FURNITURE_APPLIANCES", label: "Furniture & Appliances", icon: "🪑" },
+    { value: "EVENTS_PARTY", label: "Events & Party", icon: "🎉" },
+    { value: "TOOLS_EQUIPMENT", label: "Tools & Equipment", icon: "🔧" },
+    { value: "SPORTS_OUTDOOR", label: "Sports & Outdoor", icon: "⚽" },
+    { value: "JEWELRY_ACCESSORIES", label: "Jewelry & Accessories", icon: "💍" },
+    { value: "BABY_KIDS", label: "Baby & Kids", icon: "🧸" },
+    { value: "OTHER", label: "Other", icon: "📦" },
+] as const
+
+type RentalCategory = typeof RENTAL_CATEGORIES[number]["value"]
+
 type IncidentType = typeof INCIDENT_TYPES[number]["value"]
 
 interface ProofFile {
@@ -115,6 +137,10 @@ export function ReportForm() {
     const [renterAddress, setRenterAddress] = useState("")
     const [renterCity, setRenterCity] = useState("")
     const [renterBirthdate, setRenterBirthdate] = useState("")
+
+    // Step 2: Rental item details
+    const [rentalCategory, setRentalCategory] = useState<RentalCategory | "">("")
+    const [rentalItemDescription, setRentalItemDescription] = useState("")
 
     // Step 2: Incident details
     const [incidentType, setIncidentType] = useState<IncidentType | "">("")
@@ -264,6 +290,8 @@ export function ReportForm() {
                 renterAddress: renterAddress.trim() || undefined,
                 renterCity: renterCity.trim() || undefined,
                 renterBirthdate: renterBirthdate || undefined,
+                rentalCategory: rentalCategory as Enums<"rental_category"> || undefined,
+                rentalItemDescription: rentalItemDescription.trim() || undefined,
                 incidentType: incidentType as Enums<"incident_type">,
                 incidentDate: incidentDate,
                 amountInvolved: amountInvolved ? parseFloat(amountInvolved) : undefined,
@@ -568,7 +596,53 @@ export function ReportForm() {
                     </div>
                     <div>
                         <h2 className="font-semibold text-lg">What Happened?</h2>
-                        <p className="text-sm text-muted-foreground">Describe the incident</p>
+                        <p className="text-sm text-muted-foreground">Describe the incident and item rented</p>
+                    </div>
+                </div>
+
+                {/* Rental Category & Item */}
+                <div className="bg-muted/30 rounded-lg p-4 border border-dashed space-y-4">
+                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <span className="text-lg">🏷️</span>
+                        What was rented?
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Category */}
+                        <div className="space-y-2">
+                            <Label htmlFor="rentalCategory" className="text-sm">
+                                Rental Category
+                            </Label>
+                            <Select value={rentalCategory} onValueChange={(v) => setRentalCategory(v as RentalCategory)}>
+                                <SelectTrigger className="h-10 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
+                                    <SelectValue placeholder="Select category..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {RENTAL_CATEGORIES.map((cat) => (
+                                        <SelectItem key={cat.value} value={cat.value}>
+                                            <span className="flex items-center gap-2">
+                                                <span>{cat.icon}</span>
+                                                <span>{cat.label}</span>
+                                            </span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Specific item */}
+                        <div className="space-y-2">
+                            <Label htmlFor="rentalItemDescription" className="text-sm">
+                                Item Description
+                            </Label>
+                            <Input
+                                id="rentalItemDescription"
+                                value={rentalItemDescription}
+                                onChange={(e) => setRentalItemDescription(e.target.value)}
+                                placeholder="e.g., Canon EOS R5, 2BR Condo, Honda Click"
+                                className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                            />
+                        </div>
                     </div>
                 </div>
 

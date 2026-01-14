@@ -70,6 +70,8 @@ export type Database = {
           matched_by: string | null
           published_at: string | null
           rejection_reason: string | null
+          rental_category: Database["public"]["Enums"]["rental_category"] | null
+          rental_item_description: string | null
           renter_id: string | null
           reported_address: string | null
           reported_city: string | null
@@ -114,6 +116,8 @@ export type Database = {
           matched_by?: string | null
           published_at?: string | null
           rejection_reason?: string | null
+          rental_category?: Database["public"]["Enums"]["rental_category"] | null
+          rental_item_description?: string | null
           renter_id?: string | null
           reported_address?: string | null
           reported_city?: string | null
@@ -158,6 +162,8 @@ export type Database = {
           matched_by?: string | null
           published_at?: string | null
           rejection_reason?: string | null
+          rental_category?: Database["public"]["Enums"]["rental_category"] | null
+          rental_item_description?: string | null
           renter_id?: string | null
           reported_address?: string | null
           reported_city?: string | null
@@ -394,6 +400,7 @@ export type Database = {
       }
       report_evidence: {
         Row: {
+          amendment_id: string | null
           contains_pii: boolean | null
           display_order: number | null
           evidence_type: Database["public"]["Enums"]["evidence_type"]
@@ -415,6 +422,7 @@ export type Database = {
           uploaded_by: string
         }
         Insert: {
+          amendment_id?: string | null
           contains_pii?: boolean | null
           display_order?: number | null
           evidence_type: Database["public"]["Enums"]["evidence_type"]
@@ -436,6 +444,7 @@ export type Database = {
           uploaded_by: string
         }
         Update: {
+          amendment_id?: string | null
           contains_pii?: boolean | null
           display_order?: number | null
           evidence_type?: Database["public"]["Enums"]["evidence_type"]
@@ -568,6 +577,62 @@ export type Database = {
           },
         ]
       }
+      report_amendments: {
+        Row: {
+          id: string
+          report_id: string
+          reporter_id: string
+          amendment_type: Database["public"]["Enums"]["amendment_type"]
+          status: Database["public"]["Enums"]["amendment_status"]
+          changes_json: Json
+          reporter_notes: string | null
+          admin_notes: string | null
+          rejection_reason: string | null
+          created_at: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          merged_at: string | null
+        }
+        Insert: {
+          id?: string
+          report_id: string
+          reporter_id: string
+          amendment_type: Database["public"]["Enums"]["amendment_type"]
+          status?: Database["public"]["Enums"]["amendment_status"]
+          changes_json?: Json
+          reporter_notes?: string | null
+          admin_notes?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          merged_at?: string | null
+        }
+        Update: {
+          id?: string
+          report_id?: string
+          reporter_id?: string
+          amendment_type?: Database["public"]["Enums"]["amendment_type"]
+          status?: Database["public"]["Enums"]["amendment_status"]
+          changes_json?: Json
+          reporter_notes?: string | null
+          admin_notes?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          merged_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_amendments_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "incident_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_info_requests: {
         Row: {
           created_at: string | null
@@ -642,6 +707,28 @@ export type Database = {
       }
     }
     Views: {
+      admin_pending_amendments: {
+        Row: {
+          id: string | null
+          report_id: string | null
+          reporter_id: string | null
+          amendment_type: Database["public"]["Enums"]["amendment_type"] | null
+          status: Database["public"]["Enums"]["amendment_status"] | null
+          changes_json: Json | null
+          reporter_notes: string | null
+          admin_notes: string | null
+          rejection_reason: string | null
+          created_at: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          merged_at: string | null
+          renter_name: string | null
+          incident_type: Database["public"]["Enums"]["incident_type"] | null
+          report_status: Database["public"]["Enums"]["report_status"] | null
+          evidence_count: number | null
+        }
+        Relationships: []
+      }
       admin_pending_reports: {
         Row: {
           admin_notes: string | null
@@ -740,7 +827,10 @@ export type Database = {
           matched_at: string | null
           matched_by: string | null
           pending_requests: number | null
+          published_at: string | null
           rejection_reason: string | null
+          rental_category: Database["public"]["Enums"]["rental_category"] | null
+          rental_item_description: string | null
           renter_fingerprint: string | null
           renter_id: string | null
           renter_name: string | null
@@ -762,6 +852,8 @@ export type Database = {
           summary: string | null
           updated_at: string | null
           user_agent: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
         }
         Relationships: [
           {
@@ -882,6 +974,23 @@ export type Database = {
         | "THREATS_HARASSMENT"
         | "OTHER"
       match_confidence: "LOW" | "MEDIUM" | "HIGH" | "EXACT"
+      rental_category:
+        | "CAMERA_EQUIPMENT"
+        | "CLOTHING_FASHION"
+        | "ELECTRONICS_GADGETS"
+        | "VEHICLE_CAR"
+        | "VEHICLE_MOTORCYCLE"
+        | "VEHICLE_BICYCLE"
+        | "REAL_ESTATE_CONDO"
+        | "REAL_ESTATE_HOUSE"
+        | "REAL_ESTATE_ROOM"
+        | "FURNITURE_APPLIANCES"
+        | "EVENTS_PARTY"
+        | "TOOLS_EQUIPMENT"
+        | "SPORTS_OUTDOOR"
+        | "JEWELRY_ACCESSORIES"
+        | "BABY_KIDS"
+        | "OTHER"
       report_status:
         | "DRAFT"
         | "PENDING"
@@ -890,6 +999,15 @@ export type Database = {
         | "REJECTED"
         | "DISPUTED"
         | "RESOLVED"
+      amendment_status:
+        | "PENDING"
+        | "APPROVED"
+        | "REJECTED"
+      amendment_type:
+        | "ADDITIONAL_INFO"
+        | "NEW_EVIDENCE"
+        | "CORRECTION"
+        | "NEW_IDENTIFIER"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1029,6 +1147,17 @@ export const Constants = {
         "REPORT_MERGED",
         "REPORTER_CONTACTED",
       ],
+      amendment_status: [
+        "PENDING",
+        "APPROVED",
+        "REJECTED",
+      ],
+      amendment_type: [
+        "ADDITIONAL_INFO",
+        "NEW_EVIDENCE",
+        "CORRECTION",
+        "NEW_IDENTIFIER",
+      ],
       evidence_type: [
         "RENTAL_AGREEMENT",
         "PROOF_OF_PAYMENT",
@@ -1048,6 +1177,24 @@ export const Constants = {
         "OTHER",
       ],
       match_confidence: ["LOW", "MEDIUM", "HIGH", "EXACT"],
+      rental_category: [
+        "CAMERA_EQUIPMENT",
+        "CLOTHING_FASHION",
+        "ELECTRONICS_GADGETS",
+        "VEHICLE_CAR",
+        "VEHICLE_MOTORCYCLE",
+        "VEHICLE_BICYCLE",
+        "REAL_ESTATE_CONDO",
+        "REAL_ESTATE_HOUSE",
+        "REAL_ESTATE_ROOM",
+        "FURNITURE_APPLIANCES",
+        "EVENTS_PARTY",
+        "TOOLS_EQUIPMENT",
+        "SPORTS_OUTDOOR",
+        "JEWELRY_ACCESSORIES",
+        "BABY_KIDS",
+        "OTHER",
+      ],
       report_status: [
         "DRAFT",
         "PENDING",

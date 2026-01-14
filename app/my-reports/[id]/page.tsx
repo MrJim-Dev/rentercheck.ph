@@ -1,14 +1,30 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useEffect, useState, useCallback, useRef } from "react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 import { AppHeader } from "@/components/shared/app-header"
-import { getReportById, getEvidenceUrl } from "@/app/actions/report"
-import type { Database } from "@/lib/database.types"
+import { 
+    getReportById, 
+    getEvidenceUrl, 
+    createAmendment, 
+    uploadAmendmentEvidence,
+    deleteAmendment,
+    type AmendmentFormData 
+} from "@/app/actions/report"
+import type { Database, Enums } from "@/lib/database.types"
 import {
     ArrowLeft,
     Calendar,
@@ -24,7 +40,6 @@ import {
     AlertTriangle,
     Eye,
     MessageSquare,
-    Download,
     ExternalLink,
     ImageIcon,
     FileIcon,
@@ -32,11 +47,60 @@ import {
     DollarSign,
     Home,
     Cake,
+    Plus,
+    Upload,
+    X,
+    ChevronDown,
+    ChevronUp,
+    PenLine,
+    Trash2,
 } from "lucide-react"
 
 type Report = Database["public"]["Tables"]["incident_reports"]["Row"]
 type Evidence = Database["public"]["Tables"]["report_evidence"]["Row"]
 type InfoRequest = Database["public"]["Tables"]["report_info_requests"]["Row"]
+type Amendment = Database["public"]["Tables"]["report_amendments"]["Row"]
+
+const AMENDMENT_TYPE_LABELS: Record<string, { label: string; description: string; icon: string }> = {
+    ADDITIONAL_INFO: { 
+        label: "Additional Information", 
+        description: "Add more details to your report",
+        icon: "📝" 
+    },
+    NEW_EVIDENCE: { 
+        label: "New Evidence", 
+        description: "Upload additional proof or documents",
+        icon: "📎" 
+    },
+    CORRECTION: { 
+        label: "Correction", 
+        description: "Fix an error in your report",
+        icon: "✏️" 
+    },
+    NEW_IDENTIFIER: { 
+        label: "New Contact Info", 
+        description: "Add phone, email, or social media",
+        icon: "📱" 
+    },
+}
+
+const AMENDMENT_STATUS_CONFIG = {
+    PENDING: {
+        label: "Pending Review",
+        color: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+        icon: Clock,
+    },
+    APPROVED: {
+        label: "Approved",
+        color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+        icon: CheckCircle2,
+    },
+    REJECTED: {
+        label: "Rejected",
+        color: "bg-red-500/20 text-red-300 border-red-500/30",
+        icon: XCircle,
+    },
+}
 
 const STATUS_CONFIG = {
     DRAFT: {
@@ -96,6 +160,25 @@ const INCIDENT_TYPE_LABELS: Record<string, string> = {
     OTHER: "Other",
 }
 
+const RENTAL_CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
+    CAMERA_EQUIPMENT: { label: "Camera & Photography", icon: "📷" },
+    CLOTHING_FASHION: { label: "Clothing & Fashion", icon: "👗" },
+    ELECTRONICS_GADGETS: { label: "Electronics & Gadgets", icon: "📱" },
+    VEHICLE_CAR: { label: "Car", icon: "🚗" },
+    VEHICLE_MOTORCYCLE: { label: "Motorcycle", icon: "🏍️" },
+    VEHICLE_BICYCLE: { label: "Bicycle / E-bike", icon: "🚲" },
+    REAL_ESTATE_CONDO: { label: "Condo / Apartment", icon: "🏢" },
+    REAL_ESTATE_HOUSE: { label: "House", icon: "🏠" },
+    REAL_ESTATE_ROOM: { label: "Room / Bedspace", icon: "🛏️" },
+    FURNITURE_APPLIANCES: { label: "Furniture & Appliances", icon: "🪑" },
+    EVENTS_PARTY: { label: "Events & Party", icon: "🎉" },
+    TOOLS_EQUIPMENT: { label: "Tools & Equipment", icon: "🔧" },
+    SPORTS_OUTDOOR: { label: "Sports & Outdoor", icon: "⚽" },
+    JEWELRY_ACCESSORIES: { label: "Jewelry & Accessories", icon: "💍" },
+    BABY_KIDS: { label: "Baby & Kids", icon: "🧸" },
+    OTHER: { label: "Other", icon: "📦" },
+}
+
 const EVIDENCE_TYPE_LABELS: Record<string, string> = {
     RENTAL_AGREEMENT: "Rental Agreement",
     PAYMENT_PROOF: "Proof of Payment",
@@ -109,37 +192,65 @@ const EVIDENCE_TYPE_LABELS: Record<string, string> = {
 export default function ReportDetailPage() {
     const params = useParams()
     const router = useRouter()
+    const searchParams = useSearchParams()
     const reportId = params.id as string
+    const shouldOpenEdit = searchParams.get("action") === "edit"
 
     const [report, setReport] = useState<Report | null>(null)
     const [evidence, setEvidence] = useState<Evidence[]>([])
     const [infoRequests, setInfoRequests] = useState<InfoRequest[]>([])
+    const [amendments, setAmendments] = useState<Amendment[]>([])
+    const [amendmentEvidence, setAmendmentEvidence] = useState<Record<string, Evidence[]>>({})
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [loadingEvidence, setLoadingEvidence] = useState<string | null>(null)
 
-    useEffect(() => {
-        async function fetchReport() {
-            setIsLoading(true)
-            setError(null)
+    // Amendment form state
+    const [showAmendmentForm, setShowAmendmentForm] = useState(false)
+    const [amendmentType, setAmendmentType] = useState<Enums<"amendment_type"> | "">("")
+    const [amendmentNotes, setAmendmentNotes] = useState("")
+    const [amendmentChanges, setAmendmentChanges] = useState<AmendmentFormData["changes"]>({})
+    const [amendmentFiles, setAmendmentFiles] = useState<File[]>([])
+    const [isSubmittingAmendment, setIsSubmittingAmendment] = useState(false)
+    const [amendmentError, setAmendmentError] = useState<string | null>(null)
+    const [deletingAmendmentId, setDeletingAmendmentId] = useState<string | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
-            const result = await getReportById(reportId)
+    const fetchReport = useCallback(async () => {
+        setIsLoading(true)
+        setError(null)
 
-            if (result.success && result.data) {
-                setReport(result.data.report)
-                setEvidence(result.data.evidence)
-                setInfoRequests(result.data.infoRequests)
-            } else {
-                setError(result.error || "Failed to load report")
-            }
+        const result = await getReportById(reportId)
 
-            setIsLoading(false)
+        if (result.success && result.data) {
+            setReport(result.data.report)
+            setEvidence(result.data.evidence)
+            setInfoRequests(result.data.infoRequests)
+            setAmendments(result.data.amendments)
+            setAmendmentEvidence(result.data.amendmentEvidence)
+        } else {
+            setError(result.error || "Failed to load report")
         }
 
+        setIsLoading(false)
+    }, [reportId])
+
+    useEffect(() => {
         if (reportId) {
             fetchReport()
         }
-    }, [reportId])
+    }, [reportId, fetchReport])
+
+    // Auto-expand amendment form when ?action=edit
+    useEffect(() => {
+        if (shouldOpenEdit && report && !showAmendmentForm) {
+            setShowAmendmentForm(true)
+            // Scroll to the amendment section
+            setTimeout(() => {
+                document.getElementById("amendments-section")?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }, 100)
+        }
+    }, [shouldOpenEdit, report])
 
     const handleViewEvidence = async (ev: Evidence) => {
         setLoadingEvidence(ev.id)
@@ -152,6 +263,113 @@ export default function ReportDetailPage() {
             console.error("Failed to get evidence URL:", err)
         }
         setLoadingEvidence(null)
+    }
+
+    const resetAmendmentForm = () => {
+        setAmendmentType("")
+        setAmendmentNotes("")
+        setAmendmentChanges({})
+        setAmendmentFiles([])
+        setAmendmentError(null)
+        setShowAmendmentForm(false)
+    }
+
+    const handleSubmitAmendment = async () => {
+        if (!amendmentType) {
+            setAmendmentError("Please select what type of information you're adding")
+            return
+        }
+
+        // For NEW_EVIDENCE, require at least one file
+        if (amendmentType === "NEW_EVIDENCE" && amendmentFiles.length === 0) {
+            setAmendmentError("Please upload at least one file")
+            return
+        }
+
+        // For ADDITIONAL_INFO or CORRECTION, require some text
+        if ((amendmentType === "ADDITIONAL_INFO" || amendmentType === "CORRECTION") && 
+            !amendmentChanges.additionalNotes?.trim()) {
+            setAmendmentError("Please provide the additional information or correction")
+            return
+        }
+
+        // For NEW_IDENTIFIER, require at least one identifier
+        if (amendmentType === "NEW_IDENTIFIER" && 
+            !amendmentChanges.phone && !amendmentChanges.email && !amendmentChanges.facebookLink) {
+            setAmendmentError("Please provide at least one contact identifier")
+            return
+        }
+
+        setIsSubmittingAmendment(true)
+        setAmendmentError(null)
+
+        try {
+            // Create the amendment
+            const result = await createAmendment({
+                reportId,
+                amendmentType: amendmentType as Enums<"amendment_type">,
+                changes: amendmentChanges,
+                reporterNotes: amendmentNotes || undefined,
+            })
+
+            if (!result.success || !result.data) {
+                setAmendmentError(result.error || "Failed to create amendment")
+                setIsSubmittingAmendment(false)
+                return
+            }
+
+            const amendmentId = result.data.amendmentId
+
+            // Upload files if any
+            if (amendmentFiles.length > 0) {
+                for (const file of amendmentFiles) {
+                    const uploadResult = await uploadAmendmentEvidence(
+                        reportId,
+                        amendmentId,
+                        "OTHER", // Default type for amendment evidence
+                        file
+                    )
+                    if (!uploadResult.success) {
+                        console.error("Failed to upload file:", uploadResult.error)
+                    }
+                }
+            }
+
+            // Refresh the report data
+            await fetchReport()
+            resetAmendmentForm()
+        } catch (err) {
+            console.error("Error submitting amendment:", err)
+            setAmendmentError("An unexpected error occurred")
+        } finally {
+            setIsSubmittingAmendment(false)
+        }
+    }
+
+    const handleDeleteAmendment = async (amendmentId: string) => {
+        setDeletingAmendmentId(amendmentId)
+        try {
+            const result = await deleteAmendment(amendmentId)
+            if (result.success) {
+                await fetchReport()
+            } else {
+                alert(result.error || "Failed to delete amendment")
+            }
+        } catch (err) {
+            console.error("Error deleting amendment:", err)
+        } finally {
+            setDeletingAmendmentId(null)
+        }
+    }
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            setAmendmentFiles(prev => [...prev, ...Array.from(e.target.files!)])
+        }
+    }
+
+    const removeFile = (index: number) => {
+        setAmendmentFiles(prev => prev.filter((_, i) => i !== index))
     }
 
     if (isLoading) {
@@ -226,10 +444,27 @@ export default function ReportDetailPage() {
                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center ${statusConfig.color}`}>
                                     <StatusIcon className="w-6 h-6" />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <h3 className="font-semibold mb-1">{statusConfig.label}</h3>
                                     <p className="text-sm text-muted-foreground">{statusConfig.description}</p>
                                 </div>
+                                {/* Quick Add Details Button */}
+                                {!showAmendmentForm && (
+                                    <Button 
+                                        size="sm" 
+                                        variant="secondary"
+                                        onClick={() => {
+                                            setShowAmendmentForm(true)
+                                            setTimeout(() => {
+                                                document.getElementById("amendments-section")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                                            }, 100)
+                                        }}
+                                        className="gap-2 shrink-0"
+                                    >
+                                        <PenLine className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Add Details</span>
+                                    </Button>
+                                )}
                             </div>
                         </div>
 
@@ -322,6 +557,30 @@ export default function ReportDetailPage() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Rental Item Details */}
+                        {(report.rental_category || report.rental_item_description) && (
+                            <div className="bg-card border rounded-xl p-6">
+                                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                    <span className="text-xl">🏷️</span>
+                                    Rented Item
+                                </h2>
+
+                                <div className="flex flex-wrap gap-3">
+                                    {report.rental_category && (
+                                        <Badge variant="secondary" className="text-sm gap-1.5">
+                                            <span>{RENTAL_CATEGORY_LABELS[report.rental_category]?.icon || "📦"}</span>
+                                            {RENTAL_CATEGORY_LABELS[report.rental_category]?.label || report.rental_category}
+                                        </Badge>
+                                    )}
+                                    {report.rental_item_description && (
+                                        <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg">
+                                            <p className="text-sm font-medium">{report.rental_item_description}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Incident Details */}
                         <div className="bg-card border rounded-xl p-6">
@@ -422,6 +681,343 @@ export default function ReportDetailPage() {
                                                         <ExternalLink className="w-4 h-4" />
                                                     )}
                                                 </Button>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Amendments Section */}
+                        <div id="amendments-section" className="bg-card border rounded-xl p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-semibold flex items-center gap-2">
+                                    <PenLine className="w-5 h-5 text-muted-foreground" />
+                                    Updates & Amendments
+                                    {amendments.length > 0 && (
+                                        <span className="text-sm font-normal text-muted-foreground">({amendments.length})</span>
+                                    )}
+                                </h2>
+                                {!showAmendmentForm && (
+                                    <Button 
+                                        size="sm" 
+                                        className="gap-2 bg-secondary hover:bg-secondary/90"
+                                        onClick={() => setShowAmendmentForm(true)}
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Add More Details
+                                    </Button>
+                                )}
+                            </div>
+
+                            {/* Amendment Form */}
+                            {showAmendmentForm && (
+                                <div className="mb-6 p-4 bg-muted/30 rounded-xl border border-dashed space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="font-medium">Add New Information</h3>
+                                        <Button size="sm" variant="ghost" onClick={resetAmendmentForm}>
+                                            <X className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+
+                                    {/* Amendment Type Selection */}
+                                    <div className="space-y-2">
+                                        <Label>What would you like to add?</Label>
+                                        <div className="grid sm:grid-cols-2 gap-2">
+                                            {Object.entries(AMENDMENT_TYPE_LABELS).map(([type, config]) => (
+                                                <button
+                                                    key={type}
+                                                    type="button"
+                                                    onClick={() => setAmendmentType(type as Enums<"amendment_type">)}
+                                                    className={`p-3 rounded-lg border text-left transition-colors ${
+                                                        amendmentType === type
+                                                            ? "border-secondary bg-secondary/10"
+                                                            : "border-border hover:border-secondary/50"
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-lg">{config.icon}</span>
+                                                        <span className="text-sm font-medium">{config.label}</span>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground mt-1">{config.description}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Dynamic Form Fields based on type */}
+                                    {amendmentType === "ADDITIONAL_INFO" && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="additionalInfo">Additional Information</Label>
+                                            <Textarea
+                                                id="additionalInfo"
+                                                placeholder="Provide any additional details that would help verify this report..."
+                                                value={amendmentChanges.additionalNotes || ""}
+                                                onChange={(e) => setAmendmentChanges(prev => ({ ...prev, additionalNotes: e.target.value }))}
+                                                rows={4}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {amendmentType === "CORRECTION" && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="correction">What needs to be corrected?</Label>
+                                            <Textarea
+                                                id="correction"
+                                                placeholder="Explain what information was incorrect and what the correct information is..."
+                                                value={amendmentChanges.additionalNotes || ""}
+                                                onChange={(e) => setAmendmentChanges(prev => ({ ...prev, additionalNotes: e.target.value }))}
+                                                rows={4}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {amendmentType === "NEW_IDENTIFIER" && (
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="newPhone">Phone Number</Label>
+                                                <Input
+                                                    id="newPhone"
+                                                    placeholder="09XX XXX XXXX"
+                                                    value={amendmentChanges.phone || ""}
+                                                    onChange={(e) => setAmendmentChanges(prev => ({ ...prev, phone: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="newEmail">Email Address</Label>
+                                                <Input
+                                                    id="newEmail"
+                                                    type="email"
+                                                    placeholder="example@email.com"
+                                                    value={amendmentChanges.email || ""}
+                                                    onChange={(e) => setAmendmentChanges(prev => ({ ...prev, email: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="newFacebook">Facebook Profile</Label>
+                                                <Input
+                                                    id="newFacebook"
+                                                    placeholder="https://facebook.com/username"
+                                                    value={amendmentChanges.facebookLink || ""}
+                                                    onChange={(e) => setAmendmentChanges(prev => ({ ...prev, facebookLink: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {amendmentType === "NEW_EVIDENCE" && (
+                                        <div className="space-y-3">
+                                            <Label>Upload Files</Label>
+                                            <div 
+                                                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-secondary/50 transition-colors"
+                                                onClick={() => fileInputRef.current?.click()}
+                                            >
+                                                <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                                                <p className="text-sm text-muted-foreground">
+                                                    Click to upload or drag and drop
+                                                </p>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Images, PDFs, or documents
+                                                </p>
+                                            </div>
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                multiple
+                                                className="hidden"
+                                                onChange={handleFileChange}
+                                                accept="image/*,.pdf,.doc,.docx"
+                                            />
+                                            {amendmentFiles.length > 0 && (
+                                                <div className="space-y-2">
+                                                    {amendmentFiles.map((file, idx) => (
+                                                        <div key={idx} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                                                            <FileIcon className="w-4 h-4 text-muted-foreground" />
+                                                            <span className="text-sm flex-1 truncate">{file.name}</span>
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="ghost" 
+                                                                onClick={() => removeFile(idx)}
+                                                                className="h-6 w-6 p-0"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </Button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Optional note for all types */}
+                                    {amendmentType && amendmentType !== "ADDITIONAL_INFO" && amendmentType !== "CORRECTION" && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="notes">Additional Notes (optional)</Label>
+                                            <Textarea
+                                                id="notes"
+                                                placeholder="Any additional context you'd like to provide..."
+                                                value={amendmentNotes}
+                                                onChange={(e) => setAmendmentNotes(e.target.value)}
+                                                rows={2}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {amendmentError && (
+                                        <p className="text-sm text-destructive">{amendmentError}</p>
+                                    )}
+
+                                    <div className="flex gap-2 pt-2">
+                                        <Button 
+                                            onClick={handleSubmitAmendment}
+                                            disabled={isSubmittingAmendment || !amendmentType}
+                                            className="gap-2"
+                                        >
+                                            {isSubmittingAmendment ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Plus className="w-4 h-4" />
+                                            )}
+                                            Submit for Review
+                                        </Button>
+                                        <Button variant="ghost" onClick={resetAmendmentForm}>
+                                            Cancel
+                                        </Button>
+                                    </div>
+
+                                    <p className="text-xs text-muted-foreground">
+                                        Note: New information will be reviewed by our team before being added to your report.
+                                        {report?.status === "APPROVED" && " This won't affect the already published report until approved."}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Existing Amendments List */}
+                            {amendments.length === 0 && !showAmendmentForm ? (
+                                <p className="text-sm text-muted-foreground text-center py-6">
+                                    No amendments submitted yet. Click "Add More Details" to provide additional information.
+                                </p>
+                            ) : amendments.length > 0 && (
+                                <div className="space-y-3">
+                                    {amendments.map((amendment) => {
+                                        const typeConfig = AMENDMENT_TYPE_LABELS[amendment.amendment_type]
+                                        const statusConfig = AMENDMENT_STATUS_CONFIG[amendment.status as keyof typeof AMENDMENT_STATUS_CONFIG]
+                                        const StatusIcon = statusConfig?.icon || Clock
+                                        const amendEvidence = amendmentEvidence[amendment.id] || []
+                                        const changes = amendment.changes_json as AmendmentFormData["changes"]
+
+                                        return (
+                                            <div key={amendment.id} className="p-4 bg-muted/20 rounded-lg border">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex items-start gap-3">
+                                                        <span className="text-xl">{typeConfig?.icon || "📝"}</span>
+                                                        <div>
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-medium text-sm">
+                                                                    {typeConfig?.label || amendment.amendment_type}
+                                                                </span>
+                                                                <Badge className={`${statusConfig?.color} border text-xs`}>
+                                                                    <StatusIcon className="w-3 h-3 mr-1" />
+                                                                    {statusConfig?.label}
+                                                                </Badge>
+                                                            </div>
+                                                            <p className="text-xs text-muted-foreground mt-1">
+                                                                Submitted {new Date(amendment.created_at).toLocaleDateString()}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {amendment.status === "PENDING" && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="text-destructive hover:text-destructive h-7 w-7 p-0"
+                                                            onClick={() => handleDeleteAmendment(amendment.id)}
+                                                            disabled={deletingAmendmentId === amendment.id}
+                                                        >
+                                                            {deletingAmendmentId === amendment.id ? (
+                                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="w-4 h-4" />
+                                                            )}
+                                                        </Button>
+                                                    )}
+                                                </div>
+
+                                                {/* Show changes content */}
+                                                {changes.additionalNotes && (
+                                                    <p className="text-sm mt-3 bg-muted/30 p-3 rounded-lg">
+                                                        {changes.additionalNotes}
+                                                    </p>
+                                                )}
+
+                                                {/* New identifiers */}
+                                                {(changes.phone || changes.email || changes.facebookLink) && (
+                                                    <div className="flex flex-wrap gap-2 mt-3">
+                                                        {changes.phone && (
+                                                            <Badge variant="outline" className="text-xs gap-1">
+                                                                <Phone className="w-3 h-3" />
+                                                                {changes.phone}
+                                                            </Badge>
+                                                        )}
+                                                        {changes.email && (
+                                                            <Badge variant="outline" className="text-xs gap-1">
+                                                                <Mail className="w-3 h-3" />
+                                                                {changes.email}
+                                                            </Badge>
+                                                        )}
+                                                        {changes.facebookLink && (
+                                                            <Badge variant="outline" className="text-xs gap-1">
+                                                                <Facebook className="w-3 h-3" />
+                                                                Facebook
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Reporter notes */}
+                                                {amendment.reporter_notes && (
+                                                    <p className="text-xs text-muted-foreground mt-2 italic">
+                                                        "{amendment.reporter_notes}"
+                                                    </p>
+                                                )}
+
+                                                {/* Amendment evidence */}
+                                                {amendEvidence.length > 0 && (
+                                                    <div className="mt-3 pt-3 border-t border-border/50">
+                                                        <p className="text-xs text-muted-foreground mb-2">
+                                                            {amendEvidence.length} file{amendEvidence.length !== 1 ? "s" : ""} attached
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {amendEvidence.map((ev) => (
+                                                                <button
+                                                                    key={ev.id}
+                                                                    onClick={() => handleViewEvidence(ev)}
+                                                                    className="flex items-center gap-1.5 px-2 py-1 bg-muted/50 rounded text-xs hover:bg-muted transition-colors"
+                                                                >
+                                                                    <FileIcon className="w-3 h-3" />
+                                                                    <span className="truncate max-w-[100px]">{ev.file_name}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Rejection reason */}
+                                                {amendment.status === "REJECTED" && amendment.rejection_reason && (
+                                                    <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                                                        <p className="text-xs text-red-300 font-medium">Rejection Reason:</p>
+                                                        <p className="text-xs text-red-200/70 mt-1">{amendment.rejection_reason}</p>
+                                                    </div>
+                                                )}
+
+                                                {/* Admin notes */}
+                                                {amendment.admin_notes && (
+                                                    <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                                        <p className="text-xs text-blue-300 font-medium">Admin Note:</p>
+                                                        <p className="text-xs text-blue-200/70 mt-1">{amendment.admin_notes}</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         )
                                     })}
