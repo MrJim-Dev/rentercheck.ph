@@ -1,8 +1,8 @@
-import type React from "react"
+import { AuthProvider } from "@/lib/auth/auth-provider"
+import { Analytics } from "@vercel/analytics/next"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
-import { AuthProvider } from "@/lib/auth/auth-provider"
+import type React from "react"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -23,18 +23,18 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({
-                                       children,
-                                   }: Readonly<{
+    children,
+}: Readonly<{
     children: React.ReactNode
 }>) {
     return (
         <html lang="en" className="dark">
-        <body className={`${_geist.className} font-sans antialiased`}>
-        <AuthProvider>
-            {children}
-        </AuthProvider>
-        <Analytics />
-        </body>
+            <body className={`${_geist.className} font-sans antialiased`}>
+                <AuthProvider>
+                    {children}
+                </AuthProvider>
+                <Analytics />
+            </body>
         </html>
     )
 }
