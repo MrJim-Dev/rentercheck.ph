@@ -1,5 +1,5 @@
 "use client"
-
+import NextImage from "next/image"
 import { motion } from "framer-motion"
 
 export function Footer() {
@@ -16,9 +16,26 @@ export function Footer() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-x-6 md:gap-y-8 lg:gap-x-8 mb-6">
                     {/* Brand section */}
                     <div className="flex flex-col gap-3">
-                        <h3 className="text-base md:text-lg font-bold bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent">
-                            rentercheck.ph
-                        </h3>
+                        <div
+                                                className="flex items-center gap-2 cursor-pointer"
+                                                onClick={() => {
+                                                    const element = document.getElementById("hero");
+                                                    if (element) {
+                                                        element.scrollIntoView({ behavior: "smooth" });
+                                                    }
+                                                }}
+                                            >
+                                                <div className="relative w-8 h-8">
+                                                    <NextImage
+                                                        src="/logos/rc-logo.svg"
+                                                        alt="RenterCheck Logo"
+                                                        fill
+                                                        className="object-contain"
+                                                    />
+                                                </div>
+                                                <span className="text-base font-bold tracking-tight text-foreground">Renter<span className="text-secondary">Check</span>
+                                                </span>
+                                            </div>
                         <p className="text-muted-foreground text-[10px] md:text-xs leading-relaxed max-w-xs">
                             Verify rental clients with confidence. Fast, accurate, reliable.
                         </p>

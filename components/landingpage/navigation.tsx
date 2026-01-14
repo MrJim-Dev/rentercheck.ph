@@ -52,14 +52,9 @@ export function Navigation() {
             >
                 <div className="px-5 h-14 flex items-center justify-between">
                     {/* Logo */}
-                    <div
+                    <Link
                         className="flex items-center gap-2 cursor-pointer"
-                        onClick={() => {
-                            const element = document.getElementById("hero");
-                            if (element) {
-                                element.scrollIntoView({ behavior: "smooth" });
-                            }
-                        }}
+                        href="/"
                     >
                         <div className="relative w-8 h-8">
                             <NextImage
@@ -71,7 +66,7 @@ export function Navigation() {
                         </div>
                         <span className="text-base font-bold tracking-tight text-foreground">Renter<span className="text-secondary">Check</span>
                         </span>
-                    </div>
+                    </Link>
 
                     {/* Desktop Navigation */}
                     <div className="hidden md:flex items-center gap-6">
