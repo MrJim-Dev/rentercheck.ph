@@ -105,7 +105,7 @@ function SearchResultsContent() {
                                     <p className="font-medium text-blue-900">Smart Multi-Input Search</p>
                                     <p className="text-sm text-blue-800">
                                         Search with multiple details at once for better accuracy! Try: <br/>
-                                        <code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">James Ocampo, 09454279198, jarocampooo@gmail.com</code>
+                                        <code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">Juan Karlos, 09123457879, juankarlos@gmail.com</code>
                                     </p>
                                     <p className="text-xs text-blue-600 mt-1">
                                         Separate identifiers with commas. Our system automatically detects names, phones, emails, and Facebook links.
@@ -161,7 +161,7 @@ function SearchResultsContent() {
                                                 High Confidence
                                             </Badge>
                                         </div>
-                                        <div className="space-y-4">
+                                        <div className="space-y-3">
                                             {confirmedMatches.map((match) => (
                                                 <ResultCard key={match.renter.id} match={match} />
                                             ))}
@@ -181,7 +181,7 @@ function SearchResultsContent() {
                                                 Needs Confirmation
                                             </Badge>
                                         </div>
-                                        <div className="space-y-4">
+                                        <div className="space-y-3">
                                             {possibleMatches.map((match) => (
                                                 <ResultCard key={match.renter.id} match={match} />
                                             ))}

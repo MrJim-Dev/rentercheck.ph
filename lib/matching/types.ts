@@ -3,6 +3,7 @@
  */
 
 import type { Database } from '../database.types';
+import type { MatchSignalType } from './scoring';
 
 // Re-export scoring types
 export type {
@@ -110,7 +111,7 @@ export interface SearchResultMatch {
   /** Human-readable match reason */
   matchReason: string;
   /** List of signal types that contributed */
-  matchSignals: string[];
+  matchSignals: MatchSignalType[];
   /** Whether strong identifier (phone/email/fb) matched */
   hasStrongMatch: boolean;
   /** Suggested action for low/medium confidence */

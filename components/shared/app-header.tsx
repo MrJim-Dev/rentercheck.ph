@@ -61,8 +61,7 @@ export function AppHeader({
     }
 
     const navLinks = [
-        { href: "/search", label: "Search", icon: Search, key: "search" },
-        { href: "/report", label: "Report", icon: FileWarning, key: "report", highlight: true },
+        { href: "/report", label: "Report an Incident", icon: FileWarning, key: "report", highlight: true },
         { href: "/my-reports", label: "My Reports", icon: FileText, key: "my-reports", requireAuth: true },
     ]
 

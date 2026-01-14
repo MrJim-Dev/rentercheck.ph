@@ -110,12 +110,12 @@ export function ResultCard({ match }: ResultCardProps) {
             "overflow-hidden transition-all hover:shadow-md border-l-4 group",
             borderLeftColor
         )}>
-            <CardHeader className="pb-3 pt-5 px-6 flex flex-row items-start justify-between space-y-0">
-                <div className="space-y-1.5 flex-1">
+            <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-start justify-between space-y-0">
+                <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                         {/* Name - shown differently based on confidence */}
                         <h3 className={cn(
-                            "font-bold text-xl tracking-tight",
+                            "font-bold text-lg tracking-tight",
                             !showDetails && "text-muted-foreground"
                         )}>
                             {showDetails ? renter.nameMasked : "Hidden Name"}
@@ -158,7 +158,7 @@ export function ResultCard({ match }: ResultCardProps) {
 
                     {/* Match Signals as chips */}
                     {showDetails && matchSignals.length > 0 && (
-                        <div className="flex gap-1.5 flex-wrap mt-2">
+                        <div className="flex gap-1 flex-wrap mt-1">
                             {matchSignals.slice(0, 3).map((signal, i) => {
                                 const SignalIcon = getSignalIcon(signal);
                                 return (
@@ -209,12 +209,12 @@ export function ResultCard({ match }: ResultCardProps) {
                 </div>
             </CardHeader>
 
-            <CardContent className="px-6 pb-5">
+            <CardContent className="px-4 pb-3">
                 {showDetails ? (
                     // STRONG MATCH: Show Summary Info + Incident Details
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         {/* Basic Stats Row */}
-                        <div className="flex items-center gap-8 text-sm">
+                        <div className="flex items-center gap-6 text-sm">
                             <div className="flex flex-col">
                                 <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
                                     Reports
@@ -251,7 +251,7 @@ export function ResultCard({ match }: ResultCardProps) {
                                     <Calendar className="h-3 w-3 text-muted-foreground" />
                                     <span className="font-medium">
                                         {renter.lastIncidentDate
-                                            ? new Date(renter.lastIncidentDate).toLocaleDateString()
+                                            ? new Date(renter.lastIncidentDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
                                             : "N/A"}
                                     </span>
                                 </div>
@@ -260,7 +260,7 @@ export function ResultCard({ match }: ResultCardProps) {
 
                         {/* Incident Summary Cards */}
                         {renter.incidentSummaries && renter.incidentSummaries.length > 0 && (
-                            <div className="border-t pt-4 space-y-2">
+                            <div className="border-t pt-3 space-y-2">
                                 <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
                                     Incident Details
                                 </span>
@@ -268,12 +268,12 @@ export function ResultCard({ match }: ResultCardProps) {
                                     {renter.incidentSummaries.slice(0, 2).map((incident, idx) => (
                                         <div 
                                             key={idx} 
-                                            className="bg-muted/50 rounded-lg p-3 text-sm"
+                                            className="bg-muted/50 rounded-lg p-2 text-sm"
                                         >
                                             <div className="flex items-start justify-between gap-4">
                                                 <div className="space-y-1.5 flex-1">
-                                                    {/* Incident Type */}
-                                                    <div className="flex items-center gap-2">
+                                                    {/* Incident Type & Category */}
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <Badge 
                                                             variant="outline" 
                                                             className={cn(
@@ -288,24 +288,22 @@ export function ResultCard({ match }: ResultCardProps) {
                                                             <Tag className="h-3 w-3 mr-1" />
                                                             {incident.typeLabel}
                                                         </Badge>
-                                                        {incident.amountInvolved && (
-                                                            <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-                                                                <DollarSign className="h-3 w-3" />
-                                                                ₱{incident.amountInvolved.toLocaleString()}
-                                                            </span>
+                                                        {incident.categoryLabel && (
+                                                            <Badge 
+                                                                variant="outline" 
+                                                                className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-200"
+                                                            >
+                                                                <Package className="h-3 w-3 mr-1" />
+                                                                {incident.categoryLabel}
+                                                            </Badge>
                                                         )}
                                                     </div>
                                                     
-                                                    {/* Category & Item */}
-                                                    {(incident.categoryLabel || incident.itemDescription) && (
+                                                    {/* Item Description */}
+                                                    {incident.itemDescription && (
                                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                             <Package className="h-3 w-3" />
-                                                            <span>
-                                                                {incident.categoryLabel}
-                                                                {incident.itemDescription && (
-                                                                    <span className="text-foreground"> - {incident.itemDescription}</span>
-                                                                )}
-                                                            </span>
+                                                            <span className="text-foreground">{incident.itemDescription}</span>
                                                         </div>
                                                     )}
 
@@ -319,7 +317,7 @@ export function ResultCard({ match }: ResultCardProps) {
                                                         )}
                                                         <span className="flex items-center gap-1">
                                                             <Calendar className="h-3 w-3" />
-                                                            {new Date(incident.date).toLocaleDateString()}
+                                                            {new Date(incident.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -368,24 +366,13 @@ export function ResultCard({ match }: ResultCardProps) {
                 )}
             </CardContent>
 
-            <CardFooter className="bg-muted/40 px-6 py-3 border-t flex justify-end gap-2">
+            <CardFooter className="bg-muted/40 px-4 py-2 border-t flex justify-end gap-2">
                 {showDetails ? (
                     <>
-                        {renter.totalIncidents > 0 && (
-                            <Link href={`/renter/${renter.fingerprint}`}>
-                                <Button variant="default" size="sm" className="gap-1.5">
-                                    View Profile
-                                    <ChevronRight className="h-4 w-4" />
-                                </Button>
-                            </Link>
-                        )}
-                        <Link href="/report">
-                            <Button variant="outline" size="sm" className="bg-background hover:bg-muted hover:text-foreground gap-1.5">
-                                <FileWarning className="h-3.5 w-3.5" />
-                                Report Incident
-                            </Button>
-                        </Link>
-                        <RequestDetailsDialog />
+                        <Button variant="outline" size="sm" className="bg-background hover:bg-amber-50 hover:text-amber-900 border-amber-200 gap-1.5">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            Dispute Incident
+                        </Button>
                     </>
                 ) : (
                     <AddIdentifierDialog

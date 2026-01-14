@@ -239,7 +239,7 @@ app/
 
 ### Current Mock Data Tests
 
-1. **Name Search** (e.g., "James Ocampo")
+1. **Name Search** (e.g., "Juan Karlos")
    - Returns: `NAME_MATCH` with hidden details
    - Badge: "Possible Match" (amber)
    - CTA: "Add Phone/Email to Confirm"

@@ -214,7 +214,12 @@ export async function submitIncidentReport(
             }
         }
 
+        // Revalidate paths to refresh data
         revalidatePath("/report")
+        revalidatePath("/my-reports")
+        
+        // Note: Client-side cache should be cleared using clearReportsCache() 
+        // from @/lib/cache after successful submission
 
         return { success: true, data: { reportId: report.id } }
     } catch (error) {

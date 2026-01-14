@@ -1,0 +1,11 @@
+{
+	"servers": {
+		"supabase": {
+			"type": "http",
+			"url": "https://mcp.supabase.com/mcp?project_ref=fgvmodtreadafgsyvoui",
+			"headers": {
+				"Authorization": "Bearer sbp_caf3042f7df34ae80623417bbcae97d06187296d"
+			}
+		}
+	}
+}

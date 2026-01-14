@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import {
     Clock,
@@ -16,16 +17,25 @@ import {
     Eye,
     MessageSquare,
     ChevronRight,
-    Filter,
     User,
     Loader2,
-    PenLine,
+    X,
+    Phone,
+    Mail,
+    Facebook,
+    MapPin,
+    DollarSign,
+    Search,
+    ImageIcon,
+    ExternalLink,
 } from "lucide-react"
 import { getMyReports } from "@/app/actions/report"
 import type { Views } from "@/lib/database.types"
 import { useAuth } from "@/lib/auth/auth-provider"
 import { useRouter } from "next/navigation"
 import { AppHeader } from "@/components/shared/app-header"
+import { FileViewerDialog } from "@/components/ui/file-viewer-dialog"
+import { loadReportsCache, saveReportsCache } from "@/lib/cache/reports-cache"
 
 type MyReport = Views<"my_reports">
 
@@ -76,44 +86,59 @@ const INCIDENT_TYPE_LABELS: Record<string, string> = {
     OTHER: "Other",
 }
 
-const RENTAL_CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
-    CAMERA_EQUIPMENT: { label: "Camera", icon: "📷" },
-    CLOTHING_FASHION: { label: "Clothing", icon: "👗" },
-    ELECTRONICS_GADGETS: { label: "Electronics", icon: "📱" },
-    VEHICLE_CAR: { label: "Car", icon: "🚗" },
-    VEHICLE_MOTORCYCLE: { label: "Motorcycle", icon: "🏍️" },
-    VEHICLE_BICYCLE: { label: "Bicycle", icon: "🚲" },
-    REAL_ESTATE_CONDO: { label: "Condo", icon: "🏢" },
-    REAL_ESTATE_HOUSE: { label: "House", icon: "🏠" },
-    REAL_ESTATE_ROOM: { label: "Room", icon: "🛏️" },
-    FURNITURE_APPLIANCES: { label: "Furniture", icon: "🪑" },
-    EVENTS_PARTY: { label: "Events", icon: "🎉" },
-    TOOLS_EQUIPMENT: { label: "Tools", icon: "🔧" },
-    SPORTS_OUTDOOR: { label: "Sports", icon: "⚽" },
-    JEWELRY_ACCESSORIES: { label: "Jewelry", icon: "💍" },
-    BABY_KIDS: { label: "Baby & Kids", icon: "🧸" },
-    OTHER: { label: "Other", icon: "📦" },
-}
-
 export default function MyReportsPage() {
     const [reports, setReports] = useState<MyReport[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [statusFilter, setStatusFilter] = useState<string>("ALL")
+    const [searchQuery, setSearchQuery] = useState("")
+    const [selectedReport, setSelectedReport] = useState<MyReport | null>(null)
+    const [lastFetchTime, setLastFetchTime] = useState<number | null>(null)
+    const [fileViewer, setFileViewer] = useState<{ open: boolean; url: string; name: string; type?: string }>({
+        open: false,
+        url: "",
+        name: "",
+    })
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
 
-    const fetchReports = async () => {
+    // Fetch reports from API
+    const fetchReports = useCallback(async (forceRefresh = false) => {
+        // If not forcing refresh, try to use cached data first
+        if (!forceRefresh) {
+            const cachedData = loadReportsCache<MyReport>()
+            if (cachedData) {
+                setReports(cachedData.reports)
+                setLastFetchTime(cachedData.timestamp)
+                setIsLoading(false)
+                return
+            }
+        }
+
         setIsLoading(true)
         setError(null)
-        const result = await getMyReports()
-        if (result.success && result.data) {
-            setReports(result.data)
-        } else {
-            setError(result.error || "Failed to load reports")
+        
+        try {
+            const result = await getMyReports()
+            if (result.success && result.data) {
+                setReports(result.data)
+                saveReportsCache(result.data)
+                setLastFetchTime(Date.now())
+            } else {
+                setError(result.error || "Failed to load reports")
+            }
+        } catch (err) {
+            setError("An unexpected error occurred")
+            console.error("Error fetching reports:", err)
+        } finally {
+            setIsLoading(false)
         }
-        setIsLoading(false)
-    }
+    }, [])
+
+    // Handle manual refresh
+    const handleRefresh = useCallback(() => {
+        fetchReports(true)
+    }, [fetchReports])
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -121,13 +146,25 @@ export default function MyReportsPage() {
             return
         }
         if (user) {
-            fetchReports()
+            fetchReports(false) // Use cached data if available
         }
-    }, [user, authLoading, router])
+    }, [user, authLoading, router, fetchReports])
 
-    const filteredReports = statusFilter === "ALL" 
-        ? reports 
-        : reports.filter(r => r.status === statusFilter)
+    // Handle search with debounce
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            // Search is handled by filtering on the frontend
+        }, 300)
+        return () => clearTimeout(timer)
+    }, [searchQuery])
+
+    const filteredReports = reports.filter(r => {
+        const matchesStatus = statusFilter === "ALL" || r.status === statusFilter
+        const matchesSearch = searchQuery === "" || 
+            r.reported_full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            r.summary?.toLowerCase().includes(searchQuery.toLowerCase())
+        return matchesStatus && matchesSearch
+    })
 
     const statusCounts = reports.reduce((acc, report) => {
         const status = report.status || "PENDING"
@@ -148,23 +185,7 @@ export default function MyReportsPage() {
             <AppHeader currentPage="my-reports" />
 
             <main className="container mx-auto px-4 md:px-6 py-4">
-                {/* Compact Page Header */}
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h1 className="text-2xl font-bold">My Reports</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Track your submitted incident reports
-                        </p>
-                    </div>
-                    <Link href="/report">
-                        <Button size="sm" className="gap-2">
-                            <Plus className="w-4 h-4" />
-                            New Report
-                        </Button>
-                    </Link>
-                </div>
-
-                {/* Compact Stats Cards */}
+                {/* Horizontal Stats Cards */}
                 <div className="grid grid-cols-4 gap-3 mb-4">
                     <div className="bg-card border rounded-lg p-3">
                         <div className="text-xl font-bold">{reports.length}</div>
@@ -184,32 +205,68 @@ export default function MyReportsPage() {
                     </div>
                 </div>
 
-                {/* Compact Filters */}
-                <div className="flex items-center gap-2 mb-4">
-                    <Filter className="w-4 h-4 text-muted-foreground" />
-                    <div className="flex flex-wrap gap-2 flex-1">
-                        {["ALL", "PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"].map((status) => (
-                            <Button
-                                key={status}
-                                size="sm"
-                                variant={statusFilter === status ? "default" : "outline"}
-                                onClick={() => setStatusFilter(status)}
-                                className="text-xs h-7 px-2"
-                            >
-                                {status === "ALL" ? "All" : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]?.label}
+                {/* Page Header */}
+                <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h1 className="text-2xl font-bold">My Reports</h1>
+                            <p className="text-sm text-muted-foreground">
+                                Track your submitted incident reports
+                            </p>
+                        </div>
+                        <Link href="/report">
+                            <Button size="sm" className="gap-2">
+                                <Plus className="w-4 h-4" />
+                                New Report
                             </Button>
-                        ))}
+                        </Link>
                     </div>
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={fetchReports}
-                        disabled={isLoading}
-                        className="h-7 w-7 p-0"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-                    </Button>
-                </div>
+
+                    {/* Filters */}
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="relative flex-1 max-w-xs">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search reports..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 h-9 text-sm"
+                            />
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2">
+                            {["ALL", "PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED"].map((status) => (
+                                <Button
+                                    key={status}
+                                    size="sm"
+                                    variant={statusFilter === status ? "default" : "outline"}
+                                    onClick={() => setStatusFilter(status)}
+                                    className="text-xs h-7 px-2"
+                                >
+                                    {status === "ALL" ? "All" : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]?.label}
+                                </Button>
+                            ))}
+                        </div>
+
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleRefresh}
+                            disabled={isLoading}
+                            className="h-7 w-7 p-0"
+                            title="Refresh data"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                        </Button>
+
+                        <span className="text-xs text-muted-foreground ml-auto hidden sm:inline">
+                            {filteredReports.length} report{filteredReports.length !== 1 ? "s" : ""}
+                            {lastFetchTime && !isLoading && (
+                                <span className="ml-2 text-xs text-muted-foreground/70">
+                                    · Updated {Math.floor((Date.now() - lastFetchTime) / 1000 / 60)}m ago
+                                </span>
+                            )}
+                        </span>
+                    </div>
 
                 {/* Error State */}
                 {error && (
@@ -219,150 +276,324 @@ export default function MyReportsPage() {
                     </div>
                 )}
 
-                {/* Loading State */}
-                {isLoading && (
+                {/* Content Grid */}
+                <div className="grid lg:grid-cols-2 gap-4">
+                    {/* Reports List */}
                     <div className="space-y-3">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="bg-card border rounded-lg p-4 animate-pulse">
-                                <div className="flex items-start gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-muted" />
-                                    <div className="flex-1 space-y-2">
-                                        <div className="h-4 bg-muted rounded w-1/3" />
-                                        <div className="h-3 bg-muted rounded w-1/2" />
+                        <h2 className="font-semibold text-sm text-muted-foreground uppercase">My Reports</h2>
+                        
+                        {/* Loading State */}
+                        {isLoading && (
+                            <div className="space-y-2">
+                                {[1, 2, 3].map((i) => (
+                                    <div key={i} className="bg-card border rounded-lg p-3 animate-pulse">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-muted" />
+                                            <div className="flex-1 space-y-1.5">
+                                                <div className="h-3 bg-muted rounded w-1/2" />
+                                                <div className="h-2.5 bg-muted rounded w-1/3" />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Empty State */}
-                {!isLoading && !error && filteredReports.length === 0 && (
-                    <div className="bg-card border rounded-lg p-8 text-center">
-                        <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                        <h3 className="font-semibold mb-1">
-                            {statusFilter === "ALL" ? "No reports yet" : `No ${STATUS_CONFIG[statusFilter as keyof typeof STATUS_CONFIG]?.label.toLowerCase()} reports`}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                            {statusFilter === "ALL" 
-                                ? "You haven't submitted any incident reports yet."
-                                : "Try selecting a different filter."}
-                        </p>
-                        {statusFilter === "ALL" && (
-                            <Link href="/report">
-                                <Button size="sm">
-                                    <Plus className="w-4 h-4 mr-2" />
-                                    Submit Your First Report
-                                </Button>
-                            </Link>
                         )}
-                    </div>
-                )}
 
-                {/* Compact Reports List */}
-                {!isLoading && !error && filteredReports.length > 0 && (
-                    <div className="space-y-2">
+                        {/* Empty State */}
+                        {!isLoading && !error && filteredReports.length === 0 && (
+                            <div className="bg-card border rounded-lg p-8 text-center">
+                                    <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                                    <h3 className="font-semibold mb-1">
+                                        {statusFilter === "ALL" ? "No reports yet" : `No ${STATUS_CONFIG[statusFilter as keyof typeof STATUS_CONFIG]?.label.toLowerCase()} reports`}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground mb-4">
+                                        {statusFilter === "ALL" 
+                                            ? "You haven't submitted any incident reports yet."
+                                            : "Try selecting a different filter or search term."}
+                                    </p>
+                                    {statusFilter === "ALL" && (
+                                        <Link href="/report">
+                                            <Button size="sm">
+                                                <Plus className="w-4 h-4 mr-2" />
+                                                Submit Your First Report
+                                            </Button>
+                                        </Link>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Reports List */}
+                            {!isLoading && !error && filteredReports.length > 0 && (
+                    <div className="space-y-2 max-h-[calc(100vh-340px)] overflow-y-auto pr-2">
                         {filteredReports.map((report) => {
                             const status = report.status || "PENDING"
                             const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.PENDING
-                            const StatusIcon = config.icon
+                            const incidentLabel = INCIDENT_TYPE_LABELS[report.incident_type || ""] || report.incident_type
+                            const isSelected = selectedReport?.id === report.id
 
                             return (
                                 <div
                                     key={report.id}
-                                    className="bg-card border rounded-lg p-3 hover:border-secondary/50 hover:shadow transition-all group"
+                                    onClick={() => setSelectedReport(report)}
+                                    className={`bg-card border rounded-lg p-3 cursor-pointer transition-all hover:border-secondary/50 ${
+                                        isSelected ? "border-secondary ring-1 ring-secondary/30 bg-secondary/5" : ""
+                                    }`}
                                 >
-                                    <div className="flex items-start gap-3">
-                                        {/* Compact Icon */}
-                                        <Link href={`/my-reports/${report.id}`} className="shrink-0">
-                                            <div className={`w-9 h-9 rounded-full flex items-center justify-center ${config.color}`}>
-                                                <StatusIcon className="w-4 h-4" />
-                                            </div>
-                                        </Link>
+                                                <div className="flex items-start gap-2">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${config.color}`}>
+                                                        {config.icon && <config.icon className="w-4 h-4" />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-start justify-between gap-1.5 mb-1">
+                                                            <div className="flex-1 min-w-0">
+                                                                <h3 className="font-medium text-sm truncate flex items-center gap-1.5">
+                                                                    <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                                                    {report.reported_full_name}
+                                                                </h3>
+                                                                <p className="text-xs text-muted-foreground">{incidentLabel}</p>
+                                                            </div>
+                                                            <Badge className={`${config.color} border text-xs px-1.5 py-0 h-5 shrink-0`}>
+                                                                {config.label}
+                                                            </Badge>
+                                                        </div>
+                                                        
+                                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground mt-1">
+                                                            <span className="flex items-center gap-1">
+                                                                <Calendar className="w-3 h-3" />
+                                                                {report.incident_date ? new Date(report.incident_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
+                                                            </span>
+                                                            {report.amount_involved && (
+                                                                <span className="flex items-center gap-1">
+                                                                    <DollarSign className="w-3 h-3" />
+                                                                    ₱{report.amount_involved.toLocaleString()}
+                                                                </span>
+                                                            )}
+                                                            {report.evidence_count && report.evidence_count > 0 && (
+                                                                <span className="flex items-center gap-1">
+                                                                    <FileText className="w-3 h-3" />
+                                                                    {report.evidence_count} file{report.evidence_count > 1 ? "s" : ""}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        {report.summary && (
+                                                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">
+                                                                {report.summary}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform flex-shrink-0 ${isSelected ? "rotate-90" : ""}`} />
+                                                </div>
 
-                                        {/* Compact Content - Clickable */}
-                                        <Link href={`/my-reports/${report.id}`} className="flex-1 min-w-0 cursor-pointer">
-                                            <div className="flex items-center justify-between gap-2 mb-1">
-                                                <h3 className="font-semibold text-sm flex items-center gap-1.5 truncate">
-                                                    <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                    {report.reported_full_name}
-                                                </h3>
-                                                <Badge className={`${config.color} border text-xs px-2 py-0 h-5 shrink-0`}>
-                                                    {config.label}
-                                                </Badge>
-                                            </div>
-
-                                            <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-2 flex-wrap">
-                                                <span>{INCIDENT_TYPE_LABELS[report.incident_type || ""] || report.incident_type}</span>
-                                                {report.rental_category && (
-                                                    <span className="flex items-center gap-0.5 text-secondary">
-                                                        {RENTAL_CATEGORY_LABELS[report.rental_category]?.icon}
-                                                        {RENTAL_CATEGORY_LABELS[report.rental_category]?.label}
-                                                    </span>
-                                                )}
-                                            </p>
-
-                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                                <span className="flex items-center gap-1">
-                                                    <Calendar className="w-3 h-3" />
-                                                    {report.incident_date ? new Date(report.incident_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
-                                                </span>
-                                                {report.evidence_count && report.evidence_count > 0 && (
-                                                    <span className="flex items-center gap-1">
-                                                        <FileText className="w-3 h-3" />
-                                                        {report.evidence_count} file{report.evidence_count > 1 ? "s" : ""}
-                                                    </span>
-                                                )}
-                                                {report.pending_requests && report.pending_requests > 0 && (
-                                                    <span className="flex items-center gap-1 text-amber-400 font-medium">
-                                                        <MessageSquare className="w-3 h-3" />
-                                                        {report.pending_requests} request{report.pending_requests > 1 ? "s" : ""}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </Link>
-
-                                        {/* Quick Actions */}
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            <Link href={`/my-reports/${report.id}?action=edit`}>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-8 px-2 text-muted-foreground hover:text-secondary"
-                                                    title="Add more details"
-                                                >
-                                                    <PenLine className="w-4 h-4" />
-                                                </Button>
-                                            </Link>
-                                            <Link href={`/my-reports/${report.id}`}>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-8 px-2 text-muted-foreground hover:text-secondary"
-                                                    title="View details"
-                                                >
-                                                    <ChevronRight className="w-4 h-4" />
-                                                </Button>
-                                            </Link>
-                                        </div>
-                                    </div>
-
-                                    {/* Compact Info Request Alert */}
+                                    {/* Info Request Alert */}
                                     {report.pending_requests && report.pending_requests > 0 && (
-                                        <Link href={`/my-reports/${report.id}?action=edit`}>
-                                            <div className="mt-2 p-2 rounded bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 cursor-pointer hover:bg-amber-500/20 transition-colors">
-                                                <MessageSquare className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                                                <p className="text-xs text-amber-300 flex-1">Admin requested additional information</p>
-                                                <span className="text-xs text-amber-300 font-medium">Respond →</span>
-                                            </div>
-                                        </Link>
+                                        <div className="mt-2 p-2 rounded bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
+                                            <MessageSquare className="w-4 h-4 text-amber-400 shrink-0" />
+                                            <p className="text-xs text-amber-300 flex-1">Admin requested additional information</p>
+                                            <span className="text-xs text-amber-300 font-medium">Respond →</span>
+                                        </div>
                                     )}
                                 </div>
                             )
                         })}
                     </div>
                 )}
+            </div>
+
+            {/* Report Detail Panel */}
+            <div className="lg:sticky lg:top-4">
+                {selectedReport ? (
+                    <div className="bg-card border rounded-lg overflow-hidden">
+                        {/* Header */}
+                        <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                                <h2 className="font-semibold text-sm truncate">{selectedReport.reported_full_name}</h2>
+                                <p className="text-xs text-muted-foreground">
+                                    {INCIDENT_TYPE_LABELS[selectedReport.incident_type || ""] || selectedReport.incident_type}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <Badge className={`${STATUS_CONFIG[selectedReport.status as keyof typeof STATUS_CONFIG]?.color || ""} border text-xs px-2 py-0.5 h-6 shrink-0`}>
+                                    {STATUS_CONFIG[selectedReport.status as keyof typeof STATUS_CONFIG]?.label || selectedReport.status}
+                                </Badge>
+                                <Button size="sm" variant="ghost" onClick={() => setSelectedReport(null)} className="h-7 w-7 p-0">
+                                    <X className="w-3.5 h-3.5" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="p-3 space-y-3 max-h-[calc(100vh-340px)] overflow-y-auto">
+                            {/* Renter Information */}
+                            <div>
+                                <h3 className="text-xs font-medium text-muted-foreground mb-2 uppercase">Renter Information</h3>
+                                            <div className="space-y-1.5">
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                    <span className="font-medium">{selectedReport.reported_full_name}</span>
+                                                </div>
+                                                {selectedReport.reported_phone && (
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                        <span>{selectedReport.reported_phone}</span>
+                                                    </div>
+                                                )}
+                                                {selectedReport.reported_email && (
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                        <span className="truncate">{selectedReport.reported_email}</span>
+                                                    </div>
+                                                )}
+                                                {selectedReport.reported_facebook && (
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <Facebook className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                        <a 
+                                                            href={selectedReport.reported_facebook} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="text-secondary hover:underline truncate flex items-center gap-1"
+                                                        >
+                                                            View Profile
+                                                            <ExternalLink className="w-3 h-3" />
+                                                        </a>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Rented Item */}
+                                        {selectedReport.rental_category && (
+                                            <div>
+                                                <h3 className="text-xs font-medium text-muted-foreground mb-2 uppercase">Rented Item</h3>
+                                                <div className="space-y-1.5">
+                                                    <div className="text-sm">
+                                                        <span className="font-medium">{selectedReport.rental_category}</span>
+                                                    </div>
+                                                    {selectedReport.rental_item_description && (
+                                                        <p className="text-sm text-muted-foreground">
+                                                            {selectedReport.rental_item_description}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Incident Details */}
+                                        <div>
+                                            <h3 className="text-xs font-medium text-muted-foreground mb-2 uppercase">Incident Details</h3>
+                                            <div className="space-y-1.5">
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                    <span>
+                                                        {selectedReport.incident_date 
+                                                            ? new Date(selectedReport.incident_date).toLocaleDateString('en-US', { 
+                                                                month: 'long', 
+                                                                day: 'numeric', 
+                                                                year: 'numeric' 
+                                                            }) 
+                                                            : "N/A"}
+                                                    </span>
+                                                </div>
+                                                {selectedReport.amount_involved && (
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <DollarSign className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                        <span className="font-medium">₱{selectedReport.amount_involved.toLocaleString()}</span>
+                                                    </div>
+                                                )}
+                                                {(selectedReport.incident_city || selectedReport.incident_place) && (
+                                                    <div className="flex items-start gap-2 text-sm">
+                                                        <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                                        <span>
+                                                            {[selectedReport.incident_place, selectedReport.incident_city].filter(Boolean).join(", ")}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Summary */}
+                                        {selectedReport.summary && (
+                                            <div>
+                                                <h3 className="text-xs font-medium text-muted-foreground mb-2 uppercase">Summary</h3>
+                                                <p className="text-sm leading-relaxed">{selectedReport.summary}</p>
+                                            </div>
+                                        )}
+
+                        {/* Evidence */}
+                        {selectedReport.evidence_count !== null && selectedReport.evidence_count > 0 && (
+                            <div>
+                                <h3 className="text-xs font-medium text-muted-foreground mb-2 uppercase flex items-center gap-1.5">
+                                    <ImageIcon className="w-3.5 h-3.5" />
+                                    Evidence ({selectedReport.evidence_count})
+                                </h3>
+                                <p className="text-xs text-muted-foreground">
+                                    View detailed evidence files by visiting the full report page.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Admin Notes/Rejection Reason */}
+                        {selectedReport.status === "REJECTED" && selectedReport.rejection_reason && (
+                            <div className="p-2.5 bg-destructive/10 border border-destructive/30 rounded">
+                                <h3 className="text-xs font-medium text-destructive mb-1">Rejection Reason</h3>
+                                <p className="text-xs text-muted-foreground">{selectedReport.rejection_reason}</p>
+                            </div>
+                        )}
+
+                        {/* Info Requests */}
+                        {selectedReport.pending_requests !== null && selectedReport.pending_requests > 0 && (
+                            <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded">
+                                <h3 className="text-xs font-medium text-amber-400 mb-1 flex items-center gap-1.5">
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    Information Request ({selectedReport.pending_requests})
+                                </h3>
+                                <p className="text-xs text-muted-foreground mb-2">Admin has requested additional information.</p>
+                                <Link href={`/my-reports/${selectedReport.id}`}>
+                                    <Button size="sm" className="w-full text-xs h-8 bg-amber-600 hover:bg-amber-700">
+                                        Respond to Request
+                                        <ChevronRight className="w-3 h-3 ml-1" />
+                                    </Button>
+                                </Link>
+                            </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="pt-2 border-t space-y-2">
+                            <Link href={`/my-reports/${selectedReport.id}#amendments`}>
+                                <Button size="sm" variant="outline" className="w-full text-xs h-8">
+                                    <Plus className="w-3 h-3 mr-1.5" />
+                                    Add More Details
+                                </Button>
+                            </Link>
+                            <Link href={`/my-reports/${selectedReport.id}`}>
+                                <Button size="sm" variant="outline" className="w-full text-xs h-8">
+                                    <Eye className="w-3 h-3 mr-1.5" />
+                                    View Full Report
+                                </Button>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-card border rounded-lg p-8 text-center">
+                    <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                    <h3 className="font-semibold mb-1 text-sm">No Report Selected</h3>
+                    <p className="text-xs text-muted-foreground">
+                        Select a report from the list to view details
+                    </p>
+                </div>
+            )}
+        </div>
+    </div>
             </main>
+
+            {/* File Viewer Dialog */}
+            <FileViewerDialog
+                open={fileViewer.open}
+                onOpenChange={(open) => setFileViewer({ ...fileViewer, open })}
+                fileUrl={fileViewer.url}
+                fileName={fileViewer.name}
+                fileType={fileViewer.type}
+            />
         </div>
     )
 }

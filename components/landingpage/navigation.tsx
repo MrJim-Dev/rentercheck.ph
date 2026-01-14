@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { AnimatePresence, motion } from "framer-motion"
-import { Menu, X, LogOut, Search, FileWarning, FileText, Shield, User, ChevronDown } from "lucide-react"
+import { Menu, X, LogOut, FileWarning, FileText, Shield, User, ChevronDown } from "lucide-react"
 import NextImage from "next/image"
 import Link from "next/link"
 import { useState, useTransition } from "react"
@@ -28,8 +28,7 @@ export function Navigation() {
     ]
 
     const appLinks = [
-        { name: "Search", href: "/search", icon: Search },
-        { name: "Report", href: "/report", icon: FileWarning },
+        { name: "Report an Incident", href: "/report", icon: FileWarning },
     ]
 
     return (

@@ -65,7 +65,7 @@ function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | '
 
 /**
  * Parse a free-text query to extract multiple identifiers
- * Supports input like: "James Ocampo, 09454279198, jarocampooo@gmail.com"
+ * Supports input like: "John Doe, 094554343445, johndoe@example.com"
  * Intelligently detects and categorizes each part
  */
 function parseSearchQuery(query: string): SearchInput {
