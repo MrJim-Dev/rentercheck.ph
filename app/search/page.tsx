@@ -4,12 +4,15 @@ import { ImproveAccuracyCard } from "@/components/search-results/improve-accurac
 import { ResultCard } from "@/components/search-results/result-card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { SearchResultMatch } from "@/lib/types";
-import { AlertTriangle, Lightbulb, SearchX, Loader2, Shield, Info } from "lucide-react";
+import { AlertTriangle, Lightbulb, SearchX, Loader2, Shield, Info, Lock, LogIn } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState, useTransition } from "react";
 import { AppHeader } from "@/components/shared/app-header";
 import { searchRenters } from "@/app/actions/search";
+import { useAuth } from "@/lib/auth/auth-provider";
+import Link from "next/link";
 
 function SearchResultsContent() {
     const searchParams = useSearchParams();
@@ -24,6 +27,7 @@ function SearchResultsContent() {
     } | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
+    const { user, loading: authLoading } = useAuth();
 
     const handleSearch = (newQuery: string) => {
         router.push(`/search?q=${encodeURIComponent(newQuery)}`);
@@ -148,6 +152,82 @@ function SearchResultsContent() {
                                 </div>
                             </div>
                         ) : results.length > 0 ? (
+                            !user ? (
+                                // Non-authenticated user - show blurred results with sign-in prompt
+                                <div className="relative">
+                                    {/* Blurred Results */}
+                                    <div className="filter blur-sm pointer-events-none select-none">
+                                        <div className="space-y-8">
+                                            {confirmedMatches.length > 0 && (
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <Shield className="h-4 w-4 text-red-600" />
+                                                        <h2 className="font-semibold text-red-900">
+                                                            {confirmedMatches.length === 1 ? 'Match Found' : `${confirmedMatches.length} Matches Found`}
+                                                        </h2>
+                                                        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">
+                                                            High Confidence
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        {confirmedMatches.map((match) => (
+                                                            <ResultCard key={match.renter.id} match={match} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {possibleMatches.length > 0 && (
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <Info className="h-4 w-4 text-amber-600" />
+                                                        <h2 className="font-semibold text-amber-900">
+                                                            Possible {possibleMatches.length === 1 ? 'Match' : 'Matches'}
+                                                        </h2>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        {possibleMatches.slice(0, 2).map((match) => (
+                                                            <ResultCard key={match.renter.id} match={match} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Sign-in Overlay */}
+                                    <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                                        <div className="max-w-md w-full mx-4">
+                                            <div className="bg-card border-2 border-primary/20 rounded-xl p-8 shadow-xl text-center space-y-6">
+                                                <div className="flex justify-center">
+                                                    <div className="rounded-full bg-primary/10 p-4">
+                                                        <Lock className="h-10 w-10 text-primary" />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <h3 className="text-2xl font-bold">Sign In to View Results</h3>
+                                                    <p className="text-muted-foreground">
+                                                        We found {results.length} {results.length === 1 ? 'match' : 'matches'} for your search. Create an account or sign in to view full details.
+                                                    </p>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                                                    <Button asChild className="flex-1" size="lg">
+                                                        <Link href="/signup">
+                                                            <LogIn className="mr-2 h-4 w-4" />
+                                                            Create Account
+                                                        </Link>
+                                                    </Button>
+                                                    <Button asChild variant="outline" className="flex-1" size="lg">
+                                                        <Link href="/login">Sign In</Link>
+                                                    </Button>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Free to search • Verified reports • Protect your property
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
                             <div className="space-y-8">
                                 {/* Confirmed/High Confidence Matches */}
                                 {confirmedMatches.length > 0 && (
@@ -208,6 +288,7 @@ function SearchResultsContent() {
                                     </div>
                                 )}
                             </div>
+                            )
                         ) : query ? (
                             <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg bg-muted/20">
                                 <div className="rounded-full bg-muted p-4 mb-4">

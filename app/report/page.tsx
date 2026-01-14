@@ -1,11 +1,16 @@
 "use client"
 
 import { ReportForm } from "@/components/report/report-form"
-import { Shield, FileWarning, Clock, CheckCircle } from "lucide-react"
+import { Shield, FileWarning, Clock, CheckCircle, Lock, LogIn } from "lucide-react"
 import Link from "next/link"
 import { AppHeader } from "@/components/shared/app-header"
+import { useAuth } from "@/lib/auth/auth-provider"
+import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
 
 export default function ReportPage() {
+    const { user, loading } = useAuth();
+
     return (
         <div className="min-h-screen bg-background">
             <AppHeader currentPage="report" />
@@ -61,10 +66,55 @@ export default function ReportPage() {
                         </div>
                     </div>
 
-                    {/* The Form */}
-                    <ReportForm />
+                    {/* The Form or Sign-in Prompt */}
+                    {loading ? (
+                        <div className="flex items-center justify-center py-12">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : !user ? (
+                        // Non-authenticated user - show sign-in prompt
+                        <div className="bg-card border-2 border-primary/20 rounded-xl p-8 md:p-12 shadow-xl text-center space-y-6">
+                            <div className="flex justify-center">
+                                <div className="rounded-full bg-primary/10 p-5">
+                                    <Lock className="h-12 w-12 text-primary" />
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                <h3 className="text-2xl md:text-3xl font-bold">Sign In Required</h3>
+                                <p className="text-muted-foreground max-w-md mx-auto">
+                                    To file an incident report and help protect the community, please sign in to your account or create a new one.
+                                </p>
+                            </div>
+                            <div className="pt-4 space-y-3">
+                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                    <Button asChild size="lg" className="min-w-[200px]">
+                                        <Link href="/signup">
+                                            <LogIn className="mr-2 h-5 w-5" />
+                                            Create Account
+                                        </Link>
+                                    </Button>
+                                    <Button asChild variant="outline" size="lg" className="min-w-[200px]">
+                                        <Link href="/login">Sign In</Link>
+                                    </Button>
+                                </div>
+                            </div>
+                            <div className="pt-4 border-t">
+                                <p className="text-sm text-muted-foreground">
+                                    <strong>Why sign in?</strong>
+                                </p>
+                                <ul className="text-sm text-muted-foreground mt-2 space-y-1 max-w-md mx-auto">
+                                    <li>✓ Track your submitted reports</li>
+                                    <li>✓ Receive updates on report status</li>
+                                    <li>✓ Help build a trusted community</li>
+                                </ul>
+                            </div>
+                        </div>
+                    ) : (
+                        <ReportForm />
+                    )}
 
                     {/* Footer disclaimer */}
+                    {user && (
                     <div className="mt-10 text-center">
                         <p className="text-xs text-muted-foreground max-w-md mx-auto">
                             By submitting this report, you agree to our{" "}
@@ -74,6 +124,7 @@ export default function ReportPage() {
                             False reports may result in legal action.
                         </p>
                     </div>
+                    )}
                 </div>
             </main>
 
