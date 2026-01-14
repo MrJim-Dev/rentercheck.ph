@@ -16,6 +16,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { AppHeader } from "@/components/shared/app-header"
+import { MultiInput } from "@/components/ui/multi-input"
 import { 
     getReportById, 
     getEvidenceUrl, 
@@ -216,6 +217,49 @@ export default function ReportDetailPage() {
     const [deletingAmendmentId, setDeletingAmendmentId] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
+    // Multiple identifiers for NEW_IDENTIFIER amendment
+    const [newPhones, setNewPhones] = useState<string[]>([])
+    const [newEmails, setNewEmails] = useState<string[]>([])
+    const [newFacebooks, setNewFacebooks] = useState<string[]>([])
+
+    // Phone normalization helper
+    const normalizePhone = (value: string) => {
+        let cleaned = value.replace(/[^\d+]/g, "")
+        if (cleaned.startsWith("0")) {
+            cleaned = "+63" + cleaned.slice(1)
+        } else if (cleaned.startsWith("63") && !cleaned.startsWith("+63")) {
+            cleaned = "+" + cleaned
+        } else if (cleaned.match(/^9\d{9}$/)) {
+            cleaned = "+63" + cleaned
+        }
+        return cleaned
+    }
+
+    // Validation helpers
+    const validatePhone = (value: string) => {
+        const digits = value.replace(/\D/g, "")
+        return digits.length >= 7
+    }
+
+    const validateEmail = (value: string) => {
+        return value.includes("@") && value.includes(".") && value.length >= 5
+    }
+
+    // Facebook link normalization
+    const normalizeFacebookLink = (value: string) => {
+        if (!value.trim()) return ""
+        if (value.includes("facebook.com") || value.includes("fb.com")) {
+            if (!value.startsWith("http")) {
+                return "https://" + value
+            }
+            return value
+        }
+        if (value.match(/^[a-zA-Z0-9.]+$/)) {
+            return `https://facebook.com/${value}`
+        }
+        return value
+    }
+
     const fetchReport = useCallback(async () => {
         setIsLoading(true)
         setError(null)
@@ -272,6 +316,10 @@ export default function ReportDetailPage() {
         setAmendmentFiles([])
         setAmendmentError(null)
         setShowAmendmentForm(false)
+        // Reset multiple identifiers
+        setNewPhones([])
+        setNewEmails([])
+        setNewFacebooks([])
     }
 
     const handleSubmitAmendment = async () => {
@@ -294,8 +342,8 @@ export default function ReportDetailPage() {
         }
 
         // For NEW_IDENTIFIER, require at least one identifier
-        if (amendmentType === "NEW_IDENTIFIER" && 
-            !amendmentChanges.phone && !amendmentChanges.email && !amendmentChanges.facebookLink) {
+        if (amendmentType === "NEW_IDENTIFIER" &&
+            newPhones.length === 0 && newEmails.length === 0 && newFacebooks.length === 0) {
             setAmendmentError("Please provide at least one contact identifier")
             return
         }
@@ -304,11 +352,25 @@ export default function ReportDetailPage() {
         setAmendmentError(null)
 
         try {
+            // Prepare changes with multiple identifiers for NEW_IDENTIFIER type
+            const changes = amendmentType === "NEW_IDENTIFIER" 
+                ? {
+                    ...amendmentChanges,
+                    phones: newPhones.length > 0 ? newPhones : undefined,
+                    emails: newEmails.length > 0 ? newEmails : undefined,
+                    facebookLinks: newFacebooks.length > 0 ? newFacebooks : undefined,
+                    // Also set single values for backwards compatibility
+                    phone: newPhones[0] || undefined,
+                    email: newEmails[0] || undefined,
+                    facebookLink: newFacebooks[0] || undefined,
+                }
+                : amendmentChanges
+
             // Create the amendment
             const result = await createAmendment({
                 reportId,
                 amendmentType: amendmentType as Enums<"amendment_type">,
-                changes: amendmentChanges,
+                changes,
                 reporterNotes: amendmentNotes || undefined,
             })
 
@@ -504,36 +566,92 @@ export default function ReportDetailPage() {
                             <div className="space-y-4">
                                 <div>
                                     <p className="text-2xl font-bold">{report.reported_full_name}</p>
+                                    {/* Show aliases if any */}
+                                    {(() => {
+                                        const aliases = (report as unknown as { reported_aliases?: string[] }).reported_aliases;
+                                        if (aliases && aliases.length > 0) {
+                                            return (
+                                                <div className="flex flex-wrap gap-2 mt-2">
+                                                    <span className="text-xs text-muted-foreground">Also known as:</span>
+                                                    {aliases.map((alias: string, idx: number) => (
+                                                        <Badge key={idx} variant="outline" className="text-xs">
+                                                            {alias}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
 
                                 <div className="grid sm:grid-cols-2 gap-4">
-                                    {report.reported_phone && (
-                                        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                                            <Phone className="w-4 h-4 text-muted-foreground" />
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">Phone</p>
-                                                <p className="text-sm font-medium">{report.reported_phone}</p>
+                                    {/* Phone Numbers (show all from JSONB array or fallback to single) */}
+                                    {(() => {
+                                        const phones = (report as unknown as { reported_phones?: string[] }).reported_phones || 
+                                            (report.reported_phone ? [report.reported_phone] : []);
+                                        if (phones.length === 0) return null;
+                                        return (
+                                            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+                                                <Phone className="w-4 h-4 text-muted-foreground mt-0.5" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Phone{phones.length > 1 ? ` (${phones.length})` : ""}
+                                                    </p>
+                                                    <div className="space-y-1">
+                                                        {phones.map((phone: string, idx: number) => (
+                                                            <p key={idx} className="text-sm font-medium">{phone}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                    {report.reported_email && (
-                                        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                                            <Mail className="w-4 h-4 text-muted-foreground" />
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">Email</p>
-                                                <p className="text-sm font-medium">{report.reported_email}</p>
+                                        );
+                                    })()}
+                                    
+                                    {/* Email Addresses (show all from JSONB array or fallback to single) */}
+                                    {(() => {
+                                        const emails = (report as unknown as { reported_emails?: string[] }).reported_emails || 
+                                            (report.reported_email ? [report.reported_email] : []);
+                                        if (emails.length === 0) return null;
+                                        return (
+                                            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+                                                <Mail className="w-4 h-4 text-muted-foreground mt-0.5" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Email{emails.length > 1 ? ` (${emails.length})` : ""}
+                                                    </p>
+                                                    <div className="space-y-1">
+                                                        {emails.map((email: string, idx: number) => (
+                                                            <p key={idx} className="text-sm font-medium truncate">{email}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                    {report.reported_facebook && (
-                                        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                                            <Facebook className="w-4 h-4 text-muted-foreground" />
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">Facebook</p>
-                                                <p className="text-sm font-medium truncate">{report.reported_facebook}</p>
+                                        );
+                                    })()}
+                                    
+                                    {/* Facebook Profiles (show all from JSONB array or fallback to single) */}
+                                    {(() => {
+                                        const facebooks = (report as unknown as { reported_facebooks?: string[] }).reported_facebooks || 
+                                            (report.reported_facebook ? [report.reported_facebook] : []);
+                                        if (facebooks.length === 0) return null;
+                                        return (
+                                            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+                                                <Facebook className="w-4 h-4 text-muted-foreground mt-0.5" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Facebook{facebooks.length > 1 ? ` (${facebooks.length})` : ""}
+                                                    </p>
+                                                    <div className="space-y-1">
+                                                        {facebooks.map((fb: string, idx: number) => (
+                                                            <p key={idx} className="text-sm font-medium truncate">{fb}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        );
+                                    })()}
+                                    
                                     {report.reported_date_of_birth && (
                                         <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
                                             <Cake className="w-4 h-4 text-muted-foreground" />
@@ -774,32 +892,56 @@ export default function ReportDetailPage() {
 
                                     {amendmentType === "NEW_IDENTIFIER" && (
                                         <div className="space-y-4">
+                                            <p className="text-sm text-muted-foreground">
+                                                Add new contact identifiers. You can add multiple values for each type.
+                                            </p>
                                             <div className="space-y-2">
-                                                <Label htmlFor="newPhone">Phone Number</Label>
-                                                <Input
-                                                    id="newPhone"
+                                                <Label className="flex items-center gap-2">
+                                                    <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                                                    Phone Number{newPhones.length > 1 ? "s" : ""}
+                                                </Label>
+                                                <MultiInput
+                                                    values={newPhones}
+                                                    onChange={setNewPhones}
                                                     placeholder="09XX XXX XXXX"
-                                                    value={amendmentChanges.phone || ""}
-                                                    onChange={(e) => setAmendmentChanges(prev => ({ ...prev, phone: e.target.value }))}
+                                                    maxItems={5}
+                                                    icon={<Phone className="w-4 h-4" />}
+                                                    validateFn={validatePhone}
+                                                    normalizeFn={normalizePhone}
+                                                    addLabel="Add another phone"
+                                                    validationMessage="Enter at least 7 digits"
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label htmlFor="newEmail">Email Address</Label>
-                                                <Input
-                                                    id="newEmail"
-                                                    type="email"
+                                                <Label className="flex items-center gap-2">
+                                                    <Mail className="w-3.5 h-3.5 text-blue-400" />
+                                                    Email Address{newEmails.length > 1 ? "es" : ""}
+                                                </Label>
+                                                <MultiInput
+                                                    values={newEmails}
+                                                    onChange={setNewEmails}
                                                     placeholder="example@email.com"
-                                                    value={amendmentChanges.email || ""}
-                                                    onChange={(e) => setAmendmentChanges(prev => ({ ...prev, email: e.target.value }))}
+                                                    maxItems={5}
+                                                    icon={<Mail className="w-4 h-4" />}
+                                                    validateFn={validateEmail}
+                                                    normalizeFn={(v) => v.toLowerCase().trim()}
+                                                    addLabel="Add another email"
+                                                    validationMessage="Enter a valid email address"
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label htmlFor="newFacebook">Facebook Profile</Label>
-                                                <Input
-                                                    id="newFacebook"
-                                                    placeholder="https://facebook.com/username"
-                                                    value={amendmentChanges.facebookLink || ""}
-                                                    onChange={(e) => setAmendmentChanges(prev => ({ ...prev, facebookLink: e.target.value }))}
+                                                <Label className="flex items-center gap-2">
+                                                    <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />
+                                                    Facebook Profile{newFacebooks.length > 1 ? "s" : ""}
+                                                </Label>
+                                                <MultiInput
+                                                    values={newFacebooks}
+                                                    onChange={setNewFacebooks}
+                                                    placeholder="facebook.com/username or profile link"
+                                                    maxItems={5}
+                                                    icon={<Facebook className="w-4 h-4" />}
+                                                    normalizeFn={normalizeFacebookLink}
+                                                    addLabel="Add another Facebook"
                                                 />
                                             </div>
                                         </div>
@@ -951,27 +1093,31 @@ export default function ReportDetailPage() {
                                                     </p>
                                                 )}
 
-                                                {/* New identifiers */}
-                                                {(changes.phone || changes.email || changes.facebookLink) && (
+                                                {/* New identifiers (supports both single and multiple) */}
+                                                {(changes.phone || changes.email || changes.facebookLink || 
+                                                  changes.phones?.length || changes.emails?.length || changes.facebookLinks?.length) && (
                                                     <div className="flex flex-wrap gap-2 mt-3">
-                                                        {changes.phone && (
-                                                            <Badge variant="outline" className="text-xs gap-1">
+                                                        {/* Show multiple phones or single phone */}
+                                                        {(changes.phones || (changes.phone ? [changes.phone] : [])).map((phone: string, idx: number) => (
+                                                            <Badge key={`phone-${idx}`} variant="outline" className="text-xs gap-1">
                                                                 <Phone className="w-3 h-3" />
-                                                                {changes.phone}
+                                                                {phone}
                                                             </Badge>
-                                                        )}
-                                                        {changes.email && (
-                                                            <Badge variant="outline" className="text-xs gap-1">
+                                                        ))}
+                                                        {/* Show multiple emails or single email */}
+                                                        {(changes.emails || (changes.email ? [changes.email] : [])).map((email: string, idx: number) => (
+                                                            <Badge key={`email-${idx}`} variant="outline" className="text-xs gap-1">
                                                                 <Mail className="w-3 h-3" />
-                                                                {changes.email}
+                                                                {email}
                                                             </Badge>
-                                                        )}
-                                                        {changes.facebookLink && (
-                                                            <Badge variant="outline" className="text-xs gap-1">
+                                                        ))}
+                                                        {/* Show multiple facebooks or single facebook */}
+                                                        {(changes.facebookLinks || (changes.facebookLink ? [changes.facebookLink] : [])).map((fb: string, idx: number) => (
+                                                            <Badge key={`fb-${idx}`} variant="outline" className="text-xs gap-1">
                                                                 <Facebook className="w-3 h-3" />
-                                                                Facebook
+                                                                {idx === 0 ? "Facebook" : `Facebook ${idx + 1}`}
                                                             </Badge>
-                                                        )}
+                                                        ))}
                                                     </div>
                                                 )}
 

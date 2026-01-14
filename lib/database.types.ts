@@ -80,6 +80,10 @@ export type Database = {
           reported_facebook: string | null
           reported_full_name: string
           reported_phone: string | null
+          reported_phones: Json | null
+          reported_aliases: Json | null
+          reported_emails: Json | null
+          reported_facebooks: Json | null
           reporter_email: string | null
           reporter_id: string
           reviewed_at: string | null
@@ -126,6 +130,10 @@ export type Database = {
           reported_facebook?: string | null
           reported_full_name: string
           reported_phone?: string | null
+          reported_phones?: Json | null
+          reported_aliases?: Json | null
+          reported_emails?: Json | null
+          reported_facebooks?: Json | null
           reporter_email?: string | null
           reporter_id: string
           reviewed_at?: string | null
@@ -172,6 +180,10 @@ export type Database = {
           reported_facebook?: string | null
           reported_full_name?: string
           reported_phone?: string | null
+          reported_phones?: Json | null
+          reported_aliases?: Json | null
+          reported_emails?: Json | null
+          reported_facebooks?: Json | null
           reporter_email?: string | null
           reporter_id?: string
           reviewed_at?: string | null

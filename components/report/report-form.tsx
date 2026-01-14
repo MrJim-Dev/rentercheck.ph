@@ -45,6 +45,7 @@ import {
 } from "lucide-react"
 import { submitIncidentReport, uploadEvidence, type ReportFormData } from "@/app/actions/report"
 import type { Enums } from "@/lib/database.types"
+import { MultiInput } from "@/components/ui/multi-input"
 
 // Incident types matching the spec
 const INCIDENT_TYPES = [
@@ -128,12 +129,15 @@ const REGIONS = [
 export function ReportForm() {
     // Step 1: Renter identification (required)
     const [fullName, setFullName] = useState("")
-    const [phone, setPhone] = useState("")
-    const [email, setEmail] = useState("")
-    const [facebookLink, setFacebookLink] = useState("")
+    // Multiple identifiers support
+    const [phones, setPhones] = useState<string[]>([])
+    const [emails, setEmails] = useState<string[]>([])
+    const [facebooks, setFacebooks] = useState<string[]>([])
+    const [aliases, setAliases] = useState<string[]>([])
 
     // Step 1: Additional renter details (optional - strong identifiers)
     const [showMoreDetails, setShowMoreDetails] = useState(false)
+    const [showAliases, setShowAliases] = useState(false)
     const [renterAddress, setRenterAddress] = useState("")
     const [renterCity, setRenterCity] = useState("")
     const [renterBirthdate, setRenterBirthdate] = useState("")
@@ -172,7 +176,7 @@ export function ReportForm() {
     const [reportId, setReportId] = useState<string | null>(null)
 
     // Validation helpers
-    const hasIdentifier = phone.trim() || email.trim() || facebookLink.trim()
+    const hasIdentifier = phones.length > 0 || emails.length > 0 || facebooks.length > 0
     const hasRequiredFields = fullName.trim() && hasIdentifier && incidentType && incidentDate && proofFiles.length > 0 && summary.trim() && confirmTruth && confirmBan
 
     // Count optional strong identifiers filled
@@ -182,7 +186,11 @@ export function ReportForm() {
         renterBirthdate,
         proofFiles.some(f => f.type === "renter_id"),
         proofFiles.some(f => f.type === "renter_photo"),
+        aliases.length > 0,
     ].filter(Boolean).length
+
+    // Count total identifiers
+    const totalIdentifiersCount = phones.length + emails.length + facebooks.length
 
     // Phone normalization helper
     const normalizePhone = (value: string) => {
@@ -195,6 +203,17 @@ export function ReportForm() {
             cleaned = "+63" + cleaned
         }
         return cleaned
+    }
+
+    // Phone validation helper - more lenient, just check it has some digits
+    const validatePhone = (value: string) => {
+        const digits = value.replace(/\D/g, "")
+        return digits.length >= 7 // At least 7 digits for a phone number
+    }
+
+    // Email validation helper - basic check
+    const validateEmail = (value: string) => {
+        return value.includes("@") && value.includes(".") && value.length >= 5
     }
 
     // Facebook link normalization
@@ -281,12 +300,19 @@ export function ReportForm() {
         setSubmitError(null)
 
         try {
-            // Prepare form data
+            // Prepare form data with multiple identifiers
             const formData: ReportFormData = {
                 fullName: fullName.trim(),
-                phone: phone.trim() ? normalizePhone(phone.trim()) : undefined,
-                email: email.trim() || undefined,
-                facebookLink: facebookLink.trim() ? normalizeFacebookLink(facebookLink.trim()) : undefined,
+                // Primary identifiers (first from each array)
+                phone: phones[0] ? normalizePhone(phones[0]) : undefined,
+                email: emails[0] || undefined,
+                facebookLink: facebooks[0] ? normalizeFacebookLink(facebooks[0]) : undefined,
+                // Additional identifiers (rest of arrays)
+                additionalPhones: phones.slice(1).map(p => normalizePhone(p)),
+                additionalEmails: emails.slice(1),
+                additionalFacebooks: facebooks.slice(1).map(f => normalizeFacebookLink(f)),
+                aliases: aliases.length > 0 ? aliases : undefined,
+                // Other fields
                 renterAddress: renterAddress.trim() || undefined,
                 renterCity: renterCity.trim() || undefined,
                 renterBirthdate: renterBirthdate || undefined,
@@ -435,62 +461,108 @@ export function ReportForm() {
 
                 {/* Identifier hint */}
                 <div className="bg-muted/30 rounded-lg p-4 border border-dashed">
-                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-3">
-                        <Shield className="w-4 h-4 text-secondary" />
-                        Provide at least ONE identifier for matching:
-                    </p>
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-secondary" />
+                            Provide at least ONE identifier for matching:
+                        </p>
+                        {totalIdentifiersCount > 0 && (
+                            <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                                {totalIdentifiersCount} identifier{totalIdentifiersCount !== 1 ? "s" : ""}
+                            </span>
+                        )}
+                    </div>
 
                     <div className="grid gap-4">
-                        {/* Phone */}
+                        {/* Phone Numbers (multiple) */}
                         <div className="space-y-2">
-                            <Label htmlFor="phone" className="text-sm flex items-center gap-2">
+                            <Label className="text-sm flex items-center gap-2">
                                 <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                                Phone Number
+                                Phone Number{phones.length > 1 ? "s" : ""}
                                 <span className="text-xs text-emerald-400 font-normal">(recommended)</span>
                             </Label>
-                            <Input
-                                id="phone"
-                                type="tel"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                onBlur={(e) => setPhone(normalizePhone(e.target.value))}
+                            <MultiInput
+                                values={phones}
+                                onChange={setPhones}
                                 placeholder="09171234567 or +63 917 123 4567"
-                                className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                maxItems={5}
+                                icon={<Phone className="w-4 h-4" />}
+                                validateFn={validatePhone}
+                                normalizeFn={normalizePhone}
+                                addLabel="Add another phone"
+                                validationMessage="Enter at least 7 digits"
                             />
                         </div>
 
-                        {/* Email */}
+                        {/* Email Addresses (multiple) */}
                         <div className="space-y-2">
-                            <Label htmlFor="email" className="text-sm flex items-center gap-2">
+                            <Label className="text-sm flex items-center gap-2">
                                 <Mail className="w-3.5 h-3.5 text-blue-400" />
-                                Email Address
+                                Email Address{emails.length > 1 ? "es" : ""}
                             </Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                            <MultiInput
+                                values={emails}
+                                onChange={setEmails}
                                 placeholder="renter@email.com"
-                                className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                maxItems={5}
+                                icon={<Mail className="w-4 h-4" />}
+                                validateFn={validateEmail}
+                                normalizeFn={(v) => v.toLowerCase().trim()}
+                                addLabel="Add another email"
+                                validationMessage="Enter a valid email address"
                             />
                         </div>
 
-                        {/* Facebook */}
+                        {/* Facebook Profiles (multiple) */}
                         <div className="space-y-2">
-                            <Label htmlFor="facebook" className="text-sm flex items-center gap-2">
+                            <Label className="text-sm flex items-center gap-2">
                                 <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />
-                                Facebook Profile Link
+                                Facebook Profile{facebooks.length > 1 ? "s" : ""}
                             </Label>
-                            <Input
-                                id="facebook"
-                                type="url"
-                                value={facebookLink}
-                                onChange={(e) => setFacebookLink(e.target.value)}
-                                onBlur={(e) => setFacebookLink(normalizeFacebookLink(e.target.value))}
+                            <MultiInput
+                                values={facebooks}
+                                onChange={setFacebooks}
                                 placeholder="facebook.com/username or profile link"
-                                className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                maxItems={5}
+                                icon={<Facebook className="w-4 h-4" />}
+                                normalizeFn={normalizeFacebookLink}
+                                addLabel="Add another Facebook"
                             />
                         </div>
+                    </div>
+
+                    {/* Aliases section (collapsible) */}
+                    <div className="mt-4 pt-4 border-t border-dashed">
+                        <button
+                            type="button"
+                            onClick={() => setShowAliases(!showAliases)}
+                            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            <User className="w-3.5 h-3.5" />
+                            {showAliases ? "Hide" : "Add"} known aliases/nicknames
+                            {aliases.length > 0 && (
+                                <span className="text-xs bg-secondary/20 text-secondary px-1.5 py-0.5 rounded">
+                                    {aliases.length}
+                                </span>
+                            )}
+                            <ChevronDown className={`w-4 h-4 transition-transform ${showAliases ? "rotate-180" : ""}`} />
+                        </button>
+
+                        {showAliases && (
+                            <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
+                                <MultiInput
+                                    values={aliases}
+                                    onChange={setAliases}
+                                    placeholder="Known alias or nickname"
+                                    maxItems={5}
+                                    icon={<User className="w-4 h-4" />}
+                                    addLabel="Add another alias"
+                                />
+                                <p className="text-xs text-muted-foreground mt-2">
+                                    If the renter uses different names on different platforms
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -499,6 +571,14 @@ export function ReportForm() {
                     <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
                         <span>Please add at least one identifier (phone, email, or Facebook link)</span>
+                    </div>
+                )}
+
+                {/* Multiple identifiers tip */}
+                {hasIdentifier && totalIdentifiersCount === 1 && (
+                    <div className="flex items-center gap-2 text-sm text-blue-400 bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
+                        <Sparkles className="w-4 h-4 shrink-0" />
+                        <span>Tip: Adding multiple identifiers improves matching accuracy</span>
                     </div>
                 )}
 

@@ -12,6 +12,12 @@ export interface ReportFormData {
     email?: string
     facebookLink?: string
 
+    // Multiple identifiers (optional - arrays for additional values)
+    aliases?: string[]           // Alternative names/aliases
+    additionalPhones?: string[]  // Additional phone numbers
+    additionalEmails?: string[]  // Additional email addresses
+    additionalFacebooks?: string[] // Additional Facebook profiles
+
     // Additional renter details (optional)
     renterAddress?: string
     renterCity?: string
@@ -37,6 +43,14 @@ export interface ReportFormData {
     // Confirmations
     confirmTruth: boolean
     confirmBan: boolean
+}
+
+// Helper type for displaying identifiers
+export interface RenterIdentifiers {
+    phones: string[]
+    emails: string[]
+    facebooks: string[]
+    aliases: string[]
 }
 
 export interface EvidenceFile {
@@ -88,16 +102,44 @@ export async function submitIncidentReport(
             return { success: false, error: "You must confirm both acknowledgements" }
         }
 
-        // Create the incident report
+        // Prepare JSONB arrays for multiple identifiers
+        // Filter out empty strings and combine primary + additional values
+        const allPhones = [
+            formData.phone?.trim(),
+            ...(formData.additionalPhones || []).map(p => p.trim())
+        ].filter(Boolean) as string[]
+
+        const allEmails = [
+            formData.email?.trim(),
+            ...(formData.additionalEmails || []).map(e => e.trim())
+        ].filter(Boolean) as string[]
+
+        const allFacebooks = [
+            formData.facebookLink?.trim(),
+            ...(formData.additionalFacebooks || []).map(f => f.trim())
+        ].filter(Boolean) as string[]
+
+        const allAliases = (formData.aliases || [])
+            .map(a => a.trim())
+            .filter(Boolean) as string[]
+
+        // Create the incident report with JSONB arrays
         const { data: report, error: reportError } = await supabase
             .from("incident_reports")
             .insert({
                 reporter_id: user.id,
                 reporter_email: user.email,
                 reported_full_name: formData.fullName.trim(),
-                reported_phone: formData.phone?.trim() || null,
-                reported_email: formData.email?.trim() || null,
-                reported_facebook: formData.facebookLink?.trim() || null,
+                // Primary identifiers (first value or null)
+                reported_phone: allPhones[0] || null,
+                reported_email: allEmails[0] || null,
+                reported_facebook: allFacebooks[0] || null,
+                // JSONB arrays for all identifiers (including primary)
+                reported_phones: allPhones.length > 0 ? allPhones : null,
+                reported_emails: allEmails.length > 0 ? allEmails : null,
+                reported_facebooks: allFacebooks.length > 0 ? allFacebooks : null,
+                reported_aliases: allAliases.length > 0 ? allAliases : null,
+                // Other fields
                 reported_address: formData.renterAddress?.trim() || null,
                 reported_city: formData.renterCity?.trim() || null,
                 reported_date_of_birth: formData.renterBirthdate || null,
@@ -123,7 +165,7 @@ export async function submitIncidentReport(
             return { success: false, error: "Failed to create report. Please try again." }
         }
 
-        // Create report identifiers for matching
+        // Create report identifiers for matching (all phones, emails, facebooks)
         const identifiers: Array<{
             report_id: string
             identifier_type: Enums<"identifier_type">
@@ -131,30 +173,33 @@ export async function submitIncidentReport(
             identifier_normalized: string
         }> = []
 
-        if (formData.phone) {
+        // Add all phones
+        for (const phone of allPhones) {
             identifiers.push({
                 report_id: report.id,
                 identifier_type: "PHONE",
-                identifier_value: formData.phone,
-                identifier_normalized: formData.phone.replace(/[^\d]/g, ""), // Will be normalized by trigger
+                identifier_value: phone,
+                identifier_normalized: phone.replace(/[^\d+]/g, ""),
             })
         }
 
-        if (formData.email) {
+        // Add all emails
+        for (const email of allEmails) {
             identifiers.push({
                 report_id: report.id,
                 identifier_type: "EMAIL",
-                identifier_value: formData.email,
-                identifier_normalized: formData.email.toLowerCase(),
+                identifier_value: email,
+                identifier_normalized: email.toLowerCase(),
             })
         }
 
-        if (formData.facebookLink) {
+        // Add all facebooks
+        for (const facebook of allFacebooks) {
             identifiers.push({
                 report_id: report.id,
                 identifier_type: "FACEBOOK",
-                identifier_value: formData.facebookLink,
-                identifier_normalized: formData.facebookLink.toLowerCase(),
+                identifier_value: facebook,
+                identifier_normalized: facebook.toLowerCase(),
             })
         }
 
@@ -543,9 +588,14 @@ export interface AmendmentFormData {
         renterAddress?: string
         renterCity?: string
         renterBirthdate?: string
+        // Single identifier (backwards compatible)
         phone?: string
         email?: string
         facebookLink?: string
+        // Multiple identifiers
+        phones?: string[]
+        emails?: string[]
+        facebookLinks?: string[]
         // For any additional text notes
         additionalNotes?: string
     }

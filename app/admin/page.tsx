@@ -834,40 +834,77 @@ export default function AdminPage() {
                                                     <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                                                     <span className="font-medium">{selectedReport.reported_full_name}</span>
                                                 </div>
-                                                {selectedReport.reported_phone && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Phone className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                        <span className="flex-1">{selectedReport.reported_phone}</span>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-5 w-5 p-0"
-                                                            onClick={() => copyToClipboard(selectedReport.reported_phone!)}
-                                                        >
-                                                            <Copy className="w-3 h-3" />
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                                {selectedReport.reported_email && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Mail className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                        <span className="truncate">{selectedReport.reported_email}</span>
-                                                    </div>
-                                                )}
-                                                {selectedReport.reported_facebook && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Facebook className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                        <a
-                                                            href={selectedReport.reported_facebook}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-secondary hover:underline flex items-center gap-1"
-                                                        >
-                                                            View Profile
-                                                            <ExternalLink className="w-3 h-3" />
-                                                        </a>
-                                                    </div>
-                                                )}
+                                                {/* Show aliases if any */}
+                                                {(() => {
+                                                    const aliases = (selectedReport as unknown as { reported_aliases?: string[] }).reported_aliases;
+                                                    if (aliases && aliases.length > 0) {
+                                                        return (
+                                                            <div className="flex items-start gap-1.5 pl-5">
+                                                                <span className="text-muted-foreground">AKA:</span>
+                                                                <span className="flex flex-wrap gap-1">
+                                                                    {aliases.map((alias: string, idx: number) => (
+                                                                        <Badge key={idx} variant="outline" className="text-[10px] px-1 py-0 h-4">
+                                                                            {alias}
+                                                                        </Badge>
+                                                                    ))}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                                {/* Phone Numbers (show all from JSONB array or fallback to single) */}
+                                                {(() => {
+                                                    const phones = (selectedReport as unknown as { reported_phones?: string[] }).reported_phones || 
+                                                        (selectedReport.reported_phone ? [selectedReport.reported_phone] : []);
+                                                    if (phones.length === 0) return null;
+                                                    return phones.map((phone: string, idx: number) => (
+                                                        <div key={idx} className="flex items-center gap-1.5">
+                                                            <Phone className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                                            <span className="flex-1">{phone}</span>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-5 w-5 p-0"
+                                                                onClick={() => copyToClipboard(phone)}
+                                                            >
+                                                                <Copy className="w-3 h-3" />
+                                                            </Button>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                                {/* Email Addresses (show all from JSONB array or fallback to single) */}
+                                                {(() => {
+                                                    const emails = (selectedReport as unknown as { reported_emails?: string[] }).reported_emails || 
+                                                        (selectedReport.reported_email ? [selectedReport.reported_email] : []);
+                                                    if (emails.length === 0) return null;
+                                                    return emails.map((email: string, idx: number) => (
+                                                        <div key={idx} className="flex items-center gap-1.5">
+                                                            <Mail className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                                            <span className="truncate">{email}</span>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                                {/* Facebook Profiles (show all from JSONB array or fallback to single) */}
+                                                {(() => {
+                                                    const facebooks = (selectedReport as unknown as { reported_facebooks?: string[] }).reported_facebooks || 
+                                                        (selectedReport.reported_facebook ? [selectedReport.reported_facebook] : []);
+                                                    if (facebooks.length === 0) return null;
+                                                    return facebooks.map((fb: string, idx: number) => (
+                                                        <div key={idx} className="flex items-center gap-1.5">
+                                                            <Facebook className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                                            <a
+                                                                href={fb}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-secondary hover:underline flex items-center gap-1 truncate"
+                                                            >
+                                                                {idx === 0 ? "View Profile" : `Profile ${idx + 1}`}
+                                                                <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                                            </a>
+                                                        </div>
+                                                    ));
+                                                })()}
                                                 {selectedReport.reported_address && (
                                                     <div className="flex items-start gap-1.5">
                                                         <MapPin className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
