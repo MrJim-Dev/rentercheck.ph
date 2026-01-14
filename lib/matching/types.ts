@@ -143,6 +143,8 @@ export interface SearchResponse {
     hasStrongInput: boolean;
     /** Tips for improving search */
     tips?: string[];
+    /** Whether authentication is required to see results */
+    requiresAuth?: boolean;
   };
 }
 

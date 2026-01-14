@@ -33,11 +33,22 @@ export function Navigation() {
 
     return (
         <div className="fixed top-4 left-0 right-0 z-50 flex justify-center px-4">
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-40"
+                        onClick={() => setIsOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
             <motion.nav
                 initial={{ y: -100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className="w-full max-w-4xl bg-background/60 backdrop-blur-xl border border-white/10 rounded-full shadow-lg shadow-black/5"
+                className={`w-full max-w-4xl bg-background/60 backdrop-blur-xl border border-white/10 ${isOpen ? 'rounded-2xl' : 'rounded-full'} shadow-lg shadow-black/5 relative z-50`}
             >
                 <div className="px-5 h-14 flex items-center justify-between">
                     {/* Logo */}
@@ -58,7 +69,8 @@ export function Navigation() {
                                 className="object-contain"
                             />
                         </div>
-                        <span className="text-base font-bold tracking-tight text-foreground">rentercheck.ph</span>
+                        <span className="text-base font-bold tracking-tight text-foreground">Renter<span className="text-secondary">Check</span>
+                        </span>
                     </div>
 
                     {/* Desktop Navigation */}
@@ -191,7 +203,7 @@ export function Navigation() {
                             initial={{ opacity: 0, height: 0, marginTop: 0 }}
                             animate={{ opacity: 1, height: "auto", marginTop: 16 }}
                             exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                            className="md:hidden overflow-hidden bg-background/90 backdrop-blur-xl border border-white/10 rounded-2xl mx-2 mb-2"
+                            className="md:hidden overflow-hidden bg-background/90 backdrop-blur-xl"
                         >
                             <div className="p-4 flex flex-col gap-2">
                                 {/* Scroll Links */}

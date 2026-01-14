@@ -225,6 +225,10 @@ export async function searchRenters(
   const startTime = Date.now();
   const supabase = await createClient();
 
+  // Check authentication
+  const { data: { user } } = await supabase.auth.getUser();
+  const isAuthenticated = !!user;
+
   try {
     // Parse the query
     let searchInput: SearchInput;
@@ -1109,6 +1113,22 @@ export async function searchRenters(
     }
     if (results.some((r) => r.requiresConfirmation)) {
       tips.push("Some matches need confirmation - add more identifiers");
+    }
+
+    // If not authenticated, return only count and metadata, no actual results
+    if (!isAuthenticated && results.length > 0) {
+      return {
+        success: true,
+        results: [],
+        totalCount: results.length,
+        query: originalQuery,
+        meta: {
+          searchTime: Date.now() - startTime,
+          hasStrongInput,
+          tips: tips.length > 0 ? tips : undefined,
+          requiresAuth: true,
+        },
+      };
     }
 
     return {

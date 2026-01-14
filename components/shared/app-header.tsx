@@ -66,9 +66,18 @@ export function AppHeader({
     ]
 
     return (
-        <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/50">
-            <div className="container mx-auto px-4 md:px-6">
-                <div className="flex items-center gap-4 h-16">
+        <>
+            {/* Mobile menu backdrop */}
+            {mobileMenuOpen && (
+                <div
+                    className="fixed inset-0 z-40 bg-black/50 md:hidden"
+                    onClick={() => setMobileMenuOpen(false)}
+                />
+            )}
+            
+            <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/50">
+                <div className="container mx-auto px-4 md:px-6">
+                    <div className="flex items-center gap-4 h-16">
                     {/* Logo */}
                     <Link href="/" className="flex items-center gap-2 shrink-0">
                         <Image
@@ -216,7 +225,7 @@ export function AppHeader({
 
                 {/* Mobile Menu */}
                 {mobileMenuOpen && (
-                    <div className="md:hidden border-t py-4 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                    <div className="md:hidden border-t py-4 space-y-1 animate-in slide-in-from-top-2 duration-200 relative z-50 bg-background">
                         {navLinks.map((link) => {
                             if (link.requireAuth && !user && !loading) return null
                             const Icon = link.icon
@@ -283,5 +292,6 @@ export function AppHeader({
                 )}
             </div>
         </header>
+        </>
     )
 }
