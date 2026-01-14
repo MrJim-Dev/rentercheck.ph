@@ -51,6 +51,26 @@ export interface SearchFilters {
 // SEARCH RESULT TYPES
 // ============================================
 
+/** Summary of an incident for display */
+export interface IncidentSummary {
+  /** Incident type */
+  type: string;
+  /** Human-readable incident type label */
+  typeLabel: string;
+  /** Rental category */
+  category: string | null;
+  /** Category label */
+  categoryLabel: string | null;
+  /** Rented item description */
+  itemDescription: string | null;
+  /** Incident date */
+  date: string;
+  /** Location (city/region) */
+  location: string | null;
+  /** Amount involved */
+  amountInvolved: number | null;
+}
+
 export interface SearchResultRenter {
   /** Renter ID */
   id: string;
@@ -60,6 +80,8 @@ export interface SearchResultRenter {
   fullName: string;
   /** Masked name for display (e.g., "J*** D***") */
   nameMasked: string;
+  /** Known aliases */
+  aliases?: string[];
   /** City */
   city: string | null;
   /** Region */
@@ -74,6 +96,8 @@ export interface SearchResultRenter {
   verificationStatus: string | null;
   /** Identifiers count (not the actual values for privacy) */
   identifierCount: number;
+  /** Summary of incidents for display (non-sensitive info only) */
+  incidentSummaries?: IncidentSummary[];
 }
 
 export interface SearchResultMatch {

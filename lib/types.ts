@@ -82,12 +82,26 @@ export interface RenterProfile {
     verificationStatus: 'VERIFIED' | 'UNVERIFIED' | 'FLAGGED';
 }
 
+/** Summary of an incident for display (non-sensitive info only) */
+export interface IncidentSummary {
+    type: string;
+    typeLabel: string;
+    category: string | null;
+    categoryLabel: string | null;
+    itemDescription: string | null;
+    date: string;
+    location: string | null;
+    amountInvolved: number | null;
+}
+
 /** New search result with confidence scoring */
 export interface SearchResultRenter {
     id: string;
     fingerprint: string;
     fullName: string;
     nameMasked: string;
+    /** Known aliases */
+    aliases?: string[];
     city: string | null;
     region: string | null;
     totalIncidents: number;
@@ -95,6 +109,8 @@ export interface SearchResultRenter {
     lastIncidentDate: string | null;
     verificationStatus: string | null;
     identifierCount: number;
+    /** Summary of incidents (only shown for confirmed matches) */
+    incidentSummaries?: IncidentSummary[];
 }
 
 /** Match details for a search result */

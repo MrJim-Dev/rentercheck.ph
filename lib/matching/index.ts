@@ -18,6 +18,7 @@ export {
   normalizeLocation,
   normalizeIdentifier,
   getPhoneLastDigits,
+  getPhoneVariations,
   hashIdentifier,
   type IdentifierType,
 } from './normalizers';

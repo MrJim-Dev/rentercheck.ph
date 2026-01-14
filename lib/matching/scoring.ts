@@ -79,6 +79,10 @@ export interface SearchInput {
   facebook?: string | null;
   city?: string | null;
   region?: string | null;
+  // Additional identifiers for multi-input search
+  additionalPhones?: string[];
+  additionalEmails?: string[];
+  additionalFacebooks?: string[];
 }
 
 export interface CandidateData {
@@ -87,6 +91,8 @@ export interface CandidateData {
   fullNameNormalized?: string | null;
   city?: string | null;
   region?: string | null;
+  /** Aliases / other names for this person */
+  aliases?: string[];
   identifiers: Array<{
     type: 'PHONE' | 'EMAIL' | 'FACEBOOK' | 'GOVT_ID';
     normalized: string;
@@ -106,6 +112,8 @@ const WEIGHTS = {
 
   // Name matches
   NAME_EXACT: 25, // After normalization
+  ALIAS_EXACT: 25, // Alias exact match
+  ALIAS_FUZZY: 15, // Alias fuzzy match
   NAME_FUZZY_HIGH: 15, // >= 0.92 similarity
   NAME_FUZZY_MEDIUM: 10, // >= 0.85 similarity
   NAME_FIRST_LAST_ONLY: 10, // First + last match, middle differs
@@ -169,10 +177,39 @@ export function calculateMatchScore(
   let score = 0;
   let hasStrongMatch = false;
 
-  // Normalize search inputs
-  const searchPhoneNorm = normalizePhone(search.phone);
-  const searchEmailNorm = normalizeEmail(search.email);
-  const searchFacebookNorm = normalizeFacebookUrl(search.facebook);
+  // Normalize search inputs - collect ALL provided identifiers
+  const searchPhonesNorm: string[] = [];
+  const searchEmailsNorm: string[] = [];
+  const searchFacebooksNorm: string[] = [];
+  
+  // Primary identifiers
+  const primaryPhone = normalizePhone(search.phone);
+  if (primaryPhone) searchPhonesNorm.push(primaryPhone);
+  const primaryEmail = normalizeEmail(search.email);
+  if (primaryEmail) searchEmailsNorm.push(primaryEmail);
+  const primaryFacebook = normalizeFacebookUrl(search.facebook);
+  if (primaryFacebook) searchFacebooksNorm.push(primaryFacebook);
+  
+  // Additional identifiers
+  if (search.additionalPhones) {
+    for (const p of search.additionalPhones) {
+      const norm = normalizePhone(p);
+      if (norm && !searchPhonesNorm.includes(norm)) searchPhonesNorm.push(norm);
+    }
+  }
+  if (search.additionalEmails) {
+    for (const e of search.additionalEmails) {
+      const norm = normalizeEmail(e);
+      if (norm && !searchEmailsNorm.includes(norm)) searchEmailsNorm.push(norm);
+    }
+  }
+  if (search.additionalFacebooks) {
+    for (const f of search.additionalFacebooks) {
+      const norm = normalizeFacebookUrl(f);
+      if (norm && !searchFacebooksNorm.includes(norm)) searchFacebooksNorm.push(norm);
+    }
+  }
+  
   const searchNameNorm = normalizeName(search.name);
   const searchCityNorm = normalizeLocation(search.city);
   const searchRegionNorm = normalizeLocation(search.region);
@@ -184,56 +221,75 @@ export function calculateMatchScore(
 
   // ============================================
   // CHECK STRONG IDENTIFIERS
+  // Now checks ALL provided identifiers, not just primary
   // ============================================
 
-  // Phone match
-  if (searchPhoneNorm) {
-    const phoneMatch = candidate.identifiers.find(
-      (id) => id.type === 'PHONE' && id.normalized === searchPhoneNorm
-    );
-    if (phoneMatch) {
-      hasStrongMatch = true;
-      signals.push({
-        type: 'PHONE_EXACT',
-        points: WEIGHTS.PHONE_EXACT,
-        description: 'Phone number matches',
-        isStrong: true,
-      });
-      score += WEIGHTS.PHONE_EXACT;
+  // Phone match - check ALL search phones against candidate phones
+  let phoneMatchFound = false;
+  if (searchPhonesNorm.length > 0) {
+    const candidatePhones = candidate.identifiers.filter(id => id.type === 'PHONE');
+    for (const searchPhone of searchPhonesNorm) {
+      const phoneMatch = candidatePhones.find(id => id.normalized === searchPhone);
+      if (phoneMatch && !phoneMatchFound) {
+        phoneMatchFound = true;
+        hasStrongMatch = true;
+        signals.push({
+          type: 'PHONE_EXACT',
+          points: WEIGHTS.PHONE_EXACT,
+          description: searchPhonesNorm.length > 1 
+            ? 'Phone number matches (from multiple provided)'
+            : 'Phone number matches',
+          isStrong: true,
+        });
+        score += WEIGHTS.PHONE_EXACT;
+        break; // Only count once even if multiple phones match
+      }
     }
   }
 
-  // Email match
-  if (searchEmailNorm) {
-    const emailMatch = candidate.identifiers.find(
-      (id) => id.type === 'EMAIL' && id.normalized === searchEmailNorm
-    );
-    if (emailMatch) {
-      hasStrongMatch = true;
-      signals.push({
-        type: 'EMAIL_EXACT',
-        points: WEIGHTS.EMAIL_EXACT,
-        description: 'Email address matches',
-        isStrong: true,
-      });
-      score += WEIGHTS.EMAIL_EXACT;
+  // Email match - check ALL search emails against candidate emails
+  let emailMatchFound = false;
+  if (searchEmailsNorm.length > 0) {
+    const candidateEmails = candidate.identifiers.filter(id => id.type === 'EMAIL');
+    for (const searchEmail of searchEmailsNorm) {
+      const emailMatch = candidateEmails.find(id => id.normalized === searchEmail);
+      if (emailMatch && !emailMatchFound) {
+        emailMatchFound = true;
+        hasStrongMatch = true;
+        signals.push({
+          type: 'EMAIL_EXACT',
+          points: WEIGHTS.EMAIL_EXACT,
+          description: searchEmailsNorm.length > 1
+            ? 'Email address matches (from multiple provided)'
+            : 'Email address matches',
+          isStrong: true,
+        });
+        score += WEIGHTS.EMAIL_EXACT;
+        break; // Only count once
+      }
     }
   }
 
-  // Facebook match
-  if (searchFacebookNorm) {
-    const fbMatch = candidate.identifiers.find(
-      (id) => id.type === 'FACEBOOK' && id.normalized === searchFacebookNorm
-    );
-    if (fbMatch) {
-      hasStrongMatch = true;
-      signals.push({
-        type: 'FACEBOOK_EXACT',
-        points: WEIGHTS.FACEBOOK_EXACT,
-        description: 'Facebook profile matches',
-        isStrong: true,
-      });
-      score += WEIGHTS.FACEBOOK_EXACT;
+  // Facebook match - check ALL search facebooks against candidate facebooks
+  let fbMatchFound = false;
+  if (searchFacebooksNorm.length > 0) {
+    const candidateFacebooks = candidate.identifiers.filter(id => id.type === 'FACEBOOK');
+    for (const searchFb of searchFacebooksNorm) {
+      const fbMatch = candidateFacebooks.find(id => id.normalized === searchFb);
+      if (fbMatch && !fbMatchFound) {
+        fbMatchFound = true;
+        hasStrongMatch = true;
+        signals.push({
+          type: 'FACEBOOK_EXACT',
+          points: WEIGHTS.FACEBOOK_EXACT,
+          description: searchFacebooksNorm.length > 1
+            ? 'Facebook profile matches (from multiple provided)'
+            : 'Facebook profile matches',
+          isStrong: true,
+        });
+        score += WEIGHTS.FACEBOOK_EXACT;
+        break; // Only count once
+      }
     }
   }
 
@@ -298,6 +354,60 @@ export function calculateMatchScore(
           description: 'Identifier matches but name differs significantly',
         });
         score += WEIGHTS.PENALTY_NAME_MISMATCH;
+      }
+    }
+  }
+
+  // ============================================
+  // CHECK ALIASES
+  // Match search name against candidate's known aliases
+  // ============================================
+  
+  if (searchNameNorm && candidate.aliases && candidate.aliases.length > 0) {
+    let aliasMatchFound = false;
+    let bestAliasScore = 0;
+    let matchedAlias = '';
+    
+    for (const alias of candidate.aliases) {
+      const aliasNorm = normalizeName(alias);
+      if (!aliasNorm) continue;
+      
+      // Exact alias match
+      if (aliasNorm === searchNameNorm) {
+        aliasMatchFound = true;
+        bestAliasScore = 1.0;
+        matchedAlias = alias;
+        break;
+      }
+      
+      // Fuzzy alias match
+      const aliasSimilarity = nameSimilarity(searchNameNorm, aliasNorm);
+      if (aliasSimilarity > bestAliasScore) {
+        bestAliasScore = aliasSimilarity;
+        matchedAlias = alias;
+      }
+    }
+    
+    // Only add alias signal if we haven't already matched on main name
+    const hasNameSignal = signals.some(s => s.type === 'NAME_EXACT' || s.type === 'NAME_FUZZY' || s.type === 'NAME_FIRST_LAST');
+    
+    if (!hasNameSignal) {
+      if (bestAliasScore === 1.0) {
+        signals.push({
+          type: 'NAME_EXACT',
+          points: WEIGHTS.ALIAS_EXACT,
+          description: `Matches known alias "${matchedAlias}"`,
+          isStrong: false,
+        });
+        score += WEIGHTS.ALIAS_EXACT;
+      } else if (bestAliasScore >= 0.85) {
+        signals.push({
+          type: 'NAME_FUZZY',
+          points: WEIGHTS.ALIAS_FUZZY,
+          description: `Similar to alias "${matchedAlias}" (${Math.round(bestAliasScore * 100)}%)`,
+          isStrong: false,
+        });
+        score += WEIGHTS.ALIAS_FUZZY;
       }
     }
   }

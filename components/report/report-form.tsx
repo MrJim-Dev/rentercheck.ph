@@ -47,13 +47,29 @@ import { submitIncidentReport, uploadEvidence, type ReportFormData } from "@/app
 import type { Enums } from "@/lib/database.types"
 import { MultiInput } from "@/components/ui/multi-input"
 
-// Incident types matching the spec
+// Incident types - covering various rental-related issues
 const INCIDENT_TYPES = [
-    { value: "NON_RETURN", label: "Non-return of item/unit", icon: "📦" },
-    { value: "UNPAID_BALANCE", label: "Unpaid balance", icon: "💸" },
-    { value: "DAMAGE_DISPUTE", label: "Damage dispute", icon: "🔧" },
-    { value: "FAKE_INFO", label: "Fake info / identity mismatch", icon: "🎭" },
-    { value: "THREATS_HARASSMENT", label: "Threats/harassment", icon: "⚠️" },
+    // Financial issues
+    { value: "NON_RETURN", label: "Non-return of item/unit", icon: "📦", category: "Transaction" },
+    { value: "UNPAID_BALANCE", label: "Unpaid balance", icon: "💸", category: "Transaction" },
+    { value: "LATE_PAYMENT", label: "Consistently late payments", icon: "⏰", category: "Transaction" },
+    { value: "SCAM", label: "Scam / Fraudulent transaction", icon: "🚨", category: "Transaction" },
+    
+    // Property/Item issues
+    { value: "DAMAGE_DISPUTE", label: "Damage to item/property", icon: "🔧", category: "Property" },
+    { value: "PROPERTY_DAMAGE", label: "Intentional property damage", icon: "💥", category: "Property" },
+    { value: "CONTRACT_VIOLATION", label: "Violated rental agreement", icon: "📋", category: "Property" },
+    
+    // Identity/Trust issues  
+    { value: "FAKE_INFO", label: "Fake info / Identity mismatch", icon: "🎭", category: "Trust" },
+    { value: "NO_SHOW", label: "No-show / Ghosting", icon: "👻", category: "Trust" },
+    
+    // Behavior issues
+    { value: "ABUSIVE_BEHAVIOR", label: "Rude / Abusive behavior", icon: "😤", category: "Behavior" },
+    { value: "THREATS_HARASSMENT", label: "Threats / Harassment", icon: "⚠️", category: "Behavior" },
+    
+    // Other
+    { value: "OTHER", label: "Other issue", icon: "📝", category: "Other" },
 ] as const
 
 // Rental categories for different types of rental businesses
@@ -735,15 +751,27 @@ export function ReportForm() {
                         <SelectTrigger className="h-11 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
                             <SelectValue placeholder="Select what happened..." />
                         </SelectTrigger>
-                        <SelectContent>
-                            {INCIDENT_TYPES.map((type) => (
-                                <SelectItem key={type.value} value={type.value}>
-                                    <span className="flex items-center gap-2">
-                                        <span>{type.icon}</span>
-                                        <span>{type.label}</span>
-                                    </span>
-                                </SelectItem>
-                            ))}
+                        <SelectContent className="max-h-[300px]">
+                            {/* Group by category */}
+                            {["Transaction", "Property", "Trust", "Behavior", "Other"].map((category) => {
+                                const categoryItems = INCIDENT_TYPES.filter(t => t.category === category);
+                                if (categoryItems.length === 0) return null;
+                                return (
+                                    <div key={category}>
+                                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                            {category} Issues
+                                        </div>
+                                        {categoryItems.map((type) => (
+                                            <SelectItem key={type.value} value={type.value}>
+                                                <span className="flex items-center gap-2">
+                                                    <span>{type.icon}</span>
+                                                    <span>{type.label}</span>
+                                                </span>
+                                            </SelectItem>
+                                        ))}
+                                    </div>
+                                );
+                            })}
                         </SelectContent>
                     </Select>
                 </div>

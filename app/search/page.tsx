@@ -97,6 +97,23 @@ function SearchResultsContent() {
 
                         <Separator />
 
+                        {/* Multi-input Search Tip - shown when no query */}
+                        {!query && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
+                                <Lightbulb className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                                <div className="space-y-1">
+                                    <p className="font-medium text-blue-900">Smart Multi-Input Search</p>
+                                    <p className="text-sm text-blue-800">
+                                        Search with multiple details at once for better accuracy! Try: <br/>
+                                        <code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">James Ocampo, 09454279198, jarocampooo@gmail.com</code>
+                                    </p>
+                                    <p className="text-xs text-blue-600 mt-1">
+                                        Separate identifiers with commas. Our system automatically detects names, phones, emails, and Facebook links.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Search Tips Banner */}
                         {searchMeta && !searchMeta.hasStrongInput && results.length > 0 && (
                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3">
@@ -104,8 +121,11 @@ function SearchResultsContent() {
                                 <div className="space-y-1">
                                     <p className="font-medium text-amber-900">Name-only search</p>
                                     <p className="text-sm text-amber-800">
-                                        Searching by name alone may show partial matches. For accurate identification, 
-                                        add a <strong>phone number</strong>, <strong>email</strong>, or <strong>Facebook link</strong>.
+                                        Searching by name alone may show partial matches. For more accurate results, 
+                                        add a <strong>phone number</strong>, <strong>email</strong>, or <strong>Facebook link</strong> to your search.
+                                    </p>
+                                    <p className="text-xs text-amber-600 mt-1">
+                                        💡 Tip: You can search with multiple details at once, e.g., "Name, 09123456789, email@gmail.com"
                                     </p>
                                 </div>
                             </div>

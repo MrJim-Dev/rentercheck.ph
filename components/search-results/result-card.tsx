@@ -22,6 +22,10 @@ import {
     ChevronRight,
     Shield,
     AlertTriangle,
+    Tag,
+    Package,
+    DollarSign,
+    UserCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { AddIdentifierDialog } from "./add-identifier-dialog";
@@ -125,6 +129,18 @@ export function ResultCard({ match }: ResultCardProps) {
                         )}
                     </div>
 
+                    {/* Aliases */}
+                    {showDetails && renter.aliases && renter.aliases.length > 0 && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <UserCircle className="h-3 w-3" />
+                            <span>Also known as:</span>
+                            <span className="font-medium text-foreground">
+                                {renter.aliases.slice(0, 2).join(", ")}
+                                {renter.aliases.length > 2 && ` +${renter.aliases.length - 2} more`}
+                            </span>
+                        </div>
+                    )}
+
                     {/* Match Reason */}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         {showDetails ? (
@@ -195,49 +211,129 @@ export function ResultCard({ match }: ResultCardProps) {
 
             <CardContent className="px-6 pb-5">
                 {showDetails ? (
-                    // STRONG MATCH: Show Summary Info
-                    <div className="flex items-center gap-8 text-sm">
-                        <div className="flex flex-col">
-                            <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
-                                Reports
-                            </span>
-                            <span className="font-semibold text-lg">
-                                {renter.totalIncidents}
-                                {renter.verifiedIncidents > 0 && (
-                                    <span className="text-xs font-normal text-green-600 ml-1">
-                                        ({renter.verifiedIncidents} verified)
-                                    </span>
-                                )}
-                            </span>
-                        </div>
-
-                        {renter.city && (
+                    // STRONG MATCH: Show Summary Info + Incident Details
+                    <div className="space-y-4">
+                        {/* Basic Stats Row */}
+                        <div className="flex items-center gap-8 text-sm">
                             <div className="flex flex-col">
                                 <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
-                                    Location
+                                    Reports
                                 </span>
-                                <div className="flex items-center gap-1">
-                                    <MapPin className="h-3 w-3 text-muted-foreground" />
+                                <span className="font-semibold text-lg">
+                                    {renter.totalIncidents}
+                                    {renter.verifiedIncidents > 0 && (
+                                        <span className="text-xs font-normal text-green-600 ml-1">
+                                            ({renter.verifiedIncidents} verified)
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+
+                            {renter.city && (
+                                <div className="flex flex-col">
+                                    <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
+                                        Location
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                        <MapPin className="h-3 w-3 text-muted-foreground" />
+                                        <span className="font-medium">
+                                            {renter.city}{renter.region ? `, ${renter.region}` : ""}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex flex-col ml-auto text-right">
+                                <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
+                                    Last Activity
+                                </span>
+                                <div className="flex items-center gap-1 justify-end">
+                                    <Calendar className="h-3 w-3 text-muted-foreground" />
                                     <span className="font-medium">
-                                        {renter.city}{renter.region ? `, ${renter.region}` : ""}
+                                        {renter.lastIncidentDate
+                                            ? new Date(renter.lastIncidentDate).toLocaleDateString()
+                                            : "N/A"}
                                     </span>
                                 </div>
                             </div>
-                        )}
-
-                        <div className="flex flex-col ml-auto text-right">
-                            <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
-                                Last Activity
-                            </span>
-                            <div className="flex items-center gap-1 justify-end">
-                                <Calendar className="h-3 w-3 text-muted-foreground" />
-                                <span className="font-medium">
-                                    {renter.lastIncidentDate
-                                        ? new Date(renter.lastIncidentDate).toLocaleDateString()
-                                        : "N/A"}
-                                </span>
-                            </div>
                         </div>
+
+                        {/* Incident Summary Cards */}
+                        {renter.incidentSummaries && renter.incidentSummaries.length > 0 && (
+                            <div className="border-t pt-4 space-y-2">
+                                <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                                    Incident Details
+                                </span>
+                                <div className="grid gap-2">
+                                    {renter.incidentSummaries.slice(0, 2).map((incident, idx) => (
+                                        <div 
+                                            key={idx} 
+                                            className="bg-muted/50 rounded-lg p-3 text-sm"
+                                        >
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="space-y-1.5 flex-1">
+                                                    {/* Incident Type */}
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge 
+                                                            variant="outline" 
+                                                            className={cn(
+                                                                "text-xs font-medium",
+                                                                incident.type === 'SCAM' || incident.type === 'THREATS_HARASSMENT' 
+                                                                    ? "bg-red-50 text-red-700 border-red-200"
+                                                                    : incident.type === 'NON_RETURN' || incident.type === 'UNPAID_BALANCE'
+                                                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                                        : "bg-gray-50 text-gray-700 border-gray-200"
+                                                            )}
+                                                        >
+                                                            <Tag className="h-3 w-3 mr-1" />
+                                                            {incident.typeLabel}
+                                                        </Badge>
+                                                        {incident.amountInvolved && (
+                                                            <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                                                                <DollarSign className="h-3 w-3" />
+                                                                ₱{incident.amountInvolved.toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {/* Category & Item */}
+                                                    {(incident.categoryLabel || incident.itemDescription) && (
+                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                            <Package className="h-3 w-3" />
+                                                            <span>
+                                                                {incident.categoryLabel}
+                                                                {incident.itemDescription && (
+                                                                    <span className="text-foreground"> - {incident.itemDescription}</span>
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Location & Date */}
+                                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                                        {incident.location && (
+                                                            <span className="flex items-center gap-1">
+                                                                <MapPin className="h-3 w-3" />
+                                                                {incident.location}
+                                                            </span>
+                                                        )}
+                                                        <span className="flex items-center gap-1">
+                                                            <Calendar className="h-3 w-3" />
+                                                            {new Date(incident.date).toLocaleDateString()}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {renter.incidentSummaries.length > 2 && (
+                                        <p className="text-xs text-muted-foreground text-center">
+                                            +{renter.incidentSummaries.length - 2} more incidents
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : requiresConfirmation ? (
                     // WEAK MATCH: Warning Message with suggested action

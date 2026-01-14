@@ -6,6 +6,9 @@ import {
   normalizeEmail,
   normalizeFacebookUrl,
   normalizeName,
+  getPhoneVariations,
+  extractFacebookId,
+  normalizeEmailStrict,
   scoreAndRankCandidates,
   enforceMatchPolicy,
   type SearchInput,
@@ -21,39 +24,127 @@ import {
 // ============================================
 
 /**
- * Parse a free-text query to extract identifiers
- * Tries to detect if query is a phone, email, FB URL, or name
+ * Detect the type of a single identifier string
  */
-function parseSearchQuery(query: string): SearchInput {
-  const trimmed = query.trim();
-
+function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | 'name' {
+  const trimmed = value.trim();
+  
   // Check for email pattern
-  if (trimmed.includes("@")) {
-    return { email: trimmed };
+  if (trimmed.includes("@") && trimmed.includes(".")) {
+    return 'email';
   }
 
   // Check for Facebook URL pattern
   if (
     trimmed.includes("facebook.com") ||
     trimmed.includes("fb.com") ||
-    trimmed.startsWith("fb:")
+    trimmed.startsWith("fb:") ||
+    trimmed.toLowerCase().startsWith("fb/")
   ) {
-    return { facebook: trimmed.replace(/^fb:/i, "") };
+    return 'facebook';
   }
 
-  // Check for phone pattern (starts with +, 09, 63, or mostly digits)
+  // Check for phone pattern
   const digitsOnly = trimmed.replace(/[\s\-()]/g, "");
+  const digitCount = (trimmed.match(/\d/g) || []).length;
+  
+  // If it starts with phone prefixes or is mostly digits
   if (
     trimmed.startsWith("+") ||
     trimmed.startsWith("09") ||
     trimmed.startsWith("63") ||
-    (digitsOnly.match(/^\d+$/) && digitsOnly.length >= 7)
+    (digitsOnly.match(/^\d+$/) && digitsOnly.length >= 7) ||
+    (digitCount >= 7 && digitCount / trimmed.replace(/\s/g, '').length > 0.6)
   ) {
-    return { phone: trimmed };
+    return 'phone';
   }
 
-  // Default to name search
-  return { name: trimmed };
+  // Default to name
+  return 'name';
+}
+
+/**
+ * Parse a free-text query to extract multiple identifiers
+ * Supports input like: "James Ocampo, 09454279198, jarocampooo@gmail.com"
+ * Intelligently detects and categorizes each part
+ */
+function parseSearchQuery(query: string): SearchInput {
+  const trimmed = query.trim();
+  
+  // Split by common delimiters: comma, semicolon, pipe, or newline
+  // But be careful not to split phone numbers with dashes
+  const parts = trimmed
+    .split(/[,;|\n]+/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0);
+  
+  // If only one part, use simple detection
+  if (parts.length === 1) {
+    const type = detectIdentifierType(parts[0]);
+    switch (type) {
+      case 'email':
+        return { email: parts[0] };
+      case 'phone':
+        return { phone: parts[0] };
+      case 'facebook':
+        return { facebook: parts[0].replace(/^fb:/i, "") };
+      default:
+        return { name: parts[0] };
+    }
+  }
+  
+  // Multiple parts - categorize each one
+  const result: SearchInput = {};
+  const names: string[] = [];
+  const phones: string[] = [];
+  const emails: string[] = [];
+  const facebooks: string[] = [];
+  
+  for (const part of parts) {
+    const type = detectIdentifierType(part);
+    switch (type) {
+      case 'email':
+        emails.push(part);
+        break;
+      case 'phone':
+        phones.push(part);
+        break;
+      case 'facebook':
+        facebooks.push(part.replace(/^fb:/i, ""));
+        break;
+      case 'name':
+        names.push(part);
+        break;
+    }
+  }
+  
+  // Use the first of each type as the primary, but we'll use all for matching
+  if (names.length > 0) {
+    // Combine multiple name parts if they look like parts of the same name
+    // e.g., "Juan" and "Dela Cruz" could be "Juan Dela Cruz"
+    result.name = names.join(' ');
+  }
+  if (phones.length > 0) {
+    result.phone = phones[0];
+    // Store additional phones for extended matching
+    if (phones.length > 1) {
+      result.additionalPhones = phones.slice(1);
+    }
+  }
+  if (emails.length > 0) {
+    result.email = emails[0];
+    if (emails.length > 1) {
+      result.additionalEmails = emails.slice(1);
+    }
+  }
+  if (facebooks.length > 0) {
+    result.facebook = facebooks[0];
+    if (facebooks.length > 1) {
+      result.additionalFacebooks = facebooks.slice(1);
+    }
+  }
+  
+  return result;
 }
 
 /**
@@ -76,6 +167,52 @@ function maskName(name: string): string {
 function generateReportFingerprint(reportId: string): string {
   // Use first 12 chars of UUID as fingerprint
   return `report-${reportId.slice(0, 12)}`;
+}
+
+/**
+ * Get human-readable incident type label
+ */
+function getIncidentTypeLabel(type: string | null): string {
+  const labels: Record<string, string> = {
+    NON_RETURN: "Non-return of item",
+    UNPAID_BALANCE: "Unpaid balance",
+    LATE_PAYMENT: "Late payments",
+    SCAM: "Scam / Fraud",
+    DAMAGE_DISPUTE: "Damage dispute",
+    PROPERTY_DAMAGE: "Property damage",
+    CONTRACT_VIOLATION: "Contract violation",
+    FAKE_INFO: "Fake information",
+    NO_SHOW: "No-show / Ghosting",
+    ABUSIVE_BEHAVIOR: "Abusive behavior",
+    THREATS_HARASSMENT: "Threats / Harassment",
+    OTHER: "Other issue",
+  };
+  return labels[type || ''] || type || 'Unknown';
+}
+
+/**
+ * Get human-readable rental category label
+ */
+function getCategoryLabel(category: string | null): string {
+  const labels: Record<string, string> = {
+    CAMERA_EQUIPMENT: "Camera & Photography",
+    CLOTHING_FASHION: "Clothing & Fashion",
+    ELECTRONICS_GADGETS: "Electronics & Gadgets",
+    VEHICLE_CAR: "Car",
+    VEHICLE_MOTORCYCLE: "Motorcycle",
+    VEHICLE_BICYCLE: "Bicycle / E-bike",
+    REAL_ESTATE_CONDO: "Condo / Apartment",
+    REAL_ESTATE_HOUSE: "House",
+    REAL_ESTATE_ROOM: "Room / Bedspace",
+    FURNITURE_APPLIANCES: "Furniture & Appliances",
+    EVENTS_PARTY: "Events & Party",
+    TOOLS_EQUIPMENT: "Tools & Equipment",
+    SPORTS_OUTDOOR: "Sports & Outdoor",
+    JEWELRY_ACCESSORIES: "Jewelry & Accessories",
+    BABY_KIDS: "Baby & Kids",
+    OTHER: "Other",
+  };
+  return labels[category || ''] || category || '';
 }
 
 /**
@@ -121,17 +258,37 @@ export async function searchRenters(
     const hasStrongInput = !!(
       searchInput.phone ||
       searchInput.email ||
-      searchInput.facebook
+      searchInput.facebook ||
+      (searchInput.additionalPhones && searchInput.additionalPhones.length > 0) ||
+      (searchInput.additionalEmails && searchInput.additionalEmails.length > 0) ||
+      (searchInput.additionalFacebooks && searchInput.additionalFacebooks.length > 0)
     );
 
-    // Normalize inputs for database search
+    // Normalize primary inputs for database search
     const phoneNorm = normalizePhone(searchInput.phone);
     const emailNorm = normalizeEmail(searchInput.email);
     const facebookNorm = normalizeFacebookUrl(searchInput.facebook);
     const nameNorm = normalizeName(searchInput.name);
 
+    // Normalize additional identifiers
+    const additionalPhonesNorm = (searchInput.additionalPhones || [])
+      .map(p => normalizePhone(p))
+      .filter((p): p is string => p !== null);
+    const additionalEmailsNorm = (searchInput.additionalEmails || [])
+      .map(e => normalizeEmail(e))
+      .filter((e): e is string => e !== null);
+    const additionalFacebooksNorm = (searchInput.additionalFacebooks || [])
+      .map(f => normalizeFacebookUrl(f))
+      .filter((f): f is string => f !== null);
+
+    // Combine all normalized identifiers for comprehensive search
+    const allPhonesNorm = [phoneNorm, ...additionalPhonesNorm].filter((p): p is string => p !== null);
+    const allEmailsNorm = [emailNorm, ...additionalEmailsNorm].filter((e): e is string => e !== null);
+    const allFacebooksNorm = [facebookNorm, ...additionalFacebooksNorm].filter((f): f is string => f !== null);
+
     // If no valid input, return empty
-    if (!phoneNorm && !emailNorm && !facebookNorm && !nameNorm) {
+    if (!phoneNorm && !emailNorm && !facebookNorm && !nameNorm && 
+        allPhonesNorm.length === 0 && allEmailsNorm.length === 0 && allFacebooksNorm.length === 0) {
       return {
         success: true,
         results: [],
@@ -221,15 +378,35 @@ export async function searchRenters(
     // ============================================
     // ALSO SEARCH INCIDENT_REPORTS DIRECTLY
     // For approved reports not yet linked to a renter
-    // Searches both primary fields AND JSONB arrays
+    // Uses multiple strategies: full-text search, ILIKE, and alias matching
     // ============================================
     
-    // Search by name in incident_reports (including aliases)
+    // Search by name in incident_reports (multiple strategies)
     if (nameNorm) {
-      // First search primary name field
+      // Strategy 1: Use PostgreSQL full-text search if available (search_vector)
+      // This provides better fuzzy matching for names
+      const searchTerms = nameNorm.split(' ').filter(t => t.length >= 2);
+      if (searchTerms.length > 0) {
+        const tsQuery = searchTerms.join(' & ');
+        const { data: ftsMatches } = await supabase
+          .from("incident_reports")
+          .select("id")
+          .in("status", ["APPROVED", "UNDER_REVIEW"])
+          .is("renter_id", null)
+          .textSearch('search_vector', tsQuery, { type: 'websearch', config: 'english' })
+          .limit(100);
+
+        if (ftsMatches) {
+          for (const match of ftsMatches) {
+            unlinkedReportIds.add(match.id);
+          }
+        }
+      }
+
+      // Strategy 2: ILIKE search on name field (catches what FTS might miss)
       const { data: reportMatches } = await supabase
         .from("incident_reports")
-        .select("id, reported_full_name, reported_phone, reported_email, reported_facebook, reported_phones, reported_emails, reported_facebooks, reported_aliases, reported_city, incident_region, renter_id, status")
+        .select("id")
         .or(`reported_full_name.ilike.%${nameNorm}%`)
         .in("status", ["APPROVED", "UNDER_REVIEW"])
         .is("renter_id", null)
@@ -241,31 +418,55 @@ export async function searchRenters(
         }
       }
 
-      // Also search in aliases JSONB array using raw SQL via RPC or direct query
-      // Note: For JSONB array contains search, we need to use a different approach
-      const { data: aliasMatches } = await supabase
+      // Strategy 3: Search with individual name parts (first name, last name)
+      const nameParts = nameNorm.split(' ').filter(p => p.length >= 2);
+      if (nameParts.length >= 2) {
+        const firstName = nameParts[0];
+        const lastName = nameParts[nameParts.length - 1];
+        
+        // Search for reports matching first AND last name separately
+        const { data: partialMatches } = await supabase
+          .from("incident_reports")
+          .select("id, reported_full_name")
+          .in("status", ["APPROVED", "UNDER_REVIEW"])
+          .is("renter_id", null)
+          .or(`reported_full_name.ilike.%${firstName}%,reported_full_name.ilike.%${lastName}%`)
+          .limit(100);
+
+        if (partialMatches) {
+          // Filter to only include reports that have BOTH first and last name
+          for (const report of partialMatches) {
+            const reportNameNorm = normalizeName(report.reported_full_name) || '';
+            if (reportNameNorm.includes(firstName) && reportNameNorm.includes(lastName)) {
+              unlinkedReportIds.add(report.id);
+            }
+          }
+        }
+      }
+
+      // Strategy 4: Search in aliases JSONB array
+      const { data: aliasReports } = await supabase
         .from("incident_reports")
-        .select("id")
+        .select("id, reported_aliases")
         .in("status", ["APPROVED", "UNDER_REVIEW"])
         .is("renter_id", null)
         .not("reported_aliases", "is", null)
-        .limit(100);
+        .limit(200);
 
-      // Filter alias matches client-side (Supabase doesn't have great JSONB array search)
-      if (aliasMatches) {
-        // Fetch full data for potential matches to check aliases
-        const { data: fullReports } = await supabase
-          .from("incident_reports")
-          .select("id, reported_aliases")
-          .in("id", aliasMatches.map(m => m.id));
-
-        if (fullReports) {
-          for (const report of fullReports) {
-            const aliases = report.reported_aliases as string[] | null;
-            if (aliases && aliases.some(alias => 
-              alias.toLowerCase().includes(nameNorm) || 
-              nameNorm.includes(alias.toLowerCase())
-            )) {
+      if (aliasReports) {
+        for (const report of aliasReports) {
+          const aliases = report.reported_aliases as string[] | null;
+          if (aliases && aliases.length > 0) {
+            const matched = aliases.some(alias => {
+              const aliasNorm = normalizeName(alias);
+              if (!aliasNorm) return false;
+              // Check if alias matches search name (either direction)
+              return aliasNorm.includes(nameNorm) || 
+                     nameNorm.includes(aliasNorm) ||
+                     // Also check individual name parts
+                     nameParts.every(part => aliasNorm.includes(part));
+            });
+            if (matched) {
               unlinkedReportIds.add(report.id);
             }
           }
@@ -273,21 +474,54 @@ export async function searchRenters(
       }
     }
 
+    // Pre-compute all phone variations and digits for use in multiple search sections
+    const allPhoneVariations: string[] = [];
+    const allSearchDigits: string[] = [];
+    for (const phone of allPhonesNorm) {
+      const variations = getPhoneVariations(phone);
+      allPhoneVariations.push(...variations);
+      allSearchDigits.push(phone.replace(/\D/g, ''));
+    }
+    // Deduplicate phone variations
+    const phoneVariations = [...new Set(allPhoneVariations)];
+    const searchDigits = allSearchDigits[0] || '';
+
     // Search by identifiers in incident_reports (both primary and JSONB arrays)
-    if (phoneNorm || emailNorm || facebookNorm) {
+    // Now uses ALL provided identifiers (primary + additional)
+    if (allPhonesNorm.length > 0 || allEmailsNorm.length > 0 || allFacebooksNorm.length > 0) {
+      
       // Build OR conditions for primary identifier fields
       const orConditions: string[] = [];
       
-      if (phoneNorm) {
-        const phoneDigits = phoneNorm.replace(/\D/g, '');
-        const lastDigits = phoneDigits.slice(-10);
-        orConditions.push(`reported_phone.ilike.%${lastDigits}%`);
+      // For phone, search using multiple variations
+      if (phoneVariations.length > 0) {
+        // Search last 7 digits (most reliable for partial matches)
+        const last7 = searchDigits.slice(-7);
+        if (last7.length === 7) {
+          orConditions.push(`reported_phone.ilike.%${last7}%`);
+        }
+        // Also try full variations
+        for (const variant of phoneVariations.slice(0, 3)) {
+          orConditions.push(`reported_phone.ilike.%${variant}%`);
+        }
       }
-      if (emailNorm) {
-        orConditions.push(`reported_email.ilike.${emailNorm}`);
+      // Search ALL emails provided
+      for (const email of allEmailsNorm) {
+        orConditions.push(`reported_email.ilike.${email}`);
+        // Also try strict email (Gmail dots removed)
+        const emailStrict = normalizeEmailStrict(email);
+        if (emailStrict && emailStrict !== email) {
+          orConditions.push(`reported_email.ilike.${emailStrict}`);
+        }
       }
-      if (facebookNorm) {
-        orConditions.push(`reported_facebook.ilike.%${facebookNorm}%`);
+      // Search ALL facebooks provided
+      for (const fb of allFacebooksNorm) {
+        orConditions.push(`reported_facebook.ilike.%${fb}%`);
+        // Also extract just the FB ID/username
+        const fbId = extractFacebookId(fb);
+        if (fbId) {
+          orConditions.push(`reported_facebook.ilike.%${fbId}%`);
+        }
       }
 
       if (orConditions.length > 0) {
@@ -305,45 +539,167 @@ export async function searchRenters(
         }
       }
 
-      // Also search in JSONB arrays (fetch all and filter client-side for now)
+      // Search in JSONB arrays with improved phone matching
       const { data: jsonbReports } = await supabase
         .from("incident_reports")
         .select("id, reported_phones, reported_emails, reported_facebooks")
         .in("status", ["APPROVED", "UNDER_REVIEW"])
         .is("renter_id", null)
-        .limit(200);
+        .limit(500);
 
       if (jsonbReports) {
         for (const report of jsonbReports) {
           let matched = false;
 
-          // Check phones array
-          if (phoneNorm && report.reported_phones) {
+          // Check phones array with variation matching (against ALL search phones)
+          if (phoneVariations.length > 0 && report.reported_phones) {
             const phones = report.reported_phones as string[];
-            const phoneDigits = phoneNorm.replace(/\D/g, '');
-            matched = phones.some(p => {
-              const pDigits = p.replace(/\D/g, '');
-              return pDigits.includes(phoneDigits) || phoneDigits.includes(pDigits);
-            });
+            if (phones.length > 0) {
+              matched = phones.some(p => {
+                const pDigits = p.replace(/\D/g, '');
+                const pVariations = getPhoneVariations(p);
+                // Check if any variation matches any search phone
+                return phoneVariations.some(searchVar => 
+                  pVariations.some(pVar => 
+                    pVar === searchVar || 
+                    pVar.includes(searchVar) || 
+                    searchVar.includes(pVar)
+                  )
+                ) || 
+                // Also check last 7 digits match against ALL search digits
+                allSearchDigits.some(sd => 
+                  pDigits.length >= 7 && sd.length >= 7 && 
+                  pDigits.slice(-7) === sd.slice(-7)
+                );
+              });
+            }
           }
 
-          // Check emails array
-          if (!matched && emailNorm && report.reported_emails) {
+          // Check emails array (against ALL search emails)
+          if (!matched && allEmailsNorm.length > 0 && report.reported_emails) {
             const emails = report.reported_emails as string[];
-            matched = emails.some(e => e.toLowerCase() === emailNorm);
+            if (emails.length > 0) {
+              matched = emails.some(e => {
+                const eNorm = e.toLowerCase().trim();
+                const eStrict = normalizeEmailStrict(e);
+                // Check against all provided emails
+                return allEmailsNorm.some(searchEmail => {
+                  const searchStrict = normalizeEmailStrict(searchEmail);
+                  return eNorm === searchEmail || eStrict === searchStrict;
+                });
+              });
+            }
           }
 
-          // Check facebooks array
-          if (!matched && facebookNorm && report.reported_facebooks) {
+          // Check facebooks array (against ALL search facebooks)
+          if (!matched && allFacebooksNorm.length > 0 && report.reported_facebooks) {
             const facebooks = report.reported_facebooks as string[];
-            matched = facebooks.some(f => 
-              f.toLowerCase().includes(facebookNorm) || 
-              facebookNorm.includes(f.toLowerCase())
-            );
+            if (facebooks.length > 0) {
+              matched = facebooks.some(f => {
+                const fNorm = normalizeFacebookUrl(f);
+                const fId = extractFacebookId(f);
+                // Check against all provided facebooks
+                return allFacebooksNorm.some(searchFb => {
+                  const searchFbId = extractFacebookId(searchFb);
+                  return (fNorm && fNorm === searchFb) || 
+                         (fId && searchFbId && fId === searchFbId) ||
+                         (fNorm && searchFb && (fNorm.includes(searchFb) || searchFb.includes(fNorm)));
+                });
+              });
+            }
           }
 
           if (matched) {
             unlinkedReportIds.add(report.id);
+          }
+        }
+      }
+    }
+
+    // ============================================
+    // SEARCH IN APPROVED AMENDMENTS
+    // Look for NEW_IDENTIFIER amendments that have been approved
+    // These contain additional phones/emails/FB that should be searchable
+    // Uses ALL provided identifiers for comprehensive search
+    // ============================================
+    if (allPhonesNorm.length > 0 || allEmailsNorm.length > 0 || allFacebooksNorm.length > 0) {
+      const { data: amendments } = await supabase
+        .from("report_amendments")
+        .select("report_id, changes_json")
+        .eq("amendment_type", "NEW_IDENTIFIER")
+        .eq("status", "APPROVED");
+
+      if (amendments) {
+        // Use the pre-computed phone variations
+        
+        for (const amendment of amendments) {
+          const changes = amendment.changes_json as {
+            phone?: string;
+            email?: string;
+            facebookLink?: string;
+            phones?: string[];
+            emails?: string[];
+            facebookLinks?: string[];
+          } | null;
+          
+          if (!changes) continue;
+          
+          let matched = false;
+          
+          // Check phone in amendment against ALL search phones
+          if (phoneVariations.length > 0) {
+            const amendPhones = [
+              changes.phone,
+              ...(changes.phones || [])
+            ].filter(Boolean) as string[];
+            
+            for (const p of amendPhones) {
+              const pDigits = p.replace(/\D/g, '');
+              const pVariations = getPhoneVariations(p);
+              // Check against all search phone variations
+              if (phoneVariations.some(sv => pVariations.some(pv => pv === sv)) ||
+                  // Also check last 7 digits against all search digits
+                  allSearchDigits.some(sd => 
+                    pDigits.length >= 7 && sd.length >= 7 && pDigits.slice(-7) === sd.slice(-7)
+                  )) {
+                matched = true;
+                break;
+              }
+            }
+          }
+          
+          // Check email in amendment against ALL search emails
+          if (!matched && allEmailsNorm.length > 0) {
+            const amendEmails = [
+              changes.email,
+              ...(changes.emails || [])
+            ].filter(Boolean) as string[];
+            
+            matched = amendEmails.some(e => 
+              allEmailsNorm.some(searchEmail => e.toLowerCase().trim() === searchEmail)
+            );
+          }
+          
+          // Check facebook in amendment against ALL search facebooks
+          if (!matched && allFacebooksNorm.length > 0) {
+            const amendFbs = [
+              changes.facebookLink,
+              ...(changes.facebookLinks || [])
+            ].filter(Boolean) as string[];
+            
+            matched = amendFbs.some(f => {
+              const fId = extractFacebookId(f);
+              return allFacebooksNorm.some(searchFb => {
+                const searchFbId = extractFacebookId(searchFb);
+                return (searchFbId && fId && searchFbId === fId) ||
+                       f.toLowerCase().includes(searchFb) ||
+                       searchFb.includes(f.toLowerCase());
+              });
+            });
+          }
+          
+          if (matched && amendment.report_id) {
+            unlinkedReportIds.add(amendment.report_id);
           }
         }
       }
@@ -398,9 +754,12 @@ export async function searchRenters(
 
     // ============================================
     // CREATE CANDIDATES FROM UNLINKED INCIDENT REPORTS
-    // Includes all identifiers from JSONB arrays
+    // Includes all identifiers from JSONB arrays AND approved amendments
     // ============================================
     if (unlinkedReportIds.size > 0) {
+      const reportIdArray = Array.from(unlinkedReportIds);
+      
+      // Fetch reports
       const { data: unlinkedReports } = await supabase
         .from("incident_reports")
         .select(`
@@ -420,7 +779,43 @@ export async function searchRenters(
           amount_involved,
           status
         `)
-        .in("id", Array.from(unlinkedReportIds));
+        .in("id", reportIdArray);
+
+      // Also fetch approved amendments for these reports to get additional identifiers
+      const { data: reportAmendments } = await supabase
+        .from("report_amendments")
+        .select("report_id, changes_json")
+        .in("report_id", reportIdArray)
+        .eq("amendment_type", "NEW_IDENTIFIER")
+        .eq("status", "APPROVED");
+
+      // Group amendments by report_id
+      const amendmentsByReport = new Map<string, Array<{
+        phone?: string;
+        email?: string;
+        facebookLink?: string;
+        phones?: string[];
+        emails?: string[];
+        facebookLinks?: string[];
+      }>>();
+      
+      if (reportAmendments) {
+        for (const amendment of reportAmendments) {
+          const changes = amendment.changes_json as {
+            phone?: string;
+            email?: string;
+            facebookLink?: string;
+            phones?: string[];
+            emails?: string[];
+            facebookLinks?: string[];
+          } | null;
+          if (changes && amendment.report_id) {
+            const existing = amendmentsByReport.get(amendment.report_id) || [];
+            existing.push(changes);
+            amendmentsByReport.set(amendment.report_id, existing);
+          }
+        }
+      }
 
       if (unlinkedReports) {
         for (const report of unlinkedReports) {
@@ -431,11 +826,23 @@ export async function searchRenters(
             value: string;
           }> = [];
 
-          // Get all phones (from JSONB array or primary field)
-          const allPhones = (report.reported_phones as string[] | null) || 
-            (report.reported_phone ? [report.reported_phone] : []);
+          // Collect all phones from report
+          const reportPhones = new Set<string>();
+          if (report.reported_phone) reportPhones.add(report.reported_phone);
+          const phonesArray = report.reported_phones as string[] | null;
+          if (phonesArray && phonesArray.length > 0) {
+            phonesArray.forEach(p => reportPhones.add(p));
+          }
           
-          for (const phone of allPhones) {
+          // Add phones from amendments
+          const amendments = amendmentsByReport.get(report.id) || [];
+          for (const amendment of amendments) {
+            if (amendment.phone) reportPhones.add(amendment.phone);
+            if (amendment.phones) amendment.phones.forEach((p: string) => reportPhones.add(p));
+          }
+          
+          // Normalize and add phone identifiers
+          for (const phone of reportPhones) {
             const normalizedPhone = normalizePhone(phone);
             if (normalizedPhone) {
               identifiers.push({
@@ -446,11 +853,22 @@ export async function searchRenters(
             }
           }
 
-          // Get all emails (from JSONB array or primary field)
-          const allEmails = (report.reported_emails as string[] | null) || 
-            (report.reported_email ? [report.reported_email] : []);
+          // Collect all emails from report
+          const reportEmails = new Set<string>();
+          if (report.reported_email) reportEmails.add(report.reported_email);
+          const emailsArray = report.reported_emails as string[] | null;
+          if (emailsArray && emailsArray.length > 0) {
+            emailsArray.forEach(e => reportEmails.add(e));
+          }
           
-          for (const email of allEmails) {
+          // Add emails from amendments
+          for (const amendment of amendments) {
+            if (amendment.email) reportEmails.add(amendment.email);
+            if (amendment.emails) amendment.emails.forEach((e: string) => reportEmails.add(e));
+          }
+          
+          // Normalize and add email identifiers
+          for (const email of reportEmails) {
             const normalizedEmail = normalizeEmail(email);
             if (normalizedEmail) {
               identifiers.push({
@@ -461,11 +879,22 @@ export async function searchRenters(
             }
           }
 
-          // Get all facebooks (from JSONB array or primary field)
-          const allFacebooks = (report.reported_facebooks as string[] | null) || 
-            (report.reported_facebook ? [report.reported_facebook] : []);
+          // Collect all facebooks from report
+          const reportFacebooks = new Set<string>();
+          if (report.reported_facebook) reportFacebooks.add(report.reported_facebook);
+          const facebooksArray = report.reported_facebooks as string[] | null;
+          if (facebooksArray && facebooksArray.length > 0) {
+            facebooksArray.forEach(f => reportFacebooks.add(f));
+          }
           
-          for (const facebook of allFacebooks) {
+          // Add facebooks from amendments
+          for (const amendment of amendments) {
+            if (amendment.facebookLink) reportFacebooks.add(amendment.facebookLink);
+            if (amendment.facebookLinks) amendment.facebookLinks.forEach((f: string) => reportFacebooks.add(f));
+          }
+          
+          // Normalize and add facebook identifiers
+          for (const facebook of reportFacebooks) {
             const normalizedFb = normalizeFacebookUrl(facebook);
             if (normalizedFb) {
               identifiers.push({
@@ -479,12 +908,16 @@ export async function searchRenters(
           // Use report ID as candidate ID (prefixed to avoid collision)
           const candidateId = `report:${report.id}`;
           
+          // Get aliases from report
+          const reportAliases = report.reported_aliases as string[] | null;
+
           candidates.push({
             id: candidateId,
             fullName: report.reported_full_name,
             fullNameNormalized: normalizeName(report.reported_full_name),
             city: report.reported_city || report.incident_region,
             region: report.incident_region,
+            aliases: reportAliases && reportAliases.length > 0 ? reportAliases : undefined,
             identifiers,
           });
         }
@@ -513,6 +946,17 @@ export async function searchRenters(
       verificationStatus: string | null;
       identifierCount: number;
       fingerprint: string;
+      aliases?: string[];
+      incidentSummaries?: Array<{
+        type: string;
+        typeLabel: string;
+        category: string | null;
+        categoryLabel: string | null;
+        itemDescription: string | null;
+        date: string;
+        location: string | null;
+        amountInvolved: number | null;
+      }>;
     }> = {};
 
     // Fetch details for linked renters
@@ -558,13 +1002,20 @@ export async function searchRenters(
       }
     }
 
-    // Fetch details for unlinked reports
+    // Fetch details for unlinked reports (including incident summary info)
     if (reportIds.length > 0) {
       const { data: reportDetails } = await supabase
         .from("incident_reports")
         .select(`
           id,
           incident_date,
+          incident_type,
+          rental_category,
+          rental_item_description,
+          incident_city,
+          incident_region,
+          amount_involved,
+          reported_aliases,
           status,
           reported_phone,
           reported_email,
@@ -580,6 +1031,18 @@ export async function searchRenters(
           if (r.reported_email) identCount++;
           if (r.reported_facebook) identCount++;
 
+          // Build incident summary
+          const incidentSummary = {
+            type: r.incident_type,
+            typeLabel: getIncidentTypeLabel(r.incident_type),
+            category: r.rental_category,
+            categoryLabel: r.rental_category ? getCategoryLabel(r.rental_category) : null,
+            itemDescription: r.rental_item_description,
+            date: r.incident_date,
+            location: r.incident_city || r.incident_region || null,
+            amountInvolved: r.amount_involved ? Number(r.amount_involved) : null,
+          };
+
           renterDetails[`report:${r.id}`] = {
             totalIncidents: 1, // This IS the incident
             verifiedIncidents: r.status === "APPROVED" ? 1 : 0,
@@ -587,6 +1050,8 @@ export async function searchRenters(
             verificationStatus: r.status === "APPROVED" ? "reported" : "pending",
             identifierCount: identCount,
             fingerprint: generateReportFingerprint(r.id),
+            aliases: (r.reported_aliases as string[] | null) || undefined,
+            incidentSummaries: [incidentSummary],
           };
         }
       }
@@ -599,12 +1064,19 @@ export async function searchRenters(
       const isUnlinkedReport = candidate.id.startsWith("report:");
       const actualId = isUnlinkedReport ? candidate.id.replace("report:", "") : candidate.id;
 
+      // Combine aliases from candidate and details
+      const aliases = [
+        ...(candidate.aliases || []),
+        ...(details?.aliases || []),
+      ].filter((v, i, a) => a.indexOf(v) === i); // Deduplicate
+
       return {
         renter: {
           id: actualId,
           fingerprint: details?.fingerprint || generateReportFingerprint(actualId),
           fullName: candidate.fullName,
           nameMasked: policy.showDetails ? maskName(candidate.fullName) : maskName(candidate.fullName),
+          aliases: aliases.length > 0 ? aliases : undefined,
           city: candidate.city ?? null,
           region: candidate.region ?? null,
           totalIncidents: details?.totalIncidents || 1,
@@ -612,6 +1084,7 @@ export async function searchRenters(
           lastIncidentDate: details?.lastIncidentDate || null,
           verificationStatus: details?.verificationStatus || (isUnlinkedReport ? "reported" : null),
           identifierCount: details?.identifierCount || 0,
+          incidentSummaries: policy.showDetails ? details?.incidentSummaries : undefined,
         },
         score: candidate.match.score,
         confidence: policy.displayConfidence,

@@ -84,6 +84,61 @@ export function getPhoneLastDigits(phone: string | null | undefined, count: numb
   return digitsOnly.slice(-count);
 }
 
+/**
+ * Generate all possible phone formats for matching
+ * This helps match "09454279198" with "+639454279198", "9454279198", etc.
+ */
+export function getPhoneVariations(phone: string | null | undefined): string[] {
+  if (!phone) return [];
+  
+  const variations: string[] = [];
+  
+  // Get digits only
+  let digits = phone.replace(/\D/g, '');
+  if (digits.length < 7) return [];
+  
+  // If starts with 63, it's already country code
+  if (digits.startsWith('63') && digits.length === 12) {
+    const local = digits.slice(2); // 9XXXXXXXXX
+    variations.push(`+${digits}`);           // +639XXXXXXXXX
+    variations.push(digits);                 // 639XXXXXXXXX
+    variations.push(`0${local}`);            // 09XXXXXXXXX
+    variations.push(local);                  // 9XXXXXXXXX
+    variations.push(local.slice(-7));        // Last 7 digits
+    variations.push(local.slice(-10));       // Last 10 digits
+  } 
+  // If starts with 0, it's local format
+  else if (digits.startsWith('0') && digits.length === 11) {
+    const mobile = digits.slice(1); // 9XXXXXXXXX
+    variations.push(`+63${mobile}`);         // +639XXXXXXXXX
+    variations.push(`63${mobile}`);          // 639XXXXXXXXX
+    variations.push(digits);                 // 09XXXXXXXXX
+    variations.push(mobile);                 // 9XXXXXXXXX
+    variations.push(mobile.slice(-7));       // Last 7 digits
+  }
+  // If starts with 9 and is 10 digits, it's mobile without prefix
+  else if (digits.startsWith('9') && digits.length === 10) {
+    variations.push(`+63${digits}`);         // +639XXXXXXXXX
+    variations.push(`63${digits}`);          // 639XXXXXXXXX
+    variations.push(`0${digits}`);           // 09XXXXXXXXX
+    variations.push(digits);                 // 9XXXXXXXXX
+    variations.push(digits.slice(-7));       // Last 7 digits
+  }
+  // Otherwise, just use what we have
+  else {
+    variations.push(digits);
+    if (digits.length >= 7) {
+      variations.push(digits.slice(-7));
+    }
+    if (digits.length >= 10) {
+      variations.push(digits.slice(-10));
+    }
+  }
+  
+  // Remove duplicates and empty strings
+  return [...new Set(variations.filter(v => v.length > 0))];
+}
+
 // ============================================
 // EMAIL NORMALIZATION
 // ============================================
