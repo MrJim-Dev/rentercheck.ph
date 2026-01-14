@@ -13,8 +13,7 @@ export function Footer() {
                 className="mx-auto max-w-5xl px-6 md:px-8 py-6 md:py-8"
             >
                 {/* Main footer content */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-x-6 md:gap-y-8 lg:gap-x-8 mb-6">
-                    {/* Brand section */}
+                {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-x-6 md:gap-y-8 lg:gap-x-8 mb-6">
                     <div className="flex flex-col gap-3">
                         <div
                                                 className="flex items-center gap-2 cursor-pointer"
@@ -41,7 +40,6 @@ export function Footer() {
                         </p>
                     </div>
 
-                    {/* Product links */}
                     <div className="flex flex-col gap-3">
                         <h4 className="font-semibold text-foreground text-xs md:text-sm">Product</h4>
                         <ul className="space-y-2.5 flex flex-col">
@@ -58,11 +56,10 @@ export function Footer() {
                         </ul>
                     </div>
 
-                    {/* Company links */}
                     <div className="flex flex-col gap-3">
                         <h4 className="font-semibold text-foreground text-xs md:text-sm">Company</h4>
                         <ul className="space-y-2.5 flex flex-col">
-                            {["About", "Blog", "Careers", "Contact"].map((item) => (
+                            {["About", "Blog", "Contact"].map((item) => (
                                 <li key={item}>
                                     <a
                                         href="#"
@@ -75,25 +72,30 @@ export function Footer() {
                         </ul>
                     </div>
 
-                    {/* Legal links */}
                     <div className="flex flex-col gap-3">
                         <h4 className="font-semibold text-foreground text-xs md:text-sm">Legal</h4>
                         <ul className="space-y-2.5 flex flex-col">
-                            {["Privacy", "Terms", "Cookies", "Compliance"].map((item) => (
-                                <li key={item}>
+                            <li key="privacy">
                                     <a
-                                        href="#"
+                                        href="/legal/privacy"
                                         className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs inline-block"
                                     >
-                                        {item}
+                                        Privacy Policy
                                     </a>
                                 </li>
-                            ))}
+                                <li key="terms">
+                                    <a
+                                        href="/legal/terms"
+                                        className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs inline-block"
+                                    >
+                                        Terms of Use
+                                    </a>
+                                </li>
                         </ul>
                     </div>
                 </div>
 
-                <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent mb-4" />
+                <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent mb-4" /> */}
 
                 {/* Bottom section */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-5">
@@ -103,15 +105,22 @@ export function Footer() {
 
                     {/* Social links */}
                     <div className="flex gap-6">
-                        {["Twitter", "LinkedIn", "Facebook"].map((social) => (
-                            <a
-                                key={social}
-                                href="#"
+                        
+
+                        <a
+                                key="privacy"
+                                href="/legal/privacy"
                                 className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs"
                             >
-                                {social}
+                                Privacy Policy
                             </a>
-                        ))}
+                            <a
+                                key="terms"
+                                href="/legal/terms"
+                                className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs"
+                            >
+                                Terms of Use
+                            </a>
                     </div>
                 </div>
             </motion.div>
