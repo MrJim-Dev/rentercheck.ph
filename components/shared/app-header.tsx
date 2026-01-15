@@ -30,13 +30,16 @@ interface AppHeaderProps {
     onSearch?: (query: string) => void
     /** Currently active page for highlighting */
     currentPage?: "search" | "report" | "my-reports" | "admin"
+    /** Optional trigger to force refresh credit balance */
+    creditRefreshTrigger?: number
 }
 
 export function AppHeader({
     showSearchBar = false,
     searchValue = "",
     onSearch,
-    currentPage
+    currentPage,
+    creditRefreshTrigger
 }: AppHeaderProps) {
     const { user, loading } = useAuth()
     const [isPending, startTransition] = useTransition()
@@ -167,7 +170,7 @@ export function AppHeader({
                             {!loading && (
                                 user ? (
                                     <>
-                                        <CreditBalance />
+                                        <CreditBalance dependencies={[creditRefreshTrigger]} />
                                         <div className="relative ml-2" ref={userMenuRef}>
                                             <Button
                                                 variant="ghost"

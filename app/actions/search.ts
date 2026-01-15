@@ -1,23 +1,24 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { gateComplexSearch } from "@/lib/credits/search-gatekeeper";
 import {
-  normalizePhone,
+  enforceMatchPolicy,
+  extractFacebookId,
+  getPhoneVariations,
   normalizeEmail,
+  normalizeEmailStrict,
   normalizeFacebookUrl,
   normalizeName,
-  getPhoneVariations,
-  extractFacebookId,
-  normalizeEmailStrict,
+  normalizePhone,
   scoreAndRankCandidates,
-  enforceMatchPolicy,
-  type SearchInput,
   type CandidateData,
-  type SearchQuery,
   type SearchFilters,
+  type SearchInput,
+  type SearchQuery,
   type SearchResponse,
   type SearchResultMatch,
 } from "@/lib/matching";
+import { createClient } from "@/lib/supabase/server";
 
 // ============================================
 // SEARCH FUNCTIONS
@@ -28,7 +29,7 @@ import {
  */
 function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | 'name' {
   const trimmed = value.trim();
-  
+
   // Check for email pattern
   if (trimmed.includes("@") && trimmed.includes(".")) {
     return 'email';
@@ -47,7 +48,7 @@ function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | '
   // Check for phone pattern
   const digitsOnly = trimmed.replace(/[\s\-()]/g, "");
   const digitCount = (trimmed.match(/\d/g) || []).length;
-  
+
   // If it starts with phone prefixes or is mostly digits
   if (
     trimmed.startsWith("+") ||
@@ -70,14 +71,14 @@ function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | '
  */
 function parseSearchQuery(query: string): SearchInput {
   const trimmed = query.trim();
-  
+
   // Split by common delimiters: comma, semicolon, pipe, or newline
   // But be careful not to split phone numbers with dashes
   const parts = trimmed
     .split(/[,;|\n]+/)
     .map(p => p.trim())
     .filter(p => p.length > 0);
-  
+
   // If only one part, use simple detection
   if (parts.length === 1) {
     const type = detectIdentifierType(parts[0]);
@@ -92,14 +93,14 @@ function parseSearchQuery(query: string): SearchInput {
         return { name: parts[0] };
     }
   }
-  
+
   // Multiple parts - categorize each one
   const result: SearchInput = {};
   const names: string[] = [];
   const phones: string[] = [];
   const emails: string[] = [];
   const facebooks: string[] = [];
-  
+
   for (const part of parts) {
     const type = detectIdentifierType(part);
     switch (type) {
@@ -117,7 +118,7 @@ function parseSearchQuery(query: string): SearchInput {
         break;
     }
   }
-  
+
   // Use the first of each type as the primary, but we'll use all for matching
   if (names.length > 0) {
     // Combine multiple name parts if they look like parts of the same name
@@ -143,7 +144,7 @@ function parseSearchQuery(query: string): SearchInput {
       result.additionalFacebooks = facebooks.slice(1);
     }
   }
-  
+
   return result;
 }
 
@@ -237,7 +238,7 @@ export async function searchRenters(
     if (typeof queryOrInput === "string") {
       searchInput = parseSearchQuery(queryOrInput);
       // Convert nulls to undefined for SearchQuery type compatibility
-      originalQuery = { 
+      originalQuery = {
         query: queryOrInput,
         name: searchInput.name || undefined,
         phone: searchInput.phone || undefined,
@@ -257,6 +258,36 @@ export async function searchRenters(
         region: queryOrInput.region || undefined,
       };
     }
+
+    // =================================================================
+    // CREDIT CONSUMPTION GATE (COMPLEX SEARCH)
+    // =================================================================
+    if (isAuthenticated && user) {
+      try {
+        await gateComplexSearch(searchInput, user.id);
+      } catch (error: any) {
+        if (error.message === 'Insufficient credits' || error.message?.includes('Insufficient credits')) {
+          return {
+            success: false,
+            results: [],
+            totalCount: 0,
+            query: originalQuery,
+            error: "Insufficient credits. Please top up your wallet.",
+            meta: {
+              searchTime: 0,
+              hasStrongInput: false,
+              tips: []
+            }
+          };
+        }
+        console.error("Credit deduction failed:", error);
+        // Decide if we want to block or continue on other errors. 
+        // Usually safest to block if payment is strict.
+        throw error;
+      }
+    }
+    // =================================================================
+
 
     // Check if we have strong identifiers in the input
     const hasStrongInput = !!(
@@ -291,8 +322,8 @@ export async function searchRenters(
     const allFacebooksNorm = [facebookNorm, ...additionalFacebooksNorm].filter((f): f is string => f !== null);
 
     // If no valid input, return empty
-    if (!phoneNorm && !emailNorm && !facebookNorm && !nameNorm && 
-        allPhonesNorm.length === 0 && allEmailsNorm.length === 0 && allFacebooksNorm.length === 0) {
+    if (!phoneNorm && !emailNorm && !facebookNorm && !nameNorm &&
+      allPhonesNorm.length === 0 && allEmailsNorm.length === 0 && allFacebooksNorm.length === 0) {
       return {
         success: true,
         results: [],
@@ -315,7 +346,7 @@ export async function searchRenters(
 
     const candidateIds = new Set<string>();
     const candidates: CandidateData[] = [];
-    
+
     // Track incident report IDs for unlinked reports
     const unlinkedReportIds = new Set<string>();
 
@@ -364,7 +395,7 @@ export async function searchRenters(
       if (nameParts.length >= 2) {
         const firstName = nameParts[0];
         const lastName = nameParts[nameParts.length - 1];
-        
+
         const { data: partialMatches } = await supabase
           .from("renters")
           .select("id")
@@ -384,7 +415,7 @@ export async function searchRenters(
     // For approved reports not yet linked to a renter
     // Uses multiple strategies: full-text search, ILIKE, and alias matching
     // ============================================
-    
+
     // Search by name in incident_reports (multiple strategies)
     if (nameNorm) {
       // Strategy 1: Use PostgreSQL full-text search if available (search_vector)
@@ -427,7 +458,7 @@ export async function searchRenters(
       if (nameParts.length >= 2) {
         const firstName = nameParts[0];
         const lastName = nameParts[nameParts.length - 1];
-        
+
         // Search for reports matching first AND last name separately
         const { data: partialMatches } = await supabase
           .from("incident_reports")
@@ -465,10 +496,10 @@ export async function searchRenters(
               const aliasNorm = normalizeName(alias);
               if (!aliasNorm) return false;
               // Check if alias matches search name (either direction)
-              return aliasNorm.includes(nameNorm) || 
-                     nameNorm.includes(aliasNorm) ||
-                     // Also check individual name parts
-                     nameParts.every(part => aliasNorm.includes(part));
+              return aliasNorm.includes(nameNorm) ||
+                nameNorm.includes(aliasNorm) ||
+                // Also check individual name parts
+                nameParts.every(part => aliasNorm.includes(part));
             });
             if (matched) {
               unlinkedReportIds.add(report.id);
@@ -493,10 +524,10 @@ export async function searchRenters(
     // Search by identifiers in incident_reports (both primary and JSONB arrays)
     // Now uses ALL provided identifiers (primary + additional)
     if (allPhonesNorm.length > 0 || allEmailsNorm.length > 0 || allFacebooksNorm.length > 0) {
-      
+
       // Build OR conditions for primary identifier fields
       const orConditions: string[] = [];
-      
+
       // For phone, search using multiple variations
       if (phoneVariations.length > 0) {
         // Search last 7 digits (most reliable for partial matches)
@@ -535,7 +566,7 @@ export async function searchRenters(
           .in("status", ["APPROVED", "UNDER_REVIEW"])
           .is("renter_id", null)
           .or(orConditions.join(','));
-        
+
         if (identifierReportMatches) {
           for (const report of identifierReportMatches) {
             unlinkedReportIds.add(report.id);
@@ -563,18 +594,18 @@ export async function searchRenters(
                 const pDigits = p.replace(/\D/g, '');
                 const pVariations = getPhoneVariations(p);
                 // Check if any variation matches any search phone
-                return phoneVariations.some(searchVar => 
-                  pVariations.some(pVar => 
-                    pVar === searchVar || 
-                    pVar.includes(searchVar) || 
+                return phoneVariations.some(searchVar =>
+                  pVariations.some(pVar =>
+                    pVar === searchVar ||
+                    pVar.includes(searchVar) ||
                     searchVar.includes(pVar)
                   )
-                ) || 
-                // Also check last 7 digits match against ALL search digits
-                allSearchDigits.some(sd => 
-                  pDigits.length >= 7 && sd.length >= 7 && 
-                  pDigits.slice(-7) === sd.slice(-7)
-                );
+                ) ||
+                  // Also check last 7 digits match against ALL search digits
+                  allSearchDigits.some(sd =>
+                    pDigits.length >= 7 && sd.length >= 7 &&
+                    pDigits.slice(-7) === sd.slice(-7)
+                  );
               });
             }
           }
@@ -605,9 +636,9 @@ export async function searchRenters(
                 // Check against all provided facebooks
                 return allFacebooksNorm.some(searchFb => {
                   const searchFbId = extractFacebookId(searchFb);
-                  return (fNorm && fNorm === searchFb) || 
-                         (fId && searchFbId && fId === searchFbId) ||
-                         (fNorm && searchFb && (fNorm.includes(searchFb) || searchFb.includes(fNorm)));
+                  return (fNorm && fNorm === searchFb) ||
+                    (fId && searchFbId && fId === searchFbId) ||
+                    (fNorm && searchFb && (fNorm.includes(searchFb) || searchFb.includes(fNorm)));
                 });
               });
             }
@@ -635,7 +666,7 @@ export async function searchRenters(
 
       if (amendments) {
         // Use the pre-computed phone variations
-        
+
         for (const amendment of amendments) {
           const changes = amendment.changes_json as {
             phone?: string;
@@ -645,63 +676,63 @@ export async function searchRenters(
             emails?: string[];
             facebookLinks?: string[];
           } | null;
-          
+
           if (!changes) continue;
-          
+
           let matched = false;
-          
+
           // Check phone in amendment against ALL search phones
           if (phoneVariations.length > 0) {
             const amendPhones = [
               changes.phone,
               ...(changes.phones || [])
             ].filter(Boolean) as string[];
-            
+
             for (const p of amendPhones) {
               const pDigits = p.replace(/\D/g, '');
               const pVariations = getPhoneVariations(p);
               // Check against all search phone variations
               if (phoneVariations.some(sv => pVariations.some(pv => pv === sv)) ||
-                  // Also check last 7 digits against all search digits
-                  allSearchDigits.some(sd => 
-                    pDigits.length >= 7 && sd.length >= 7 && pDigits.slice(-7) === sd.slice(-7)
-                  )) {
+                // Also check last 7 digits against all search digits
+                allSearchDigits.some(sd =>
+                  pDigits.length >= 7 && sd.length >= 7 && pDigits.slice(-7) === sd.slice(-7)
+                )) {
                 matched = true;
                 break;
               }
             }
           }
-          
+
           // Check email in amendment against ALL search emails
           if (!matched && allEmailsNorm.length > 0) {
             const amendEmails = [
               changes.email,
               ...(changes.emails || [])
             ].filter(Boolean) as string[];
-            
-            matched = amendEmails.some(e => 
+
+            matched = amendEmails.some(e =>
               allEmailsNorm.some(searchEmail => e.toLowerCase().trim() === searchEmail)
             );
           }
-          
+
           // Check facebook in amendment against ALL search facebooks
           if (!matched && allFacebooksNorm.length > 0) {
             const amendFbs = [
               changes.facebookLink,
               ...(changes.facebookLinks || [])
             ].filter(Boolean) as string[];
-            
+
             matched = amendFbs.some(f => {
               const fId = extractFacebookId(f);
               return allFacebooksNorm.some(searchFb => {
                 const searchFbId = extractFacebookId(searchFb);
                 return (searchFbId && fId && searchFbId === fId) ||
-                       f.toLowerCase().includes(searchFb) ||
-                       searchFb.includes(f.toLowerCase());
+                  f.toLowerCase().includes(searchFb) ||
+                  searchFb.includes(f.toLowerCase());
               });
             });
           }
-          
+
           if (matched && amendment.report_id) {
             unlinkedReportIds.add(amendment.report_id);
           }
@@ -762,7 +793,7 @@ export async function searchRenters(
     // ============================================
     if (unlinkedReportIds.size > 0) {
       const reportIdArray = Array.from(unlinkedReportIds);
-      
+
       // Fetch reports
       const { data: unlinkedReports } = await supabase
         .from("incident_reports")
@@ -802,7 +833,7 @@ export async function searchRenters(
         emails?: string[];
         facebookLinks?: string[];
       }>>();
-      
+
       if (reportAmendments) {
         for (const amendment of reportAmendments) {
           const changes = amendment.changes_json as {
@@ -837,14 +868,14 @@ export async function searchRenters(
           if (phonesArray && phonesArray.length > 0) {
             phonesArray.forEach(p => reportPhones.add(p));
           }
-          
+
           // Add phones from amendments
           const amendments = amendmentsByReport.get(report.id) || [];
           for (const amendment of amendments) {
             if (amendment.phone) reportPhones.add(amendment.phone);
             if (amendment.phones) amendment.phones.forEach((p: string) => reportPhones.add(p));
           }
-          
+
           // Normalize and add phone identifiers
           for (const phone of reportPhones) {
             const normalizedPhone = normalizePhone(phone);
@@ -864,13 +895,13 @@ export async function searchRenters(
           if (emailsArray && emailsArray.length > 0) {
             emailsArray.forEach(e => reportEmails.add(e));
           }
-          
+
           // Add emails from amendments
           for (const amendment of amendments) {
             if (amendment.email) reportEmails.add(amendment.email);
             if (amendment.emails) amendment.emails.forEach((e: string) => reportEmails.add(e));
           }
-          
+
           // Normalize and add email identifiers
           for (const email of reportEmails) {
             const normalizedEmail = normalizeEmail(email);
@@ -890,13 +921,13 @@ export async function searchRenters(
           if (facebooksArray && facebooksArray.length > 0) {
             facebooksArray.forEach(f => reportFacebooks.add(f));
           }
-          
+
           // Add facebooks from amendments
           for (const amendment of amendments) {
             if (amendment.facebookLink) reportFacebooks.add(amendment.facebookLink);
             if (amendment.facebookLinks) amendment.facebookLinks.forEach((f: string) => reportFacebooks.add(f));
           }
-          
+
           // Normalize and add facebook identifiers
           for (const facebook of reportFacebooks) {
             const normalizedFb = normalizeFacebookUrl(facebook);
@@ -911,7 +942,7 @@ export async function searchRenters(
 
           // Use report ID as candidate ID (prefixed to avoid collision)
           const candidateId = `report:${report.id}`;
-          
+
           // Get aliases from report
           const reportAliases = report.reported_aliases as string[] | null;
 
@@ -942,7 +973,7 @@ export async function searchRenters(
     const reportIds = scoredCandidates
       .filter((c) => c.id.startsWith("report:"))
       .map((c) => c.id.replace("report:", ""));
-    
+
     const renterDetails: Record<string, {
       totalIncidents: number;
       verifiedIncidents: number;
@@ -1199,7 +1230,7 @@ export async function getRenterByFingerprint(fingerprint: string): Promise<{
     if (fingerprint.startsWith("report-")) {
       // Extract report ID prefix from fingerprint
       const reportIdPrefix = fingerprint.replace("report-", "");
-      
+
       // Find the report by ID prefix
       const { data: reports } = await supabase
         .from("incident_reports")
@@ -1230,7 +1261,7 @@ export async function getRenterByFingerprint(fingerprint: string): Promise<{
       }
 
       const report = reports[0];
-      
+
       // Count identifiers
       let identifierCount = 0;
       if (report.reported_phone) identifierCount++;

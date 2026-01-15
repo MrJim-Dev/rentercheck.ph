@@ -15,15 +15,19 @@ import { Coins, Plus } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
-export function CreditBalance() {
+interface CreditBalanceProps {
+    dependencies?: any[]
+}
+
+export function CreditBalance({ dependencies = [] }: CreditBalanceProps) {
     const [balance, setBalance] = useState<number | null>(null)
     const [isOpen, setIsOpen] = useState(false)
     const [isPending, startTransition] = useTransition()
 
-    // Fetch balance on mount
+    // Fetch balance on mount and when dependencies change
     useEffect(() => {
         getCreditsBalance().then(setBalance)
-    }, [])
+    }, [...dependencies])
 
     const handleRefill = () => {
         startTransition(async () => {
@@ -78,7 +82,7 @@ export function CreditBalance() {
                     <div className="p-4 bg-muted/50 rounded-lg border text-center">
                         <h3 className="font-semibold text-lg">Beta Tester Pack</h3>
                         <p className="text-sm text-muted-foreground mb-4">
-                            Since we are in Beta, all credits are free!
+                            Thanks for testing RenterCheck! <br /> Here are some extra credits on us.
                         </p>
                         <Button
                             onClick={handleRefill}
@@ -87,10 +91,6 @@ export function CreditBalance() {
                         >
                             {isPending ? "Adding..." : "Add +10 Credits (Free)"}
                         </Button>
-                    </div>
-
-                    <div className="text-xs text-center text-muted-foreground">
-                        Paid plans (Starter, Pro, Enterprise) coming soon.
                     </div>
                 </div>
             </DialogContent>
