@@ -101,7 +101,8 @@ export function DisputesTable() {
 
     return (
         <>
-            <Card>
+            {/* Desktop Table View */}
+            <Card className="hidden md:block">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -152,7 +153,6 @@ export function DisputesTable() {
                                                 size="sm"
                                                 className="h-7 text-xs w-fit"
                                                 onClick={() => {
-                                                    // Switch to Reports tab and select this report
                                                     window.location.href = `/admin?report=${dispute.report_id}`
                                                 }}
                                             >
@@ -228,6 +228,118 @@ export function DisputesTable() {
                     </TableBody>
                 </Table>
             </Card>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
+                {disputes.length === 0 ? (
+                    <Card className="p-8 text-center text-muted-foreground">
+                        No disputes found
+                    </Card>
+                ) : (
+                    disputes.map((dispute) => (
+                        <Card key={dispute.id} className="p-4 space-y-3">
+                            {/* Header */}
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-1">
+                                    <Badge variant={
+                                        dispute.status === 'APPROVED' ? 'default' :
+                                            dispute.status === 'REJECTED' ? 'destructive' :
+                                                'outline'
+                                    }>
+                                        {dispute.status}
+                                    </Badge>
+                                    <p className="text-xs text-muted-foreground">
+                                        {format(new Date(dispute.created_at), 'MMM d, yyyy')}
+                                    </p>
+                                </div>
+                                {dispute.status === 'OPEN' && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                                                <MoreVertical className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-56">
+                                            <DropdownMenuItem
+                                                onClick={() => handleResolve(dispute.id, 'APPROVED', dispute.report_id)}
+                                                className="text-green-600 hover:text-green-700 hover:bg-green-50 focus:text-green-700 focus:bg-green-50 cursor-pointer"
+                                            >
+                                                <Check className="h-4 w-4 mr-2" />
+                                                Approve & Delete Report
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => handleResolve(dispute.id, 'REJECTED', dispute.report_id)}
+                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 focus:text-red-700 focus:bg-red-50 cursor-pointer"
+                                            >
+                                                <X className="h-4 w-4 mr-2" />
+                                                Reject Dispute
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
+                            </div>
+
+                            {/* Category */}
+                            <Badge variant="secondary" className="font-mono text-xs">
+                                {dispute.category}
+                            </Badge>
+
+                            {/* Reported Person */}
+                            <div className="space-y-2">
+                                <div className="flex flex-col text-sm">
+                                    <span className="font-medium">{dispute.report?.reported_full_name}</span>
+                                    <span className="text-xs text-muted-foreground">by {dispute.disputer?.email}</span>
+                                </div>
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    className="h-7 text-xs w-full"
+                                    onClick={() => {
+                                        window.location.href = `/admin?report=${dispute.report_id}`
+                                    }}
+                                >
+                                    <ExternalLink className="h-3 w-3 mr-1" />
+                                    View Report
+                                </Button>
+                            </div>
+
+                            {/* Reason */}
+                            <div className="space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground">Reason</p>
+                                <p className="text-sm">{dispute.reason}</p>
+                            </div>
+
+                            {/* Evidence */}
+                            {dispute.evidence && dispute.evidence.length > 0 && (
+                                <div className="space-y-2">
+                                    <p className="text-xs font-medium text-muted-foreground">Evidence</p>
+                                    <div className="space-y-2">
+                                        {dispute.evidence.map((file) => (
+                                            <div
+                                                key={file.id}
+                                                className="flex items-center gap-2 p-2 bg-muted/30 border rounded-lg cursor-pointer hover:bg-primary/10 hover:border-primary/50 transition-all group"
+                                                onClick={() => handleViewEvidence(file.storage_path, file.mime_type)}
+                                            >
+                                                <div className="w-8 h-8 rounded bg-muted flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+                                                    {file.mime_type.includes('image') ? (
+                                                        <ImageIcon className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                                                    ) : (
+                                                        <FileText className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-medium truncate group-hover:text-primary">{file.file_name}</p>
+                                                    <p className="text-[10px] text-muted-foreground uppercase">{file.mime_type.split('/')[0]}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </Card>
+                    ))
+                )}
+            </div>
 
             <FileViewerDialog
                 open={!!viewFileUrl}
