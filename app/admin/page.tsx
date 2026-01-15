@@ -1,63 +1,22 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import Link from "next/link"
-import Image from "next/image"
-import {
-    Shield,
-    Clock,
-    CheckCircle2,
-    XCircle,
-    AlertTriangle,
-    FileText,
-    Calendar,
-    DollarSign,
-    MapPin,
-    RefreshCw,
-    Eye,
-    MessageSquare,
-    ChevronRight,
-    Search,
-    Filter,
-    User,
-    Phone,
-    Mail,
-    Facebook,
-    LogOut,
-    LayoutDashboard,
-    Loader2,
-    Users,
-    TrendingUp,
-    ChevronDown,
-    X,
-    Check,
-    Ban,
-    FileCheck,
-    ExternalLink,
-    Copy,
-    Home,
-    Edit,
-    History,
-    ImageIcon,
-} from "lucide-react"
 import {
     checkIsAdmin,
+    getAdminEvidenceUrl,
     getAdminStats,
     getAllReports,
     getReportDetails,
-    updateReportStatus,
-    getAdminEvidenceUrl,
-    updateReportDetails,
     getReportEditHistory,
+    updateReportDetails,
+    updateReportStatus,
 } from "@/app/actions/admin"
-import type { Database, Enums } from "@/lib/database.types"
-import { useAuth, signOutClient } from "@/lib/auth/auth-provider"
 import { logout } from "@/app/actions/auth"
-import { useRouter } from "next/navigation"
+import { ReportEditorDialog } from "@/components/admin/report-editor-dialog"
+import { ReportHistoryDialog } from "@/components/admin/report-history-dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { FileViewerDialog } from "@/components/ui/file-viewer-dialog"
+import { Input } from "@/components/ui/input"
 import {
     Select,
     SelectContent,
@@ -65,9 +24,43 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { FileViewerDialog } from "@/components/ui/file-viewer-dialog"
-import { ReportEditorDialog } from "@/components/admin/report-editor-dialog"
-import { ReportHistoryDialog } from "@/components/admin/report-history-dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { signOutClient, useAuth } from "@/lib/auth/auth-provider"
+import type { Database, Enums } from "@/lib/database.types"
+import {
+    AlertTriangle,
+    Ban,
+    Calendar,
+    Check,
+    CheckCircle2,
+    ChevronDown,
+    Clock,
+    Copy,
+    DollarSign,
+    Edit,
+    ExternalLink,
+    Eye,
+    Facebook,
+    FileCheck,
+    FileText,
+    History,
+    Home,
+    ImageIcon,
+    Loader2,
+    LogOut,
+    Mail,
+    MapPin,
+    Phone,
+    RefreshCw,
+    Search,
+    Shield,
+    User,
+    XCircle
+} from "lucide-react"
+import Image from "next/image"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useEffect, useState, useTransition } from "react"
 
 type Report = Database["public"]["Tables"]["incident_reports"]["Row"]
 type Evidence = Database["public"]["Tables"]["report_evidence"]["Row"]
@@ -99,35 +92,35 @@ export default function AdminPage() {
     const [totalReports, setTotalReports] = useState(0)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    
+
     // Filters
     const [statusFilter, setStatusFilter] = useState<string>("PENDING")
     const [searchQuery, setSearchQuery] = useState("")
-    
+
     // Selected report for detail view
     const [selectedReport, setSelectedReport] = useState<Report | null>(null)
     const [selectedEvidence, setSelectedEvidence] = useState<Evidence[]>([])
     const [isLoadingDetails, setIsLoadingDetails] = useState(false)
-    
+
     // Action states
     const [isPending, startTransition] = useTransition()
     const [actionError, setActionError] = useState<string | null>(null)
     const [rejectionReason, setRejectionReason] = useState("")
     const [showRejectDialog, setShowRejectDialog] = useState(false)
-    
+
     // File viewer state
     const [fileViewer, setFileViewer] = useState<{ open: boolean; url: string; name: string; type?: string }>({
         open: false,
         url: "",
         name: "",
     })
-    
+
     // Edit dialog state
     const [showEditDialog, setShowEditDialog] = useState(false)
-    
+
     // History dialog state
     const [showHistoryDialog, setShowHistoryDialog] = useState(false)
-    
+
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
 
@@ -145,7 +138,7 @@ export default function AdminPage() {
                 router.push("/login?redirect=/admin")
                 return
             }
-            
+
             if (user) {
                 const result = await checkIsAdmin()
                 if (result.success && result.data) {
@@ -163,7 +156,7 @@ export default function AdminPage() {
     // Fetch data
     const fetchData = async () => {
         if (!isAdmin) return
-        
+
         setIsLoading(true)
         setError(null)
 
@@ -250,10 +243,10 @@ export default function AdminPage() {
 
     // Get evidence URL
     const [evidenceUrls, setEvidenceUrls] = useState<Record<string, string>>({})
-    
+
     const loadEvidenceUrl = async (evidence: Evidence) => {
         if (evidenceUrls[evidence.id]) return
-        
+
         const result = await getAdminEvidenceUrl(evidence.storage_path)
         if (result.success && result.data) {
             setEvidenceUrls(prev => ({ ...prev, [evidence.id]: result.data!.url }))
@@ -264,7 +257,7 @@ export default function AdminPage() {
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text)
     }
-    
+
     // Handle view evidence with inline viewer
     const handleViewEvidence = async (ev: Evidence) => {
         const result = await getAdminEvidenceUrl(ev.storage_path)
@@ -277,11 +270,11 @@ export default function AdminPage() {
             })
         }
     }
-    
+
     // Handle edit report
     const handleEditReport = async (updates: Partial<Report>, changeNote: string) => {
         if (!selectedReport) return
-        
+
         const result = await updateReportDetails(selectedReport.id, updates, changeNote)
         if (result.success) {
             // Refresh report details
@@ -291,7 +284,7 @@ export default function AdminPage() {
             alert(result.error || "Failed to update report")
         }
     }
-    
+
     // Handle load history
     const handleLoadHistory = async (reportId: string) => {
         const result = await getReportEditHistory(reportId)
@@ -338,7 +331,7 @@ export default function AdminPage() {
         <div className="min-h-screen bg-background flex flex-col">
             {/* Compact Header */}
             <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b">
-                <div className="container mx-auto px-4">
+                <div className="px-4">
                     <div className="flex items-center justify-between h-14">
                         <div className="flex items-center gap-3">
                             <Link href="/" className="flex items-center gap-2">
@@ -356,7 +349,7 @@ export default function AdminPage() {
                                 )}
                             </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-2">
                             <Link href="/search">
                                 <Button size="sm" variant="ghost" className="h-8 px-2 gap-1">
@@ -444,7 +437,7 @@ export default function AdminPage() {
                                 className="pl-9 h-9 text-sm"
                             />
                         </div>
-                        
+
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
                             <SelectTrigger className="w-32 h-9 text-sm">
                                 <SelectValue placeholder="Status" />
@@ -475,331 +468,333 @@ export default function AdminPage() {
                         </div>
                     )}
 
-                    {/* Compact Reports Grid */}
-                    <div className="grid lg:grid-cols-2 gap-4">
-                        {/* Reports List */}
-                        <div className="space-y-3">
-                            <h2 className="font-semibold text-sm text-muted-foreground uppercase">Reports Queue</h2>
-                            
-                            {isLoading ? (
-                                <div className="space-y-2">
-                                    {[1, 2, 3].map((i) => (
-                                        <div key={i} className="bg-card border rounded-lg p-3 animate-pulse">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-8 h-8 rounded-full bg-muted" />
-                                                <div className="flex-1 space-y-1.5">
-                                                    <div className="h-3 bg-muted rounded w-1/2" />
-                                                    <div className="h-2.5 bg-muted rounded w-1/3" />
-                                                </div>
+                    {/* Reports Grid - 2 Column with Accordion */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                        {isLoading ? (
+                            <>
+                                {[1, 2, 3, 4, 5, 6].map((i) => (
+                                    <div key={i} className="bg-card border rounded-lg p-4 animate-pulse">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-full bg-muted shrink-0" />
+                                            <div className="flex-1 space-y-2">
+                                                <div className="h-4 bg-muted rounded w-1/3" />
+                                                <div className="h-3 bg-muted rounded w-1/4" />
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            ) : reports.length === 0 ? (
-                                <div className="bg-card border rounded-lg p-6 text-center">
-                                    <FileCheck className="w-10 h-10 text-muted-foreground mx-auto mb-2 opacity-50" />
-                                    <p className="text-sm text-muted-foreground">No reports found</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-2">
-                                    {reports.map((report) => {
-                                        const status = report.status || "PENDING"
-                                        const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.PENDING
-                                        const incidentInfo = INCIDENT_TYPE_LABELS[report.incident_type] || { label: report.incident_type, icon: "📋" }
-                                        const isSelected = selectedReport?.id === report.id
+                                        <div className="mt-4 space-y-2">
+                                            <div className="h-3 bg-muted rounded w-full" />
+                                            <div className="h-3 bg-muted rounded w-2/3" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        ) : reports.length === 0 ? (
+                            <div className="col-span-full bg-card border rounded-lg p-12 text-center">
+                                <FileCheck className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                                <h3 className="text-lg font-semibold mb-2">No reports found</h3>
+                                <p className="text-muted-foreground">Try adjusting your filters or search query.</p>
+                            </div>
+                        ) : (
+                            reports.map((report) => {
+                                const status = report.status || "PENDING"
+                                const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.PENDING
+                                const incidentInfo = INCIDENT_TYPE_LABELS[report.incident_type] || { label: report.incident_type, icon: "📋" }
+                                const isExpanded = selectedReport?.id === report.id
 
-                                        return (
-                                            <div
-                                                key={report.id}
-                                                onClick={() => loadReportDetails(report)}
-                                                className={`bg-card border rounded-lg p-3 cursor-pointer transition-all hover:border-secondary/50 ${
-                                                    isSelected ? "border-secondary ring-1 ring-secondary/30 bg-secondary/5" : ""
-                                                }`}
-                                            >
-                                                <div className="flex items-start gap-2">
-                                                    <div className="text-xl">{incidentInfo.icon}</div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-start justify-between gap-1.5">
-                                                            <div>
-                                                                <h3 className="font-medium text-sm truncate">{report.reported_full_name}</h3>
-                                                                <p className="text-xs text-muted-foreground">{incidentInfo.label}</p>
-                                                            </div>
-                                                            <Badge className={`${config.color} border text-xs px-1.5 py-0 h-5 shrink-0`}>
-                                                                {config.label}
-                                                            </Badge>
+                                return (
+                                    <div
+                                        key={report.id}
+                                        className={`bg-card border rounded-lg overflow-hidden transition-all duration-300 ${isExpanded ? "ring-1 ring-secondary/30 shadow-lg" : "hover:border-secondary/50"
+                                            }`}
+                                    >
+                                        {/* Card Header / Summary */}
+                                        <div
+                                            onClick={() => {
+                                                if (isExpanded) {
+                                                    setSelectedReport(null)
+                                                } else {
+                                                    loadReportDetails(report)
+                                                }
+                                            }}
+                                            className="p-4 cursor-pointer"
+                                        >
+                                            <div className="flex items-start gap-4">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${config.color} border`}>
+                                                    <div className="text-lg">{incidentInfo.icon}</div>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start justify-between gap-1.5 mb-1.5">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h3 className="font-medium text-base truncate flex items-center gap-2">
+                                                                <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                                {report.reported_full_name}
+                                                            </h3>
+                                                            <p className="text-sm text-muted-foreground">{incidentInfo.label}</p>
                                                         </div>
-                                                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                                                            <span>{new Date(report.incident_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                                                            {report.amount_involved && (
-                                                                <span>₱{report.amount_involved.toLocaleString()}</span>
+                                                        <Badge className={`${config.color} border text-xs px-2 py-0.5 h-6 shrink-0`}>
+                                                            {config.label}
+                                                        </Badge>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-2">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Calendar className="w-3.5 h-3.5" />
+                                                            {new Date(report.incident_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                        </span>
+                                                        {report.amount_involved && (
+                                                            <span className="flex items-center gap-1.5">
+                                                                <DollarSign className="w-3.5 h-3.5" />
+                                                                ₱{report.amount_involved.toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                        {(report.incident_city || report.incident_region) && (
+                                                            <span className="flex items-center gap-1.5">
+                                                                <MapPin className="w-3.5 h-3.5" />
+                                                                {[report.incident_city, report.incident_region].filter(Boolean).join(", ")}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform duration-300 flex-shrink-0 self-center ${isExpanded ? "rotate-180" : ""}`} />
+                                            </div>
+                                        </div>
+
+                                        {/* Expanded Content */}
+                                        <div
+                                            className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                                                }`}
+                                        >
+                                            <div className="overflow-hidden min-h-0">
+                                                <div className="border-t bg-muted/30 p-5 space-y-5">
+                                                    {/* Header Actions */}
+                                                    <div className="flex items-center justify-between pb-4 border-b">
+                                                        <div className="text-xs text-muted-foreground">
+                                                            <span className="font-medium">ID:</span> <span className="font-mono">{report.id.slice(0, 8)}...</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setShowEditDialog(true);
+                                                                }}
+                                                                className="h-8 px-2 gap-1.5 hover:bg-background"
+                                                                title="Edit Report"
+                                                            >
+                                                                <Edit className="w-3.5 h-3.5" />
+                                                                Edit
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setShowHistoryDialog(true);
+                                                                }}
+                                                                className="h-8 px-2 gap-1.5 hover:bg-background"
+                                                                title="View Edit History"
+                                                            >
+                                                                <History className="w-3.5 h-3.5" />
+                                                                History
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Status Management */}
+                                                    <div>
+                                                        <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">Status Management</h3>
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            {report.status === "PENDING" && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleStatusChange("UNDER_REVIEW")}
+                                                                    disabled={isPending}
+                                                                    className="h-8"
+                                                                >
+                                                                    <Eye className="w-3.5 h-3.5 mr-2" />
+                                                                    Mark for Review
+                                                                </Button>
+                                                            )}
+                                                            {(report.status === "PENDING" || report.status === "UNDER_REVIEW") && (
+                                                                <>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        onClick={() => handleStatusChange("APPROVED")}
+                                                                        disabled={isPending}
+                                                                        className="h-8 bg-emerald-600 hover:bg-emerald-700"
+                                                                    >
+                                                                        <Check className="w-3.5 h-3.5 mr-2" />
+                                                                        Approve
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="destructive"
+                                                                        onClick={() => setShowRejectDialog(true)}
+                                                                        disabled={isPending}
+                                                                        className="h-8"
+                                                                    >
+                                                                        <Ban className="w-3.5 h-3.5 mr-2" />
+                                                                        Reject
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                        </div>
+
+                                                        {actionError && (
+                                                            <p className="text-xs text-destructive mt-2">{actionError}</p>
+                                                        )}
+
+                                                        {/* Rejection Dialog (Inline) */}
+                                                        {showRejectDialog && (
+                                                            <div className="mt-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg animate-in fade-in zoom-in-95 duration-200">
+                                                                <p className="text-xs font-medium mb-2">Reason for Rejection</p>
+                                                                <Textarea
+                                                                    value={rejectionReason}
+                                                                    onChange={(e) => setRejectionReason(e.target.value)}
+                                                                    placeholder="Explain why this report is being rejected..."
+                                                                    className="text-xs min-h-[80px] mb-3 resize-none bg-background"
+                                                                />
+                                                                <div className="flex gap-2 justify-end">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => {
+                                                                            setShowRejectDialog(false)
+                                                                            setRejectionReason("")
+                                                                        }}
+                                                                        className="h-7 text-xs"
+                                                                    >
+                                                                        Cancel
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="destructive"
+                                                                        onClick={() => handleStatusChange("REJECTED")}
+                                                                        disabled={isPending || !rejectionReason.trim()}
+                                                                        className="h-7 text-xs"
+                                                                    >
+                                                                        Confirm Rejection
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Renter Information */}
+                                                    <div>
+                                                        <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">Renter Information</h3>
+                                                        <div className="space-y-2">
+                                                            {report.reported_phone && (
+                                                                <div className="flex items-center gap-3 text-sm">
+                                                                    <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                                    <div className="flex items-center gap-2 font-mono">
+                                                                        {report.reported_phone}
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                                                                            onClick={() => copyToClipboard(report.reported_phone!)}
+                                                                            title="Copy Phone"
+                                                                        >
+                                                                            <Copy className="w-3 h-3" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {report.reported_email && (
+                                                                <div className="flex items-center gap-3 text-sm">
+                                                                    <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                                    <span className="truncate">{report.reported_email}</span>
+                                                                </div>
+                                                            )}
+                                                            {report.reported_facebook && (
+                                                                <div className="flex items-center gap-3 text-sm">
+                                                                    <Facebook className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                                    <a
+                                                                        href={report.reported_facebook}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-secondary hover:underline truncate flex items-center gap-1"
+                                                                    >
+                                                                        View Profile
+                                                                        <ExternalLink className="w-3 h-3" />
+                                                                    </a>
+                                                                </div>
+                                                            )}
+                                                            {report.reported_address && (
+                                                                <div className="flex items-start gap-3 text-sm">
+                                                                    <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                                                    <span>{report.reported_address}</span>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform flex-shrink-0 ${isSelected ? "rotate-90" : ""}`} />
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-                        </div>
 
-                        {/* Compact Report Detail */}
-                        <div className="lg:sticky lg:top-20">
-                            {selectedReport ? (
-                                <div className="bg-card border rounded-lg overflow-hidden">
-                                    {/* Compact Header */}
-                                    <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-                                        <div className="flex-1 min-w-0">
-                                            <h2 className="font-semibold text-sm truncate">{selectedReport.reported_full_name}</h2>
-                                            <p className="text-xs text-muted-foreground">
-                                                {INCIDENT_TYPE_LABELS[selectedReport.incident_type]?.label || selectedReport.incident_type}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <Button 
-                                                size="sm" 
-                                                variant="ghost" 
-                                                onClick={() => setShowEditDialog(true)}
-                                                className="h-7 w-7 p-0"
-                                                title="Edit Report"
-                                            >
-                                                <Edit className="w-3.5 h-3.5" />
-                                            </Button>
-                                            <Button 
-                                                size="sm" 
-                                                variant="ghost" 
-                                                onClick={() => setShowHistoryDialog(true)}
-                                                className="h-7 w-7 p-0"
-                                                title="View Edit History"
-                                            >
-                                                <History className="w-3.5 h-3.5" />
-                                            </Button>
-                                            <Button size="sm" variant="ghost" onClick={() => setSelectedReport(null)} className="h-7 w-7 p-0">
-                                                <X className="w-3.5 h-3.5" />
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-3 space-y-3 max-h-[calc(100vh-340px)] overflow-y-auto">
-                                        {/* Status & Actions */}
-                                        <div>
-                                            <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                                                <Badge className={`${STATUS_CONFIG[selectedReport.status as keyof typeof STATUS_CONFIG]?.color || ""} border text-xs px-2 py-0 h-5`}>
-                                                    {STATUS_CONFIG[selectedReport.status as keyof typeof STATUS_CONFIG]?.label || selectedReport.status}
-                                                </Badge>
-                                                
-                                                {selectedReport.status === "PENDING" && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleStatusChange("UNDER_REVIEW")}
-                                                        disabled={isPending}
-                                                        className="h-6 text-xs px-2 gap-1"
-                                                    >
-                                                        <Eye className="w-3 h-3" />
-                                                        Review
-                                                    </Button>
-                                                )}
-                                                
-                                                {(selectedReport.status === "PENDING" || selectedReport.status === "UNDER_REVIEW") && (
-                                                    <>
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => handleStatusChange("APPROVED")}
-                                                            disabled={isPending}
-                                                            className="h-6 text-xs px-2 gap-1 bg-emerald-600 hover:bg-emerald-700"
-                                                        >
-                                                            <Check className="w-3 h-3" />
-                                                            Approve
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="destructive"
-                                                            onClick={() => setShowRejectDialog(true)}
-                                                            disabled={isPending}
-                                                            className="h-6 text-xs px-2 gap-1"
-                                                        >
-                                                            <Ban className="w-3 h-3" />
-                                                            Reject
-                                                        </Button>
-                                                    </>
-                                                )}
-                                            </div>
-
-                                            {actionError && (
-                                                <p className="text-xs text-destructive">{actionError}</p>
-                                            )}
-
-                                            {/* Compact Reject Dialog */}
-                                            {showRejectDialog && (
-                                                <div className="p-2.5 bg-destructive/10 border border-destructive/30 rounded space-y-2">
-                                                    <p className="text-xs font-medium">Rejection Reason</p>
-                                                    <Textarea
-                                                        value={rejectionReason}
-                                                        onChange={(e) => setRejectionReason(e.target.value)}
-                                                        placeholder="Explain why..."
-                                                        className="text-xs h-16 resize-none"
-                                                    />
-                                                    <div className="flex gap-1.5">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="destructive"
-                                                            onClick={() => handleStatusChange("REJECTED")}
-                                                            disabled={isPending || !rejectionReason.trim()}
-                                                            className="h-7 text-xs"
-                                                        >
-                                                            Confirm
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() => {
-                                                                setShowRejectDialog(false)
-                                                                setRejectionReason("")
-                                                            }}
-                                                            className="h-7 text-xs"
-                                                        >
-                                                            Cancel
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Compact Renter Info */}
-                                        <div>
-                                            <h3 className="text-xs font-medium text-muted-foreground mb-1.5 uppercase">Renter Information</h3>
-                                            <div className="space-y-1.5 text-xs">
-                                                <div className="flex items-center gap-1.5">
-                                                    <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                    <span className="font-medium">{selectedReport.reported_full_name}</span>
-                                                </div>
-                                                {selectedReport.reported_phone && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Phone className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                        <span className="flex-1">{selectedReport.reported_phone}</span>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-5 w-5 p-0"
-                                                            onClick={() => copyToClipboard(selectedReport.reported_phone!)}
-                                                        >
-                                                            <Copy className="w-3 h-3" />
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                                {selectedReport.reported_email && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Mail className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                        <span className="truncate">{selectedReport.reported_email}</span>
-                                                    </div>
-                                                )}
-                                                {selectedReport.reported_facebook && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Facebook className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                        <a
-                                                            href={selectedReport.reported_facebook}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-secondary hover:underline flex items-center gap-1"
-                                                        >
-                                                            View Profile
-                                                            <ExternalLink className="w-3 h-3" />
-                                                        </a>
-                                                    </div>
-                                                )}
-                                                {selectedReport.reported_address && (
-                                                    <div className="flex items-start gap-1.5">
-                                                        <MapPin className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                                                        <span className="flex-1">{selectedReport.reported_address}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Compact Incident Details */}
-                                        <div>
-                                            <h3 className="text-xs font-medium text-muted-foreground mb-1.5 uppercase">Incident Details</h3>
-                                            <div className="space-y-1.5 text-xs">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Calendar className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                    <span>{new Date(selectedReport.incident_date).toLocaleDateString()}</span>
-                                                </div>
-                                                {selectedReport.amount_involved && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <DollarSign className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                        <span>₱{selectedReport.amount_involved.toLocaleString()}</span>
-                                                    </div>
-                                                )}
-                                                {(selectedReport.incident_region || selectedReport.incident_city) && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                        <span>
-                                                            {[selectedReport.incident_city, selectedReport.incident_region].filter(Boolean).join(", ")}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Compact Summary */}
-                                        <div>
-                                            <h3 className="text-xs font-medium text-muted-foreground mb-1.5 uppercase">Summary</h3>
-                                            <p className="text-xs bg-muted/30 rounded p-2">{selectedReport.summary}</p>
-                                        </div>
-
-                                        {/* Compact Evidence with Inline Viewer */}
-                                        <div>
-                                            <h3 className="text-xs font-medium text-muted-foreground mb-1.5 uppercase">
-                                                Evidence ({selectedEvidence.length})
-                                            </h3>
-                                            {isLoadingDetails ? (
-                                                <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    <span className="text-xs">Loading...</span>
-                                                </div>
-                                            ) : selectedEvidence.length === 0 ? (
-                                                <p className="text-xs text-muted-foreground">No evidence uploaded</p>
-                                            ) : (
-                                                <div className="grid grid-cols-2 gap-1.5">
-                                                    {selectedEvidence.map((ev) => {
-                                                        const isImage = ev.mime_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(ev.file_name)
-                                                        return (
-                                                            <div
-                                                                key={ev.id}
-                                                                className="bg-muted/30 rounded p-2 text-xs cursor-pointer hover:bg-muted/50 transition-colors"
-                                                                onClick={() => handleViewEvidence(ev)}
-                                                            >
-                                                                <div className="flex items-center gap-1.5 mb-1">
-                                                                    <ImageIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                                    <span className="font-medium truncate flex-1">{ev.file_name}</span>
-                                                                </div>
-                                                                <div className="text-muted-foreground text-xs">{ev.evidence_type}</div>
+                                                    {/* Incident Summary */}
+                                                    {report.summary && (
+                                                        <div>
+                                                            <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">Summary</h3>
+                                                            <div className="bg-background border rounded-lg p-3 text-sm leading-relaxed">
+                                                                {report.summary}
                                                             </div>
-                                                        )
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
+                                                        </div>
+                                                    )}
 
-                                        {/* Compact Meta Info */}
-                                        <div className="pt-2 border-t text-xs text-muted-foreground space-y-0.5">
-                                            <p><span className="font-medium">ID:</span> <span className="font-mono">{selectedReport.id.slice(0, 8)}...</span></p>
-                                            <p><span className="font-medium">Reporter:</span> {selectedReport.reporter_email}</p>
-                                            <p><span className="font-medium">Submitted:</span> {new Date(selectedReport.created_at || "").toLocaleString()}</p>
+                                                    {/* Evidence */}
+                                                    <div>
+                                                        <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide flex items-center gap-2">
+                                                            Evidence
+                                                            {selectedEvidence.length > 0 && (
+                                                                <Badge variant="secondary" className="px-1.5 h-5 text-[10px]">{selectedEvidence.length}</Badge>
+                                                            )}
+                                                        </h3>
+
+                                                        {isLoadingDetails && (!selectedEvidence || selectedEvidence.length === 0) ? (
+                                                            <div className="flex items-center justify-center p-8 bg-background border rounded-lg border-dashed">
+                                                                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                                            </div>
+                                                        ) : selectedEvidence.length === 0 ? (
+                                                            <div className="text-sm text-muted-foreground italic bg-background border rounded-lg p-4 text-center border-dashed">
+                                                                No evidence attached to this report.
+                                                            </div>
+                                                        ) : (
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                                {selectedEvidence.map((ev) => (
+                                                                    <div
+                                                                        key={ev.id}
+                                                                        className="flex items-center gap-3 p-3 bg-background border rounded-lg cursor-pointer hover:bg-secondary/5 hover:border-secondary/30 transition-all group"
+                                                                        onClick={() => handleViewEvidence(ev)}
+                                                                    >
+                                                                        <div className="w-8 h-8 rounded bg-muted/50 flex items-center justify-center flex-shrink-0 group-hover:bg-secondary/10 transition-colors">
+                                                                            <ImageIcon className="w-4 h-4 text-muted-foreground group-hover:text-secondary" />
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <p className="text-sm font-medium truncate">{ev.file_name}</p>
+                                                                            <p className="text-xs text-muted-foreground uppercase">{ev.evidence_type}</p>
+                                                                        </div>
+                                                                        <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-secondary opacity-0 group-hover:opacity-100 transition-all" />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Report Meta */}
+                                                    <div className="pt-4 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-muted-foreground">
+                                                        <p>Submitted by: <span className="font-medium text-foreground">{report.reporter_email}</span></p>
+                                                        <p>{new Date(report.created_at || "").toLocaleString()}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="bg-card border rounded-lg p-8 text-center">
-                                    <Eye className="w-10 h-10 text-muted-foreground mx-auto mb-2 opacity-50" />
-                                    <p className="text-sm text-muted-foreground">Select a report to view details</p>
-                                </div>
-                            )}
-                        </div>
+                                )
+                            })
+                        )}
                     </div>
-                    
+
                     {/* Dialogs */}
                     <FileViewerDialog
                         open={fileViewer.open}
@@ -808,7 +803,7 @@ export default function AdminPage() {
                         fileName={fileViewer.name}
                         fileType={fileViewer.type}
                     />
-                    
+
                     {selectedReport && (
                         <>
                             <ReportEditorDialog
@@ -817,7 +812,7 @@ export default function AdminPage() {
                                 report={selectedReport}
                                 onSave={handleEditReport}
                             />
-                            
+
                             <ReportHistoryDialog
                                 open={showHistoryDialog}
                                 onOpenChange={setShowHistoryDialog}

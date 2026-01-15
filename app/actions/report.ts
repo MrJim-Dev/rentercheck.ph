@@ -1,8 +1,9 @@
 "use server"
 
+import { consumeCredits } from "@/lib/actions/credits"
+import type { Database, Enums } from "@/lib/database.types"
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { Database, Enums } from "@/lib/database.types"
 
 // Types for the form submission
 export interface ReportFormData {
@@ -101,6 +102,22 @@ export async function submitIncidentReport(
         if (!formData.confirmTruth || !formData.confirmBan) {
             return { success: false, error: "You must confirm both acknowledgements" }
         }
+
+        // =================================================================
+        // CREDIT CONSUMPTION GATE
+        // =================================================================
+        // Deduct 1 credit for the report.
+        // This throws an error if balance is insufficient.
+        // We do this BEFORE inserting the report.
+        try {
+            await consumeCredits("Incident Report Submission", undefined, 1)
+        } catch (error: any) {
+            if (error.message === 'Insufficient credits') {
+                return { success: false, error: "Insufficient credits. Please top up your wallet." }
+            }
+            throw error // Re-throw other errors to be caught below
+        }
+        // =================================================================
 
         // Prepare JSONB arrays for multiple identifiers
         // Filter out empty strings and combine primary + additional values
@@ -217,7 +234,7 @@ export async function submitIncidentReport(
         // Revalidate paths to refresh data
         revalidatePath("/report")
         revalidatePath("/my-reports")
-        
+
         // Note: Client-side cache should be cleared using clearReportsCache() 
         // from @/lib/cache after successful submission
 

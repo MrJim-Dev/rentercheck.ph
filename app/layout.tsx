@@ -78,12 +78,12 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" className="dark">
-        <body className={`${_geist.className} font-sans antialiased`}>
-        <AuthProvider>
-            {children}
-        </AuthProvider>
-        <Analytics />
-        </body>
+            <body className={`${_geist.className} font-sans antialiased`}>
+                <AuthProvider>
+                    {children}
+                </AuthProvider>
+                <Analytics />
+            </body>
         </html>
     )
 }

@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { submitIncidentReport, uploadEvidence, type ReportFormData } from "@/app/actions/report"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { MultiInput } from "@/components/ui/multi-input"
 import {
     Select,
     SelectContent,
@@ -13,39 +13,39 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import {
-    User,
-    Phone,
-    Mail,
-    Facebook,
-    AlertTriangle,
-    Calendar,
-    PiggyBank,
-    FileText,
-    Receipt,
-    MessageSquare,
-    Camera,
-    Upload,
-    X,
-    Clock,
-    CheckCircle2,
-    Shield,
-    Ban,
-    Loader2,
-    ArrowRight,
-    Sparkles,
-    FileCheck,
-    MapPin,
-    Home,
-    CreditCard,
-    UserCircle,
-    ChevronDown,
-    Zap,
-    Building,
-} from "lucide-react"
-import { submitIncidentReport, uploadEvidence, type ReportFormData } from "@/app/actions/report"
+import { Textarea } from "@/components/ui/textarea"
 import type { Enums } from "@/lib/database.types"
-import { MultiInput } from "@/components/ui/multi-input"
+import {
+    AlertTriangle,
+    ArrowRight,
+    Ban,
+    Building,
+    Calendar,
+    Camera,
+    CheckCircle2,
+    ChevronDown,
+    Clock,
+    CreditCard,
+    Facebook,
+    FileCheck,
+    FileText,
+    Home,
+    Loader2,
+    Mail,
+    MapPin,
+    MessageSquare,
+    Phone,
+    PiggyBank,
+    Receipt,
+    Shield,
+    Sparkles,
+    Upload,
+    User,
+    UserCircle,
+    X,
+    Zap,
+} from "lucide-react"
+import { useCallback, useRef, useState } from "react"
 
 // Incident types - covering various rental-related issues
 const INCIDENT_TYPES = [
@@ -54,20 +54,20 @@ const INCIDENT_TYPES = [
     { value: "UNPAID_BALANCE", label: "Unpaid balance", icon: "💸", category: "Transaction" },
     { value: "LATE_PAYMENT", label: "Consistently late payments", icon: "⏰", category: "Transaction" },
     { value: "SCAM", label: "Scam / Fraudulent transaction", icon: "🚨", category: "Transaction" },
-    
+
     // Property/Item issues
     { value: "DAMAGE_DISPUTE", label: "Damage to item/property", icon: "🔧", category: "Property" },
     { value: "PROPERTY_DAMAGE", label: "Intentional property damage", icon: "💥", category: "Property" },
     { value: "CONTRACT_VIOLATION", label: "Violated rental agreement", icon: "📋", category: "Property" },
-    
+
     // Identity/Trust issues  
     { value: "FAKE_INFO", label: "Fake info / Identity mismatch", icon: "🎭", category: "Trust" },
     { value: "NO_SHOW", label: "No-show / Ghosting", icon: "👻", category: "Trust" },
-    
+
     // Behavior issues
     { value: "ABUSIVE_BEHAVIOR", label: "Rude / Abusive behavior", icon: "😤", category: "Behavior" },
     { value: "THREATS_HARASSMENT", label: "Threats / Harassment", icon: "⚠️", category: "Behavior" },
-    
+
     // Other
     { value: "OTHER", label: "Other issue", icon: "📝", category: "Other" },
 ] as const
@@ -166,7 +166,7 @@ export function ReportForm() {
     const [incidentType, setIncidentType] = useState<IncidentType | "">("")
     const [incidentDate, setIncidentDate] = useState("")
     const [amountInvolved, setAmountInvolved] = useState("")
-    
+
     // Step 2: Incident location (optional)
     const [incidentRegion, setIncidentRegion] = useState("")
     const [incidentCity, setIncidentCity] = useState("")
@@ -364,7 +364,7 @@ export function ReportForm() {
             })
 
             const uploadResults = await Promise.all(uploadPromises)
-            
+
             // Check if any uploads failed
             const failedUploads = uploadResults.filter(r => !r.success)
             if (failedUploads.length > 0) {
@@ -627,7 +627,7 @@ export function ReportForm() {
                     {showMoreDetails && (
                         <div className="p-4 pt-0 space-y-4 animate-in slide-in-from-top-2 duration-200">
                             <div className="h-px bg-border mb-4" />
-                            
+
                             {/* Date of Birth */}
                             <div className="space-y-2">
                                 <Label htmlFor="renterBirthdate" className="text-sm flex items-center gap-2">
@@ -640,7 +640,7 @@ export function ReportForm() {
                                     type="date"
                                     value={renterBirthdate}
                                     onChange={(e) => setRenterBirthdate(e.target.value)}
-                                    className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                    className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
                                 />
                             </div>
 
@@ -788,7 +788,7 @@ export function ReportForm() {
                             type="date"
                             value={incidentDate}
                             onChange={(e) => setIncidentDate(e.target.value)}
-                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
                             required
                         />
                     </div>

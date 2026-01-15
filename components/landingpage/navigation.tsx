@@ -1,19 +1,34 @@
 "use client"
 
+import { logout } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
+import { signOutClient, useAuth } from "@/lib/auth/auth-provider"
 import { AnimatePresence, motion } from "framer-motion"
-import { Menu, X, LogOut, FileWarning, FileText, Shield, User, ChevronDown } from "lucide-react"
+import { ChevronDown, FileText, FileWarning, LogOut, Menu, Shield, User, X } from "lucide-react"
 import NextImage from "next/image"
 import Link from "next/link"
-import { useState, useTransition } from "react"
-import { useAuth, signOutClient } from "@/lib/auth/auth-provider"
-import { logout } from "@/app/actions/auth"
+import { useEffect, useRef, useState, useTransition } from "react"
 
 export function Navigation() {
     const [isOpen, setIsOpen] = useState(false)
     const [userMenuOpen, setUserMenuOpen] = useState(false)
     const [isPending, startTransition] = useTransition()
     const { user, loading } = useAuth()
+    const userMenuRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+                setUserMenuOpen(false)
+            }
+        }
+        if (userMenuOpen) {
+            document.addEventListener("mousedown", handleClickOutside)
+        }
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside)
+        }
+    }, [userMenuOpen])
 
     const handleLogout = async () => {
         await signOutClient()
@@ -87,10 +102,12 @@ export function Navigation() {
                                 {item.name}
                             </a>
                         ))}
-                        
-                        {/* Divider */}
-                        <div className="h-4 w-px bg-border" />
-                        
+
+
+                    </div>
+
+                    {/* Desktop User Menu */}
+                    <div className="hidden md:flex items-center gap-2">
                         {/* App Links */}
                         {appLinks.map((item) => {
                             const Icon = item.icon
@@ -98,27 +115,27 @@ export function Navigation() {
                                 <Link
                                     key={item.name}
                                     href={item.href}
-                                    className={`text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                                        item.href === "/report"
-                                            ? "text-destructive/80 hover:text-destructive"
-                                            : "text-muted-foreground hover:text-white"
-                                    }`}
                                 >
-                                    <Icon className="w-3.5 h-3.5" />
-                                    {item.name}
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className={`gap-2 transition-all duration-300 rounded-full font-semibold px-5 h-8 text-xs ${item.href === "/report"
+                                            ? "border border-red-500/20 bg-red-500/10 text-red-400 hover:!bg-red-500/25 hover:!border-red-500/50 hover:!text-red-300 hover:shadow-[0_0_15px_-3px_rgba(239,68,68,0.3)]"
+                                            : "text-muted-foreground hover:text-white"
+                                            }`}
+                                    >
+                                        <Icon className="w-3.5 h-3.5" />
+                                        {item.name}
+                                    </Button>
                                 </Link>
                             )
                         })}
-                    </div>
-
-                    {/* Desktop User Menu */}
-                    <div className="hidden md:block">
                         {!loading && (
                             user ? (
-                                <div className="relative">
+                                <div className="relative" ref={userMenuRef}>
                                     <button
                                         onClick={() => setUserMenuOpen(!userMenuOpen)}
-                                        className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-white transition-colors"
+                                        className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-white transition-all duration-300 cursor-pointer rounded-full hover:!bg-white/5 hover:!border-white/10 border border-transparent px-3 h-8"
                                     >
                                         <div className="w-6 h-6 rounded-full bg-secondary/20 flex items-center justify-center">
                                             <User className="w-3 h-3 text-secondary" />
@@ -130,10 +147,7 @@ export function Navigation() {
                                     <AnimatePresence>
                                         {userMenuOpen && (
                                             <>
-                                                <div
-                                                    className="fixed inset-0 z-40"
-                                                    onClick={() => setUserMenuOpen(false)}
-                                                />
+
                                                 <motion.div
                                                     initial={{ opacity: 0, y: -10 }}
                                                     animate={{ opacity: 1, y: 0 }}
@@ -145,13 +159,13 @@ export function Navigation() {
                                                     </div>
                                                     <div className="p-1">
                                                         <Link href="/my-reports" onClick={() => setUserMenuOpen(false)}>
-                                                            <button className="w-full px-3 py-2 text-xs text-left rounded-lg hover:bg-white/5 flex items-center gap-2">
+                                                            <button className="w-full px-3 py-2 text-xs text-left rounded-lg hover:bg-white/5 flex items-center gap-2 cursor-pointer transition-colors">
                                                                 <FileText className="w-3.5 h-3.5" />
                                                                 My Reports
                                                             </button>
                                                         </Link>
                                                         <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
-                                                            <button className="w-full px-3 py-2 text-xs text-left rounded-lg hover:bg-white/5 flex items-center gap-2">
+                                                            <button className="w-full px-3 py-2 text-xs text-left rounded-lg hover:bg-white/5 flex items-center gap-2 cursor-pointer transition-colors">
                                                                 <Shield className="w-3.5 h-3.5" />
                                                                 Admin
                                                             </button>
@@ -164,7 +178,7 @@ export function Navigation() {
                                                                 handleLogout()
                                                             }}
                                                             disabled={isPending}
-                                                            className="w-full px-3 py-2 text-xs text-left rounded-lg hover:bg-destructive/10 text-destructive flex items-center gap-2"
+                                                            className="w-full px-3 py-2 text-xs text-left rounded-lg hover:!bg-red-500/10 text-red-500 flex items-center gap-2 cursor-pointer transition-colors font-medium"
                                                         >
                                                             <LogOut className="w-3.5 h-3.5" />
                                                             {isPending ? "Signing out..." : "Sign out"}
@@ -212,29 +226,8 @@ export function Navigation() {
                                         {item.name}
                                     </a>
                                 ))}
-                                
-                                <div className="h-px bg-white/10 my-2" />
-                                
-                                {/* App Links */}
-                                {appLinks.map((item) => {
-                                    const Icon = item.icon
-                                    return (
-                                        <Link
-                                            key={item.name}
-                                            href={item.href}
-                                            onClick={() => setIsOpen(false)}
-                                        >
-                                            <div className={`text-sm font-medium p-2 hover:bg-white/5 rounded-lg transition-colors flex items-center gap-2 ${
-                                                item.href === "/report"
-                                                    ? "text-destructive"
-                                                    : "text-muted-foreground hover:text-foreground"
-                                            }`}>
-                                                <Icon className="w-4 h-4" />
-                                                {item.name}
-                                            </div>
-                                        </Link>
-                                    )
-                                })}
+
+
 
                                 {/* User Section */}
                                 {!loading && (
@@ -244,6 +237,23 @@ export function Navigation() {
                                             <div className="text-xs text-muted-foreground px-2 py-1">
                                                 {user.email}
                                             </div>
+                                            {/* App Links (Report) in User Menu */}
+                                            {appLinks.map((item) => {
+                                                const Icon = item.icon
+                                                return (
+                                                    <Link
+                                                        key={item.name}
+                                                        href={item.href}
+                                                        onClick={() => setIsOpen(false)}
+                                                    >
+                                                        <div className={`text-sm font-medium text-muted-foreground hover:text-foreground p-2 hover:bg-white/5 rounded-lg transition-colors flex items-center gap-2 ${item.href === "/report" ? "text-red-400" : ""
+                                                            }`}>
+                                                            <Icon className="w-4 h-4" />
+                                                            {item.name}
+                                                        </div>
+                                                    </Link>
+                                                )
+                                            })}
                                             <Link href="/my-reports" onClick={() => setIsOpen(false)}>
                                                 <div className="text-sm font-medium text-muted-foreground hover:text-foreground p-2 hover:bg-white/5 rounded-lg transition-colors flex items-center gap-2">
                                                     <FileText className="w-4 h-4" />
@@ -256,15 +266,15 @@ export function Navigation() {
                                                     Admin
                                                 </div>
                                             </Link>
-                                            <Button 
-                                                size="sm" 
+                                            <Button
+                                                size="sm"
                                                 variant="ghost"
                                                 onClick={() => {
                                                     setIsOpen(false)
                                                     handleLogout()
                                                 }}
                                                 disabled={isPending}
-                                                className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                className="w-full justify-start text-red-500 hover:!text-red-400 hover:!bg-red-500/10 cursor-pointer"
                                             >
                                                 <LogOut className="mr-2" size={14} />
                                                 {isPending ? "Signing out..." : "Sign out"}
@@ -273,11 +283,37 @@ export function Navigation() {
                                     ) : (
                                         <>
                                             <div className="h-px bg-white/10 my-2" />
-                                            <Link href="/login" onClick={() => setIsOpen(false)}>
-                                                <Button size="sm" className="w-full rounded-full bg-gradient-to-r from-secondary to-accent font-semibold">
-                                                    Sign in
-                                                </Button>
-                                            </Link>
+                                            <div className="flex flex-col gap-3 p-1">
+                                                {/* App Links (Report) grouped with Sign In */}
+                                                {appLinks.map((item) => {
+                                                    const Icon = item.icon
+                                                    return (
+                                                        <Link
+                                                            key={item.name}
+                                                            href={item.href}
+                                                            onClick={() => setIsOpen(false)}
+                                                            className="w-full"
+                                                        >
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className={`w-full gap-2 transition-all duration-300 rounded-full font-semibold h-9 ${item.href === "/report"
+                                                                    ? "border border-red-500/20 bg-red-500/10 text-red-400 hover:!bg-red-500/25 hover:!border-red-500/50 hover:!text-red-300"
+                                                                    : "text-muted-foreground hover:text-white"
+                                                                    }`}
+                                                            >
+                                                                <Icon className="w-4 h-4" />
+                                                                {item.name}
+                                                            </Button>
+                                                        </Link>
+                                                    )
+                                                })}
+                                                <Link href="/login" onClick={() => setIsOpen(false)} className="w-full">
+                                                    <Button size="sm" className="w-full rounded-full bg-gradient-to-r from-secondary to-accent font-semibold h-9">
+                                                        Sign in
+                                                    </Button>
+                                                </Link>
+                                            </div>
                                         </>
                                     )
                                 )}
