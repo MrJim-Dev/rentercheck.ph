@@ -33,12 +33,11 @@ export function CTASection() {
                     transition={{ duration: 0.7 }}
                 >
                     <h2 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6 sm:mb-8 text-balance tracking-tight">
-                        Ready to Protect Your{" "}
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">Investments?</span>
+                        Start Screening Tenants{" "}
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">With Confidence</span>
                     </h2>
                     <p className="text-base sm:text-lg text-muted-foreground mb-8 sm:mb-12 max-w-2xl mx-auto leading-relaxed">
-                        Start verifying tenants today with RenterCheck. Join thousands of property professionals who are making
-                        smarter rental decisions.
+                        Protect your rental property investment with instant tenant verification. Join landlords and property managers across the Philippines who background-check renters before approving applications.
                     </p>
                 </motion.div>
 
