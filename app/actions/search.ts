@@ -983,6 +983,7 @@ export async function searchRenters(
       fingerprint: string;
       aliases?: string[];
       incidentSummaries?: Array<{
+        id: string;
         type: string;
         typeLabel: string;
         category: string | null;
@@ -1068,6 +1069,7 @@ export async function searchRenters(
 
           // Build incident summary
           const incidentSummary = {
+            id: r.id,
             type: r.incident_type,
             typeLabel: getIncidentTypeLabel(r.incident_type),
             category: r.rental_category,

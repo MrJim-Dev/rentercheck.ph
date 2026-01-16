@@ -1,34 +1,29 @@
 "use client";
 
-import { RequestDetailsDialog } from "@/components/renter-profile/request-details-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { SearchResultMatch, ConfidenceLevel } from "@/lib/types";
+import { ConfidenceLevel, SearchResultMatch } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
     AlertCircle,
+    AlertTriangle,
+    Calendar,
+    Facebook,
     HelpCircle,
     Lock,
-    MessageSquare,
-    User,
-    Phone,
     Mail,
-    Facebook,
     MapPin,
-    Calendar,
-    FileWarning,
-    ChevronRight,
-    Shield,
-    AlertTriangle,
-    Tag,
     Package,
-    DollarSign,
-    UserCircle,
+    Phone,
+    Shield,
+    Tag,
+    User,
+    UserCircle
 } from "lucide-react";
-import Link from "next/link";
+import { useState } from "react";
 import { AddIdentifierDialog } from "./add-identifier-dialog";
+import { DisputeDialog } from "./dispute-dialog";
 
 interface ResultCardProps {
     match: SearchResultMatch;
@@ -97,6 +92,7 @@ export function ResultCard({ match }: ResultCardProps) {
 
     const config = confidenceConfig[confidence];
     const Icon = config.icon;
+    const [isDisputeOpen, setIsDisputeOpen] = useState(false);
 
     // Determine border color based on confidence
     const borderLeftColor = hasStrongMatch
@@ -266,19 +262,19 @@ export function ResultCard({ match }: ResultCardProps) {
                                 </span>
                                 <div className="grid gap-2">
                                     {renter.incidentSummaries.slice(0, 2).map((incident, idx) => (
-                                        <div 
-                                            key={idx} 
+                                        <div
+                                            key={idx}
                                             className="bg-muted/50 rounded-lg p-2 text-sm"
                                         >
                                             <div className="flex items-start justify-between gap-4">
                                                 <div className="space-y-1.5 flex-1">
                                                     {/* Incident Type & Category */}
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <Badge 
-                                                            variant="outline" 
+                                                        <Badge
+                                                            variant="outline"
                                                             className={cn(
                                                                 "text-xs font-medium",
-                                                                incident.type === 'SCAM' || incident.type === 'THREATS_HARASSMENT' 
+                                                                incident.type === 'SCAM' || incident.type === 'THREATS_HARASSMENT'
                                                                     ? "bg-red-50 text-red-700 border-red-200"
                                                                     : incident.type === 'NON_RETURN' || incident.type === 'UNPAID_BALANCE'
                                                                         ? "bg-amber-50 text-amber-700 border-amber-200"
@@ -289,8 +285,8 @@ export function ResultCard({ match }: ResultCardProps) {
                                                             {incident.typeLabel}
                                                         </Badge>
                                                         {incident.categoryLabel && (
-                                                            <Badge 
-                                                                variant="outline" 
+                                                            <Badge
+                                                                variant="outline"
                                                                 className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-200"
                                                             >
                                                                 <Package className="h-3 w-3 mr-1" />
@@ -298,7 +294,7 @@ export function ResultCard({ match }: ResultCardProps) {
                                                             </Badge>
                                                         )}
                                                     </div>
-                                                    
+
                                                     {/* Item Description */}
                                                     {incident.itemDescription && (
                                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -369,10 +365,25 @@ export function ResultCard({ match }: ResultCardProps) {
             <CardFooter className="bg-muted/40 px-4 py-2 border-t flex justify-end gap-2">
                 {showDetails ? (
                     <>
-                        <Button variant="outline" size="sm" className="bg-background hover:bg-amber-50 hover:text-amber-900 border-amber-200 gap-1.5">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            Dispute Incident
-                        </Button>
+                        {/* Only show Dispute if not already disputed/confirmed? 
+                            Since we don't have dispute status in 'match' object yet, we essentially allow anyone to click it.
+                            Ideally we'd check if User already disputed, but for MVP we just show button. 
+                        */}
+                        <DisputeDialog
+                            reportId={renter.incidentSummaries?.[0]?.id || ""}
+                            isOpen={isDisputeOpen}
+                            onOpenChange={setIsDisputeOpen}
+                        >
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-background hover:bg-amber-50 hover:text-amber-900 border-amber-200 gap-1.5"
+                                disabled={renter.status === 'DISPUTED'} // Optional: Disable if we know it's disputed
+                            >
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                {renter.status === 'DISPUTED' ? 'Dispute Pending' : 'Dispute Incident'}
+                            </Button>
+                        </DisputeDialog>
                     </>
                 ) : (
                     <AddIdentifierDialog

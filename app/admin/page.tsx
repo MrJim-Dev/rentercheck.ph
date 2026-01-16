@@ -13,6 +13,7 @@ import {
 import { logout } from "@/app/actions/auth"
 import { AdminUserCreditTable } from "@/components/admin/admin-user-credit-table"
 import { CreditConfigTable } from "@/components/admin/credit-config-table"
+import { DisputesTable } from "@/components/admin/disputes-table"
 import { ReportEditorDialog } from "@/components/admin/report-editor-dialog"
 import { ReportHistoryDialog } from "@/components/admin/report-history-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -87,7 +88,7 @@ const INCIDENT_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
 }
 
 export default function AdminPage() {
-    const [view, setView] = useState<"REPORTS" | "CONFIG" | "USERS">("REPORTS")
+    const [view, setView] = useState<"REPORTS" | "CONFIG" | "USERS" | "DISPUTES">("REPORTS")
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
     const [adminRole, setAdminRole] = useState<string | null>(null)
     const [stats, setStats] = useState<Awaited<ReturnType<typeof getAdminStats>>["data"] | null>(null)
@@ -453,6 +454,13 @@ export default function AdminPage() {
                             >
                                 Users
                             </button>
+                            <button
+                                onClick={() => setView("DISPUTES")}
+                                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === "DISPUTES" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                            >
+                                Disputes
+                            </button>
                         </div>
 
                         {view === "REPORTS" && (
@@ -501,6 +509,10 @@ export default function AdminPage() {
                     ) : view === "USERS" ? (
                         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <AdminUserCreditTable />
+                        </div>
+                    ) : view === "DISPUTES" ? (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <DisputesTable />
                         </div>
                     ) : (
                         <>
