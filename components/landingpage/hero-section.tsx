@@ -18,7 +18,7 @@ export function HeroSection() {
     }
 
     return (
-        <section id="hero" className="relative min-h-[90vh] w-full flex items-center justify-center overflow-hidden pt-12 sm:pt-16 px-4 sm:px-6 lg:px-8 bg-background">
+        <section id="hero" className="relative min-h-[90vh] w-full flex items-center justify-center overflow-hidden pt-36 sm:pt-40 px-4 sm:px-6 lg:px-8 bg-background">
             {/* Animated Background */}
             <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
@@ -92,7 +92,7 @@ export function HeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
-                    className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-1.5 sm:p-2 shadow-xl mb-6 sm:mb-10 ring-1 ring-white/5 max-w-xl mx-auto"
+                    className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-1.5 sm:p-2 shadow-xl mb-4 sm:mb-6 ring-1 ring-white/5 max-w-xl mx-auto"
                 >
                     <div className="flex gap-2 flex-col sm:flex-row rounded-lg p-1">
                         <div className="flex-1 relative group">
@@ -121,6 +121,16 @@ export function HeroSection() {
                         </Button>
                     </div>
                 </motion.div>
+
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 1, delay: 0.5 }}
+                    className="text-xs text-muted-foreground/80 text-center mb-8 sm:mb-12 max-w-lg mx-auto flex flex-col sm:block gap-1"
+                >
+                    <span className="opacity-70">Try Searching: </span>
+                    <span className="font-medium opacity-90 break-words">"Juan Dela Cruz, 09171234567, juan@example.com"</span>
+                </motion.p>
 
                 <motion.div
                     initial={{ opacity: 0 }}

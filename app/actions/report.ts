@@ -112,7 +112,7 @@ export async function submitIncidentReport(
             await gateAction(CreditAction.REPORT_CREATION, user.id)
         } catch (error: any) {
             if (error.message === 'INSUFFICIENT_CREDITS' || error.message?.includes('Insufficient credits')) {
-                return { success: false, error: "Insufficient credits. Please top up your wallet." }
+                return { success: false, error: "Insufficient credits. Refill for free to continue." }
             }
             throw error // Re-throw other errors to be caught below
         }

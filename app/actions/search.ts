@@ -272,7 +272,7 @@ export async function searchRenters(
             results: [],
             totalCount: 0,
             query: originalQuery,
-            error: "Insufficient credits. Please top up your wallet.",
+            error: "Insufficient credits. Refill for free to continue.",
             meta: {
               searchTime: 0,
               hasStrongInput: false,
