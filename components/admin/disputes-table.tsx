@@ -3,6 +3,16 @@
 import { getAdminEvidenceUrl } from "@/app/actions/admin"
 import { getAdminDisputes } from "@/app/actions/admin-disputes"
 import { resolveDispute } from "@/app/actions/disputes"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -21,6 +31,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
+import { useToast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
 import { Check, ExternalLink, FileText, Image as ImageIcon, MoreVertical, X } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -43,17 +54,29 @@ interface Dispute {
         id: string
         reported_full_name: string
         incident_type: string
-    }
+    } | null
     disputer: {
         email: string
-    }
+    } | null
 }
 
 export function DisputesTable() {
+    const { toast } = useToast()
     const [disputes, setDisputes] = useState<Dispute[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [viewFileUrl, setViewFileUrl] = useState<string | null>(null)
     const [viewFileType, setViewFileType] = useState<string>("")
+    const [confirmDialog, setConfirmDialog] = useState<{
+        open: boolean
+        type: 'APPROVED' | 'REJECTED' | null
+        disputeId: string | null
+        reportId: string | null
+    }>({
+        open: false,
+        type: null,
+        disputeId: null,
+        reportId: null
+    })
 
     const fetchDisputes = async () => {
         setIsLoading(true)
@@ -71,19 +94,56 @@ export function DisputesTable() {
         fetchDisputes()
     }, [])
 
-    const handleResolve = async (disputeId: string, decision: 'APPROVED' | 'REJECTED', reportId: string) => {
-        if (!confirm(`Are you sure you want to ${decision} this dispute?`)) return
+    const handleResolve = (disputeId: string, decision: 'APPROVED' | 'REJECTED', reportId: string) => {
+        setConfirmDialog({
+            open: true,
+            type: decision,
+            disputeId,
+            reportId
+        })
+    }
 
+
+    const processResolution = async () => {
+        if (!confirmDialog.disputeId || !confirmDialog.reportId || !confirmDialog.type) return
+
+        setIsLoading(true)
         try {
-            const result = await resolveDispute(disputeId, decision, reportId)
+            const result = await resolveDispute(confirmDialog.disputeId, confirmDialog.type, confirmDialog.reportId)
+
             if (result.success) {
+                toast({
+                    title: "Success",
+                    description: `Dispute ${confirmDialog.type.toLowerCase()} successfully`,
+                    variant: "default",
+                })
+
+                // Optimistic Update
+                setDisputes(prev => prev.map(d =>
+                    d.id === confirmDialog.disputeId
+                        ? { ...d, status: confirmDialog.type as 'APPROVED' | 'REJECTED' }
+                        : d
+                ))
+
+                // Fetch fresh data in background
                 fetchDisputes()
             } else {
-                alert("Failed to update dispute")
+                toast({
+                    title: "Error",
+                    description: result.error || "Failed to update dispute",
+                    variant: "destructive",
+                })
             }
-        } catch (e) {
-            console.error(e)
-            alert("An error occurred")
+        } catch (error) {
+            console.error("Error resolving dispute:", error)
+            toast({
+                title: "Error",
+                description: "An unexpected error occurred",
+                variant: "destructive",
+            })
+        } finally {
+            setIsLoading(false)
+            setConfirmDialog({ open: false, type: null, disputeId: null, reportId: null })
         }
     }
 
@@ -348,6 +408,32 @@ export function DisputesTable() {
                 fileType={viewFileType}
                 fileName="Dispute Evidence"
             />
+
+            <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog(prev => ({ ...prev, open: false }))}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {confirmDialog.type === 'APPROVED' ? "Approve Dispute & Remove Report?" : "Reject Dispute?"}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDialog.type === 'APPROVED' ? (
+                                "This will mark the incident report as DELETED and remove it from public search results. The dispute will be marked as APPROVED."
+                            ) : (
+                                "This will mark the dispute as REJECTED. The incident report will remain active and visible in search results."
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={processResolution}
+                            className={confirmDialog.type === 'APPROVED' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
+                        >
+                            {confirmDialog.type === 'APPROVED' ? "Approve Dispute" : "Reject Dispute"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

@@ -148,14 +148,26 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
     const supabase = await createClient()
 
     if (decision === 'APPROVED') {
-        // APPROVE DISPUTE = DELETE REPORT
+        // APPROVE DISPUTE = SOFT DELETE REPORT
+
+        // 1. Update Dispute Status to APPROVED
+        const { error: updateDisputeError } = await supabase
+            .from("incident_disputes")
+            .update({ status: 'APPROVED' })
+            .eq("id", disputeId)
+
+        if (updateDisputeError) {
+            return { success: false, error: "Failed to update dispute status" }
+        }
+
+        // 2. Update Report Status to DELETED (Soft Delete)
         const { error: deleteError } = await supabase
             .from("incident_reports")
-            .delete()
+            .update({ status: 'DELETED' })
             .eq("id", reportId)
 
         if (deleteError) {
-            return { success: false, error: "Failed to delete report" }
+            return { success: false, error: "Failed to soft delete report" }
         }
 
     } else {
