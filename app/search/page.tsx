@@ -1,17 +1,17 @@
 "use client";
 
+import { searchRenters } from "@/app/actions/search";
 import { ImproveAccuracyCard } from "@/components/search-results/improve-accuracy-card";
 import { ResultCard } from "@/components/search-results/result-card";
-import { Separator } from "@/components/ui/separator";
+import { AppHeader } from "@/components/shared/app-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { SearchResultMatch } from "@/lib/types";
-import { AlertTriangle, Lightbulb, SearchX, Loader2, Shield, Info, Lock, LogIn } from "lucide-react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { Suspense, useEffect, useState, useTransition } from "react";
-import { AppHeader } from "@/components/shared/app-header";
-import { searchRenters } from "@/app/actions/search";
+import { AlertTriangle, Info, Lightbulb, Loader2, Lock, LogIn, SearchX, Shield } from "lucide-react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, useTransition } from "react";
 
 function SearchResultsContent() {
     const searchParams = useSearchParams();
@@ -19,6 +19,7 @@ function SearchResultsContent() {
     const query = searchParams.get("q") || "";
     const [results, setResults] = useState<SearchResultMatch[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [searchCount, setSearchCount] = useState(0);
     const [searchMeta, setSearchMeta] = useState<{
         searchTime: number;
         hasStrongInput: boolean;
@@ -60,6 +61,7 @@ function SearchResultsContent() {
                 setResults([]);
             } finally {
                 setIsSearching(false);
+                setSearchCount(prev => prev + 1);
             }
         });
     }, [query]);
@@ -76,6 +78,7 @@ function SearchResultsContent() {
                 searchValue={query}
                 onSearch={handleSearch}
                 currentPage="search"
+                creditRefreshTrigger={searchCount}
             />
 
             <main className="container mx-auto px-4 md:px-6 py-8">
@@ -108,7 +111,7 @@ function SearchResultsContent() {
                                 <div className="space-y-1">
                                     <p className="font-medium text-blue-900">Smart Multi-Input Search</p>
                                     <p className="text-sm text-blue-800">
-                                        Search with multiple details at once for better accuracy! Try: <br/>
+                                        Search with multiple details at once for better accuracy! Try: <br />
                                         <code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs">Juan Karlos, 09123457879, juankarlos@gmail.com</code>
                                     </p>
                                     <p className="text-xs text-blue-600 mt-1">
@@ -125,7 +128,7 @@ function SearchResultsContent() {
                                 <div className="space-y-1">
                                     <p className="font-medium text-amber-900">Name-only search</p>
                                     <p className="text-sm text-amber-800">
-                                        Searching by name alone may show partial matches. For more accurate results, 
+                                        Searching by name alone may show partial matches. For more accurate results,
                                         add a <strong>phone number</strong>, <strong>email</strong>, or <strong>Facebook link</strong> to your search.
                                     </p>
                                     <p className="text-xs text-amber-600 mt-1">
@@ -170,28 +173,28 @@ function SearchResultsContent() {
                                             </p>
                                         </div>
                                         <div className="pt-4 space-y-3">
-                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                                    <Button asChild size="lg" className="min-w-[200px]">
-                                        <Link href="/signup">
-                                            <LogIn className="mr-2 h-5 w-5" />
-                                            Create Account
-                                        </Link>
-                                    </Button>
-                                    <Button asChild variant="outline" size="lg" className="min-w-[200px]">
-                                        <Link href="/login">Sign In</Link>
-                                    </Button>
-                                </div>
-                            </div>
-                                    <div className="pt-4 border-t">
-                                        <p className="text-sm text-muted-foreground">
-                                            <strong>Why sign in?</strong>
-                                        </p>
-                                        <ul className="text-sm text-muted-foreground mt-2 space-y-1  mx-auto grid grid-cols-1 md:grid-cols-3">
-                                            <li>✓ Track your submitted reports</li>
-                                            <li>✓ Receive updates on report status</li>
-                                            <li>✓ Help build a trusted community</li>
-                                        </ul>
-                                    </div>
+                                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                                <Button asChild size="lg" className="min-w-[200px]">
+                                                    <Link href="/signup">
+                                                        <LogIn className="mr-2 h-5 w-5" />
+                                                        Create Account
+                                                    </Link>
+                                                </Button>
+                                                <Button asChild variant="outline" size="lg" className="min-w-[200px]">
+                                                    <Link href="/login">Sign In</Link>
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div className="pt-4 border-t">
+                                            <p className="text-sm text-muted-foreground">
+                                                <strong>Why sign in?</strong>
+                                            </p>
+                                            <ul className="text-sm text-muted-foreground mt-2 space-y-1  mx-auto grid grid-cols-1 md:grid-cols-3">
+                                                <li>✓ Track your submitted reports</li>
+                                                <li>✓ Receive updates on report status</li>
+                                                <li>✓ Help build a trusted community</li>
+                                            </ul>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -339,21 +342,21 @@ function SearchResultsContent() {
                                         {tip}
                                     </li>
                                 )) || (
-                                    <>
-                                        <li className="flex items-start gap-2">
-                                            <span className="text-primary">•</span>
-                                            <strong>Phone number</strong> provides the most accurate results
-                                        </li>
-                                        <li className="flex items-start gap-2">
-                                            <span className="text-primary">•</span>
-                                            Include country code (+63) for best matching
-                                        </li>
-                                        <li className="flex items-start gap-2">
-                                            <span className="text-primary">•</span>
-                                            Facebook URLs can help confirm identity
-                                        </li>
-                                    </>
-                                )}
+                                        <>
+                                            <li className="flex items-start gap-2">
+                                                <span className="text-primary">•</span>
+                                                <strong>Phone number</strong> provides the most accurate results
+                                            </li>
+                                            <li className="flex items-start gap-2">
+                                                <span className="text-primary">•</span>
+                                                Include country code (+63) for best matching
+                                            </li>
+                                            <li className="flex items-start gap-2">
+                                                <span className="text-primary">•</span>
+                                                Facebook URLs can help confirm identity
+                                            </li>
+                                        </>
+                                    )}
                             </ul>
                         </div>
                     </div>

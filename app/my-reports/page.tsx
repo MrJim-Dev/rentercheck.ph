@@ -8,7 +8,7 @@ import { FileViewerDialog } from "@/components/ui/file-viewer-dialog"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth/auth-provider"
 import { loadReportsCache, saveReportsCache } from "@/lib/cache/reports-cache"
-import type { Views } from "@/lib/database.types"
+import type { Database } from "@/lib/database.types"
 import {
     AlertTriangle,
     Calendar,
@@ -37,7 +37,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
-type MyReport = Views<"my_reports">
+type MyReport = Database["public"]["Views"]["my_reports"]["Row"]
 
 const STATUS_CONFIG = {
     DRAFT: {

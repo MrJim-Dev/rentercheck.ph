@@ -84,6 +84,7 @@ export interface RenterProfile {
 
 /** Summary of an incident for display (non-sensitive info only) */
 export interface IncidentSummary {
+    id: string;
     type: string;
     typeLabel: string;
     category: string | null;

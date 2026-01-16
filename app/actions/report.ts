@@ -1,6 +1,6 @@
 "use server"
 
-import { consumeCredits } from "@/lib/actions/credits"
+import { CreditAction, gateAction } from "@/lib/credits/gatekeeper"
 import type { Database, Enums } from "@/lib/database.types"
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
@@ -106,13 +106,12 @@ export async function submitIncidentReport(
         // =================================================================
         // CREDIT CONSUMPTION GATE
         // =================================================================
-        // Deduct 1 credit for the report.
-        // This throws an error if balance is insufficient.
-        // We do this BEFORE inserting the report.
+        // Deduct credit for report creation (Configuration driven)
+        // Uses the centralized gateAction helper which handles caching & atomic deduction
         try {
-            await consumeCredits("Incident Report Submission", undefined, 1)
+            await gateAction(CreditAction.REPORT_CREATION, user.id)
         } catch (error: any) {
-            if (error.message === 'Insufficient credits') {
+            if (error.message === 'INSUFFICIENT_CREDITS' || error.message?.includes('Insufficient credits')) {
                 return { success: false, error: "Insufficient credits. Please top up your wallet." }
             }
             throw error // Re-throw other errors to be caught below

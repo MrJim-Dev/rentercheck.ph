@@ -56,7 +56,7 @@ export async function consumeCredits(
         throw new Error(`Transaction failed: ${error.message}`)
     }
 
-    revalidatePath('/app/my-reports') // Update UI where balance is shown
+    revalidatePath('/', 'layout') // Update UI where balance is shown (Header)
     return newBalance
 }
 

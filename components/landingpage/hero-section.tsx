@@ -70,7 +70,7 @@ export function HeroSection() {
                         transition={{ duration: 0.8, ease: "easeOut" }}
                     >
                         <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold text-foreground mb-3 sm:mb-5 tracking-tight text-balance">
-                            Verify Rental Tenants
+                            Verify Rental Tenants{" "}
                             <span className="block text-transparent bg-clip-text bg-gradient-to-r from-secondary via-accent to-secondary mt-1 animate-gradient-x bg-[length:200%_auto]">
                                 In Seconds
                             </span>
