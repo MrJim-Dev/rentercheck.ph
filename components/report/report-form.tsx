@@ -1127,11 +1127,11 @@ export function ReportForm() {
 
                 {/* Error message */}
                 {submitError && (
-                    <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30 flex items-start gap-3">
-                        <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                    <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                         <div>
-                            <p className="font-medium text-destructive text-sm">Submission Failed</p>
-                            <p className="text-sm text-destructive/80">{submitError}</p>
+                            <p className="font-medium text-rose-400 text-sm">Submission Failed</p>
+                            <p className="text-sm text-rose-300/90">{submitError}</p>
                         </div>
                     </div>
                 )}
