@@ -70,9 +70,9 @@ export function HeroSection() {
                         transition={{ duration: 0.8, ease: "easeOut" }}
                     >
                         <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold text-foreground mb-3 sm:mb-5 tracking-tight text-balance">
-                            Background-check renters{" "}
+                            Verify Rental Tenants{" "}
                             <span className="block text-transparent bg-clip-text bg-gradient-to-r from-secondary via-accent to-secondary mt-1 animate-gradient-x bg-[length:200%_auto]">
-                                and approve with confidence
+                                In Seconds
                             </span>
                         </h1>
                     </motion.div>
@@ -83,7 +83,7 @@ export function HeroSection() {
                         transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
                         className="text-sm sm:text-base text-muted-foreground max-w-lg mx-auto leading-relaxed"
                     >
-                        Protect your rental business with instant tenant verification. Search by name, email, or phone to check renter history and identify red flags before signing a lease.
+                        Search by name, email, or phone number to check tenant history and identify potential issues before they come problems.
                     </motion.p>
                 </div>
 
