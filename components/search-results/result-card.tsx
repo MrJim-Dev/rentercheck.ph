@@ -378,10 +378,9 @@ export function ResultCard({ match }: ResultCardProps) {
                                 variant="outline"
                                 size="sm"
                                 className="bg-background hover:bg-amber-50 hover:text-amber-900 border-amber-200 gap-1.5"
-                                disabled={renter.status === 'DISPUTED'} // Optional: Disable if we know it's disputed
                             >
                                 <AlertTriangle className="h-3.5 w-3.5" />
-                                {renter.status === 'DISPUTED' ? 'Dispute Pending' : 'Dispute Incident'}
+                                Dispute Incident
                             </Button>
                         </DisputeDialog>
                     </>

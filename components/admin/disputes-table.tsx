@@ -43,10 +43,10 @@ interface Dispute {
         id: string
         reported_full_name: string
         incident_type: string
-    }
+    } | null
     disputer: {
         email: string
-    }
+    } | null
 }
 
 export function DisputesTable() {
