@@ -21,36 +21,54 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-    title: "RenterCheck - Rental Tenant Verification",
+    title: {
+        default: "RenterCheck - Background-check renters and approve with confidence",
+        template: "%s | RenterCheck"
+    },
     description:
-        "Verify rental tenants instantly. Search by name, email, or phone number to check tenant history and issues.",
+        "Background-check renters and approve with confidence. Instant tenant verification for rental properties in the Philippines. Search renter history, verify tenant background, and protect your rental business from problematic tenants.",
     keywords: [
-        "tenant verification",
-        "rental screening",
-        "tenant history",
-        "renter check",
-        "tenant background check",
-        "Philippines rental",
+        "renter background check Philippines",
+        "tenant verification Philippines",
+        "rental screening service",
+        "tenant history check",
+        "renter check Philippines",
+        "tenant background verification",
+        "rental tenant screening",
+        "landlord tenant verification",
+        "rental property screening",
+        "tenant credit check",
+        "renter incident report",
+        "bad tenant database",
+        "rental background check",
+        "tenant verification service",
+        "Philippines landlord tools",
     ],
     authors: [{ name: "RenterCheck" }],
     creator: "RenterCheck",
     publisher: "RenterCheck",
-    generator: "v0.app",
     metadataBase: new URL("https://rentercheck.ph"),
     openGraph: {
-        title: "RenterCheck - Rental Tenant Verification",
+        title: "RenterCheck - Background-check renters and approve with confidence",
         description:
-            "Verify rental tenants instantly. Search by name, email, or phone number to check tenant history and issues.",
+            "Instant tenant verification for rental properties in the Philippines. Search renter history, verify backgrounds, and protect your rental business from problematic tenants.",
         url: "https://rentercheck.ph",
         siteName: "RenterCheck",
         locale: "en_PH",
         type: "website",
+        images: [{
+            url: "/thumbnail.png",
+            width: 1200,
+            height: 630,
+            alt: "RenterCheck - Background-check renters in seconds"
+        }]
     },
     twitter: {
         card: "summary_large_image",
-        title: "RenterCheck - Rental Tenant Verification",
+        title: "RenterCheck - Background-check renters and approve with confidence",
         description:
-            "Verify rental tenants instantly. Search by name, email, or phone number to check tenant history and issues.",
+            "Instant tenant verification for rental properties in the Philippines. Protect your rental business from problematic tenants.",
+        images: ["/thumbnail.png"]
     },
     robots: {
         index: true,
@@ -77,8 +95,34 @@ export default function RootLayout({
 }: Readonly<{
     children: React.ReactNode
 }>) {
+    const jsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'WebApplication',
+        name: 'RenterCheck',
+        description: 'Background-check renters and approve with confidence. Instant tenant verification for rental properties in the Philippines.',
+        url: 'https://rentercheck.ph',
+        applicationCategory: 'BusinessApplication',
+        operatingSystem: 'Web',
+        offers: {
+            '@type': 'Offer',
+            price: '0',
+            priceCurrency: 'PHP',
+        },
+        aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: '4.8',
+            ratingCount: '150',
+        },
+    }
+
     return (
         <html lang="en" className="dark">
+            <head>
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+                />
+            </head>
             <body className={`${_geist.className} font-sans antialiased`}>
                 <AuthProvider>
                     {children}

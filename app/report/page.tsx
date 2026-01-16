@@ -28,8 +28,7 @@ export default function ReportPage() {
                             Report a Renter Incident
                         </h1>
                         <p className="text-muted-foreground max-w-xl mx-auto">
-                            Help protect other landlords and businesses by reporting incidents. 
-                            All reports are reviewed by our team before being published.
+                            Protect fellow rental businesses by reporting problematic tenant behavior. Document unpaid rent, property damage, lease violations, and other incidents. All reports are verified by our admin team to ensure accuracy and prevent abuse.
                         </p>
                     </div>
 
