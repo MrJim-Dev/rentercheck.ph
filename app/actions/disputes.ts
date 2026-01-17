@@ -1,5 +1,8 @@
 "use server"
 
+import { DisputeApprovedEmail } from "@/components/emails/dispute-approved"
+import { sendEmail } from "@/lib/email"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { checkIsAdmin } from "./admin"
@@ -168,6 +171,29 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
 
         if (deleteError) {
             return { success: false, error: "Failed to soft delete report" }
+        }
+
+        // Send Email if Approved
+        // Send Email if Approved
+        const { data: disputeData } = await supabase
+            .from("incident_disputes")
+            .select("disputer_id")
+            .eq("id", disputeId)
+            .single()
+
+        if (disputeData?.disputer_id) {
+            const adminClient = createAdminClient()
+            const { data: { user: disputer } } = await adminClient.auth.admin.getUserById(disputeData.disputer_id)
+
+            if (disputer?.email) {
+                await sendEmail({
+                    to: disputer.email,
+                    subject: 'Your Dispute has been Approved',
+                    react: DisputeApprovedEmail({
+                        reportId: reportId
+                    })
+                })
+            }
         }
 
     } else {
