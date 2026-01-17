@@ -6,7 +6,7 @@ export function BetaBanner() {
             <div className="flex items-center gap-2 text-xs md:text-sm font-semibold text-accent-foreground">
                 <Zap className="w-4 h-4 fill-current" />
                 <span className="text-center">
-                    We&apos;re currently in beta! We&apos;re adding more features soon. Help us improve by suggesting a feature!
+                    RenterCheck is currently in beta. New features are coming soon — suggest a feature to help us improve.
                 </span>
                 <Zap className="w-4 h-4 fill-current hidden sm:block" />
             </div>

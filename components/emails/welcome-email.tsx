@@ -6,20 +6,18 @@ import {
     Preview
 } from '@react-email/components';
 
-interface IncidentRejectedEmailProps {
-    reportedName: string;
-    rejectionReason?: string;
+interface WelcomeEmailProps {
+    name: string;
 }
 
 const baseUrl = 'https://rentercheck.ph';
 
-export const IncidentRejectedEmail = ({
-    reportedName = "John Doe",
-    rejectionReason,
-}: IncidentRejectedEmailProps) => (
+export const WelcomeEmail = ({
+    name = "Valued Member",
+}: WelcomeEmailProps) => (
     <Html>
         <Head />
-        <Preview>Your report has been rejected</Preview>
+        <Preview>Your account is ready — start verifying renters and reporting incidents today.</Preview>
         <Body style={{
             backgroundColor: '#f4f4f4',
             fontFamily: 'Arial, sans-serif',
@@ -53,42 +51,41 @@ export const IncidentRejectedEmail = ({
                                     fontWeight: 'bold',
                                     padding: '16px 0',
                                 }}>
-                                    Report Rejected
+                                    Welcome to RenterCheck
                                 </td>
                             </tr>
                             <tr>
                                 <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '8px 0' }}>
-                                    Your incident report against <strong>{reportedName}</strong> has been reviewed and was <strong>rejected</strong> by our team.
-                                </td>
-                            </tr>
-                            {rejectionReason && (
-                                <tr>
-                                    <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '8px 0' }}>
-                                        <strong>Reason:</strong> {rejectionReason}
-                                    </td>
-                                </tr>
-                            )}
-                            <tr>
-                                <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '8px 0' }}>
-                                    This report will not be published.
+                                    Hi {name},
                                 </td>
                             </tr>
                             <tr>
                                 <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '8px 0' }}>
-                                    <strong>What you can do:</strong>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '0 0 8px 20px' }}>
-                                    • Review the rejection reason carefully<br />
-                                    • Gather additional evidence or documentation<br />
-                                    • Submit a new report with stronger supporting proof<br />
-                                    • Contact support if you have questions about our verification process
+                                    RenterCheck helps rental owners make smarter leasing decisions. Share and check rental experiences to reduce scams and promote transparency.
                                 </td>
                             </tr>
                             <tr>
                                 <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '8px 0' }}>
-                                    We understand this may be disappointing. Our verification process ensures all reports meet our standards for accuracy and fairness. If you believe you have valid evidence, we encourage you to resubmit with more comprehensive documentation.
+                                    You can start by checking a renter's history or, if applicable, contributing a report to help other rental owners.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td align="center" style={{ padding: '32px 0' }}>
+                                    <a
+                                        href={`${baseUrl}/report`}
+                                        style={{
+                                            backgroundColor: '#00a4ef',
+                                            borderRadius: '4px',
+                                            color: '#000000',
+                                            fontSize: '14px',
+                                            fontWeight: '600',
+                                            textDecoration: 'none',
+                                            padding: '12px 20px',
+                                            display: 'inline-block',
+                                        }}
+                                    >
+                                        Report an Incident
+                                    </a>
                                 </td>
                             </tr>
                             <tr>
@@ -131,4 +128,4 @@ export const IncidentRejectedEmail = ({
     </Html>
 );
 
-export default IncidentRejectedEmail;
+export default WelcomeEmail;
