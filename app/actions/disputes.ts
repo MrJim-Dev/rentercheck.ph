@@ -211,6 +211,29 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
             .from("incident_reports")
             .update({ status: 'PENDING' })
             .eq("id", reportId)
+
+        // 3. Send Email if Rejected
+        const { data: disputeData } = await supabase
+            .from("incident_disputes")
+            .select("disputer_id")
+            .eq("id", disputeId)
+            .single()
+
+        if (disputeData?.disputer_id) {
+            const adminClient = createAdminClient()
+            const { data: { user: disputer } } = await adminClient.auth.admin.getUserById(disputeData.disputer_id)
+
+            if (disputer?.email) {
+                const { DisputeRejectedEmail } = await import("@/components/emails/dispute-rejected")
+                await sendEmail({
+                    to: disputer.email,
+                    subject: 'Your Dispute has been Reviewed',
+                    react: DisputeRejectedEmail({
+                        reportId: reportId
+                    })
+                })
+            }
+        }
     }
 
     revalidatePath("/admin")

@@ -6,20 +6,20 @@ import {
     Preview
 } from '@react-email/components';
 
-interface IncidentRejectedEmailProps {
-    reportedName: string;
+interface DisputeRejectedEmailProps {
+    reportId: string;
     rejectionReason?: string;
 }
 
 const baseUrl = 'https://rentercheck.ph';
 
-export const IncidentRejectedEmail = ({
-    reportedName = "John Doe",
+export const DisputeRejectedEmail = ({
+    reportId = "12345",
     rejectionReason,
-}: IncidentRejectedEmailProps) => (
+}: DisputeRejectedEmailProps) => (
     <Html>
         <Head />
-        <Preview>Your report has been rejected</Preview>
+        <Preview>Your dispute has been reviewed</Preview>
         <Body style={{
             backgroundColor: '#f4f4f4',
             fontFamily: 'Arial, sans-serif',
@@ -53,12 +53,12 @@ export const IncidentRejectedEmail = ({
                                     fontWeight: 'bold',
                                     padding: '16px 0',
                                 }}>
-                                    Report Rejected
+                                    Dispute Rejected
                                 </td>
                             </tr>
                             <tr>
                                 <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '8px 0' }}>
-                                    Your incident report against <strong>{reportedName}</strong> has been reviewed and was <strong>rejected</strong> by our team.
+                                    Your dispute for report ID <strong>{reportId}</strong> has been reviewed and was <strong>rejected</strong> by our team.
                                 </td>
                             </tr>
                             {rejectionReason && (
@@ -70,7 +70,7 @@ export const IncidentRejectedEmail = ({
                             )}
                             <tr>
                                 <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '8px 0' }}>
-                                    This report will not be published.
+                                    After careful review of your dispute and the original report, we determined that the report meets our verification standards and will remain in our system.
                                 </td>
                             </tr>
                             <tr>
@@ -81,14 +81,14 @@ export const IncidentRejectedEmail = ({
                             <tr>
                                 <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '0 0 8px 20px' }}>
                                     • Review the rejection reason carefully<br />
-                                    • Gather additional evidence or documentation<br />
-                                    • Submit a new report with stronger supporting proof<br />
-                                    • Contact support if you have questions about our verification process
+                                    • Gather additional evidence that contradicts the report<br />
+                                    • Submit a new dispute with stronger supporting documentation<br />
+                                    • Contact support if you believe there was an error in our review
                                 </td>
                             </tr>
                             <tr>
                                 <td style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '24px', padding: '8px 0' }}>
-                                    We understand this may be disappointing. Our verification process ensures all reports meet our standards for accuracy and fairness. If you believe you have valid evidence, we encourage you to resubmit with more comprehensive documentation.
+                                    We understand this may be disappointing. Our dispute review process ensures fairness to both reporters and reported individuals. If you have new evidence that wasn't previously submitted, we encourage you to file a new dispute with comprehensive documentation.
                                 </td>
                             </tr>
                             <tr>
@@ -131,4 +131,4 @@ export const IncidentRejectedEmail = ({
     </Html>
 );
 
-export default IncidentRejectedEmail;
+export default DisputeRejectedEmail;

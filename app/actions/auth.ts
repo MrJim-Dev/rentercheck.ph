@@ -1,8 +1,10 @@
 'use server'
 
+import { WelcomeEmail } from '@/components/emails/welcome-email'
+import { sendEmail } from '@/lib/email'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 
 export interface AuthResult {
   success: boolean
@@ -31,6 +33,13 @@ export async function signup(formData: FormData) {
   if (error) {
     return { success: false, error: error.message }
   }
+
+  // Send welcome email
+  await sendEmail({
+    to: data.email,
+    subject: "Welcome to RenterCheck!",
+    react: WelcomeEmail({ name: data.fullName }),
+  })
 
   revalidatePath('/', 'layout')
   redirect('/')
