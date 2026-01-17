@@ -1,8 +1,12 @@
 "use server"
 
+import { IncidentApprovedEmail } from "@/components/emails/incident-approved"
+import { IncidentRejectedEmail } from "@/components/emails/incident-rejected"
+import { IncidentUnderReviewEmail } from "@/components/emails/incident-under-review"
+import type { Database, Enums } from "@/lib/database.types"
+import { sendEmail } from "@/lib/email"
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { Database, Enums } from "@/lib/database.types"
 
 // Response types
 interface ActionResult<T = void> {
@@ -67,8 +71,8 @@ export async function getAdminStats(): Promise<ActionResult<{
             return { success: false, error: "Failed to fetch stats" }
         }
 
-        return { 
-            success: true, 
+        return {
+            success: true,
             data: {
                 pending_count: data?.pending_count || 0,
                 under_review_count: data?.under_review_count || 0,
@@ -235,10 +239,9 @@ export async function updateReportStatus(
             return { success: false, error: "Not authenticated" }
         }
 
-        // Get the current report
         const { data: report, error: reportError } = await supabase
             .from("incident_reports")
-            .select("status")
+            .select("status, reporter_email, reported_full_name")
             .eq("id", reportId)
             .single()
 
@@ -283,6 +286,37 @@ export async function updateReportStatus(
             notes: notes || null,
         })
 
+        // Send Email if Approved
+        // Send Email if Approved
+        if (newStatus === 'APPROVED' && report.reporter_email) {
+            await sendEmail({
+                to: report.reporter_email,
+                subject: 'Your Incident Report has been Approved',
+                react: IncidentApprovedEmail({
+                    reportedName: report.reported_full_name,
+                    reportId: reportId
+                })
+            })
+        } else if (newStatus === 'REJECTED' && report.reporter_email) {
+            await sendEmail({
+                to: report.reporter_email,
+                subject: 'Your Incident Report has been Rejected',
+                react: IncidentRejectedEmail({
+                    reportedName: report.reported_full_name,
+                    rejectionReason: rejectionReason
+                })
+            })
+        } else if (newStatus === 'UNDER_REVIEW' && report.reporter_email) {
+            await sendEmail({
+                to: report.reporter_email,
+                subject: 'Your Incident Report is Under Review',
+                react: IncidentUnderReviewEmail({
+                    reportedName: report.reported_full_name,
+                    adminNotes: notes
+                })
+            })
+        }
+
         revalidatePath("/admin")
         revalidatePath("/my-reports")
 
@@ -315,7 +349,7 @@ export async function addAdminNote(reportId: string, note: string): Promise<Acti
 
         const timestamp = new Date().toISOString()
         const newNote = `[${timestamp}] ${note}`
-        const updatedNotes = report?.admin_notes 
+        const updatedNotes = report?.admin_notes
             ? `${report.admin_notes}\n\n${newNote}`
             : newNote
 
@@ -371,7 +405,7 @@ export async function getAdminEvidenceUrl(storagePath: string): Promise<ActionRe
  * Update report details with tracking
  */
 export async function updateReportDetails(
-    reportId: string, 
+    reportId: string,
     updates: Partial<Database["public"]["Tables"]["incident_reports"]["Update"]>,
     changeNote: string
 ): Promise<ActionResult> {

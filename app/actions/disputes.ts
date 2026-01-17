@@ -1,5 +1,8 @@
 "use server"
 
+import { DisputeApprovedEmail } from "@/components/emails/dispute-approved"
+import { sendEmail } from "@/lib/email"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { checkIsAdmin } from "./admin"
@@ -148,14 +151,49 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
     const supabase = await createClient()
 
     if (decision === 'APPROVED') {
-        // APPROVE DISPUTE = DELETE REPORT
+        // APPROVE DISPUTE = SOFT DELETE REPORT
+
+        // 1. Update Dispute Status to APPROVED
+        const { error: updateDisputeError } = await supabase
+            .from("incident_disputes")
+            .update({ status: 'APPROVED' })
+            .eq("id", disputeId)
+
+        if (updateDisputeError) {
+            return { success: false, error: "Failed to update dispute status" }
+        }
+
+        // 2. Update Report Status to DELETED (Soft Delete)
         const { error: deleteError } = await supabase
             .from("incident_reports")
-            .delete()
+            .update({ status: 'DELETED' })
             .eq("id", reportId)
 
         if (deleteError) {
-            return { success: false, error: "Failed to delete report" }
+            return { success: false, error: "Failed to soft delete report" }
+        }
+
+        // Send Email if Approved
+        // Send Email if Approved
+        const { data: disputeData } = await supabase
+            .from("incident_disputes")
+            .select("disputer_id")
+            .eq("id", disputeId)
+            .single()
+
+        if (disputeData?.disputer_id) {
+            const adminClient = createAdminClient()
+            const { data: { user: disputer } } = await adminClient.auth.admin.getUserById(disputeData.disputer_id)
+
+            if (disputer?.email) {
+                await sendEmail({
+                    to: disputer.email,
+                    subject: 'Your Dispute has been Approved',
+                    react: DisputeApprovedEmail({
+                        reportId: reportId
+                    })
+                })
+            }
         }
 
     } else {
