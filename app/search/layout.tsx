@@ -9,6 +9,22 @@ export const metadata: Metadata = {
         nocache: true,
         noarchive: true,
     },
+    openGraph: {
+        title: "Search Tenant History | RenterCheck",
+        description: "Search and verify rental tenant history. Background-check renters before approving rental applications.",
+        images: [{
+            url: "/thumbnail.png",
+            width: 1200,
+            height: 630,
+            alt: "RenterCheck - Search Tenant History"
+        }]
+    },
+    twitter: {
+        card: "summary_large_image",
+        title: "Search Tenant History | RenterCheck",
+        description: "Search and verify rental tenant history. Background-check renters before approving rental applications.",
+        images: ["/thumbnail.png"]
+    },
 }
 
 export default function SearchLayout({
