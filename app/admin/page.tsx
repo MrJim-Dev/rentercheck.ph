@@ -64,7 +64,7 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState, useTransition } from "react"
+import { Suspense, useEffect, useState, useTransition } from "react"
 
 type Report = Database["public"]["Tables"]["incident_reports"]["Row"]
 type Evidence = Database["public"]["Tables"]["report_evidence"]["Row"]
@@ -89,7 +89,7 @@ const INCIDENT_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
     OTHER: { label: "Other", icon: "📋" },
 }
 
-export default function AdminPage() {
+function AdminPageContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const tabParam = searchParams.get('tab')
@@ -909,5 +909,12 @@ export default function AdminPage() {
                 </main>
             </div>
         </div>
+    )
+}
+export default function AdminPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin" /></div>}>
+            <AdminPageContent />
+        </Suspense>
     )
 }
