@@ -1,6 +1,7 @@
 "use client"
 
 import { logout } from "@/app/actions/auth"
+import { checkIsAdmin } from "@/app/actions/admin"
 import { CreditBalance } from "@/components/credits/credit-balance"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,8 +47,32 @@ export function AppHeader({
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [userMenuOpen, setUserMenuOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState(searchValue)
+    const [isAdmin, setIsAdmin] = useState(false)
     const router = useRouter()
     const userMenuRef = useRef<HTMLDivElement>(null)
+
+    // Check admin status
+    useEffect(() => {
+        let isMounted = true
+        
+        const checkAdmin = async () => {
+            if (!user) {
+                if (isMounted) setIsAdmin(false)
+                return
+            }
+            
+            const result = await checkIsAdmin()
+            if (isMounted && result.success && result.data) {
+                setIsAdmin(result.data.isAdmin)
+            }
+        }
+        
+        checkAdmin()
+        
+        return () => {
+            isMounted = false
+        }
+    }, [user])
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -200,12 +225,14 @@ export function AppHeader({
                                                                     My Reports
                                                                 </Button>
                                                             </Link>
-                                                            <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
-                                                                <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
-                                                                    <Shield className="w-4 h-4" />
-                                                                    Admin Dashboard
-                                                                </Button>
-                                                            </Link>
+                                                            {isAdmin && (
+                                                                <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
+                                                                    <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
+                                                                        <Shield className="w-4 h-4" />
+                                                                        Admin Dashboard
+                                                                    </Button>
+                                                                </Link>
+                                                            )}
                                                         </div>
                                                         <div className="p-2 border-t">
                                                             <Button
@@ -284,12 +311,14 @@ export function AppHeader({
                                                 </div>
                                                 <p className="text-sm text-muted-foreground truncate flex-1">{user.email}</p>
                                             </div>
-                                            <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
-                                                <Button variant="ghost" className="w-full justify-start gap-3">
-                                                    <Shield className="w-4 h-4" />
-                                                    Admin Dashboard
-                                                </Button>
-                                            </Link>
+                                            {isAdmin && (
+                                                <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
+                                                    <Button variant="ghost" className="w-full justify-start gap-3">
+                                                        <Shield className="w-4 h-4" />
+                                                        Admin Dashboard
+                                                    </Button>
+                                                </Link>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 onClick={() => {

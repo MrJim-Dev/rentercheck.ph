@@ -1,6 +1,7 @@
 "use client"
 
 import { logout } from "@/app/actions/auth"
+import { checkIsAdmin } from "@/app/actions/admin"
 import { Button } from "@/components/ui/button"
 import { signOutClient, useAuth } from "@/lib/auth/auth-provider"
 import { AnimatePresence, motion } from "framer-motion"
@@ -14,7 +15,31 @@ export function Navigation() {
     const [userMenuOpen, setUserMenuOpen] = useState(false)
     const [isPending, startTransition] = useTransition()
     const { user, loading } = useAuth()
+    const [isAdmin, setIsAdmin] = useState(false)
     const userMenuRef = useRef<HTMLDivElement>(null)
+
+    // Check admin status
+    useEffect(() => {
+        let isMounted = true
+        
+        const checkAdmin = async () => {
+            if (!user) {
+                if (isMounted) setIsAdmin(false)
+                return
+            }
+            
+            const result = await checkIsAdmin()
+            if (isMounted && result.success && result.data) {
+                setIsAdmin(result.data.isAdmin)
+            }
+        }
+        
+        checkAdmin()
+        
+        return () => {
+            isMounted = false
+        }
+    }, [user])
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -164,12 +189,14 @@ export function Navigation() {
                                                                 My Reports
                                                             </button>
                                                         </Link>
-                                                        <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
-                                                            <button className="w-full px-3 py-2 text-xs text-left rounded-lg hover:bg-white/5 flex items-center gap-2 cursor-pointer transition-colors">
-                                                                <Shield className="w-3.5 h-3.5" />
-                                                                Admin
-                                                            </button>
-                                                        </Link>
+                                                        {isAdmin && (
+                                                            <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
+                                                                <button className="w-full px-3 py-2 text-xs text-left rounded-lg hover:bg-white/5 flex items-center gap-2 cursor-pointer transition-colors">
+                                                                    <Shield className="w-3.5 h-3.5" />
+                                                                    Admin
+                                                                </button>
+                                                            </Link>
+                                                        )}
                                                     </div>
                                                     <div className="p-1 border-t border-white/10">
                                                         <button
@@ -260,12 +287,14 @@ export function Navigation() {
                                                     My Reports
                                                 </div>
                                             </Link>
-                                            <Link href="/admin" onClick={() => setIsOpen(false)}>
-                                                <div className="text-sm font-medium text-muted-foreground hover:text-foreground p-2 hover:bg-white/5 rounded-lg transition-colors flex items-center gap-2">
-                                                    <Shield className="w-4 h-4" />
-                                                    Admin
-                                                </div>
-                                            </Link>
+                                            {isAdmin && (
+                                                <Link href="/admin" onClick={() => setIsOpen(false)}>
+                                                    <div className="text-sm font-medium text-muted-foreground hover:text-foreground p-2 hover:bg-white/5 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Shield className="w-4 h-4" />
+                                                        Admin
+                                                    </div>
+                                                </Link>
+                                            )}
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
