@@ -63,7 +63,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, useTransition } from "react"
 
 type Report = Database["public"]["Tables"]["incident_reports"]["Row"]
@@ -90,7 +90,15 @@ const INCIDENT_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
 }
 
 export default function AdminPage() {
-    const [view, setView] = useState<"REPORTS" | "CONFIG" | "USERS" | "DISPUTES">("REPORTS")
+    const searchParams = useSearchParams()
+    const router = useRouter()
+    const tabParam = searchParams.get('tab')
+    const [view, setView] = useState<"REPORTS" | "CONFIG" | "USERS" | "DISPUTES">(
+        tabParam?.toUpperCase() === 'CONFIG' ? 'CONFIG' :
+        tabParam?.toUpperCase() === 'USERS' ? 'USERS' :
+        tabParam?.toUpperCase() === 'DISPUTES' ? 'DISPUTES' :
+        'REPORTS'
+    )
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
     const [adminRole, setAdminRole] = useState<string | null>(null)
     const [stats, setStats] = useState<Awaited<ReturnType<typeof getAdminStats>>["data"] | null>(null)
@@ -128,7 +136,23 @@ export default function AdminPage() {
     const [showHistoryDialog, setShowHistoryDialog] = useState(false)
 
     const { user, loading: authLoading } = useAuth()
-    const router = useRouter()
+
+    // Function to change tab and update URL
+    const changeTab = (newView: "REPORTS" | "CONFIG" | "USERS" | "DISPUTES") => {
+        setView(newView)
+        router.push(`/admin?tab=${newView.toLowerCase()}`)
+    }
+
+    // Sync view with URL params
+    useEffect(() => {
+        const currentTab = searchParams.get('tab')
+        if (currentTab) {
+            const normalizedTab = currentTab.toUpperCase()
+            if (['REPORTS', 'CONFIG', 'USERS', 'DISPUTES'].includes(normalizedTab)) {
+                setView(normalizedTab as "REPORTS" | "CONFIG" | "USERS" | "DISPUTES")
+            }
+        }
+    }, [searchParams])
 
     const handleLogout = async () => {
         await signOutClient()
@@ -436,28 +460,28 @@ export default function AdminPage() {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-6">
                         <div className="flex bg-muted/50 p-1 rounded-lg">
                             <button
-                                onClick={() => setView("REPORTS")}
+                                onClick={() => changeTab("REPORTS")}
                                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === "REPORTS" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 Reports
                             </button>
                             <button
-                                onClick={() => setView("CONFIG")}
+                                onClick={() => changeTab("CONFIG")}
                                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === "CONFIG" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 Credit Settings
                             </button>
                             <button
-                                onClick={() => setView("USERS")}
+                                onClick={() => changeTab("USERS")}
                                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === "USERS" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 Users
                             </button>
                             <button
-                                onClick={() => setView("DISPUTES")}
+                                onClick={() => changeTab("DISPUTES")}
                                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === "DISPUTES" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                                     }`}
                             >
