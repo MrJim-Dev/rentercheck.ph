@@ -175,13 +175,13 @@ function SearchResultsContent() {
                                         <div className="pt-4 space-y-3">
                                             <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                                 <Button asChild size="lg" className="min-w-[200px]">
-                                                    <Link href="/signup">
+                                                    <Link href="/signup?returnTo=/search">
                                                         <LogIn className="mr-2 h-5 w-5" />
                                                         Create Account
                                                     </Link>
                                                 </Button>
                                                 <Button asChild variant="outline" size="lg" className="min-w-[200px]">
-                                                    <Link href="/login">Sign In</Link>
+                                                    <Link href="/login?returnTo=/search">Sign In</Link>
                                                 </Button>
                                             </div>
                                         </div>

@@ -6,6 +6,7 @@ import { CreditBalance } from "@/components/credits/credit-balance"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { signOutClient, useAuth } from "@/lib/auth/auth-provider"
+import { getLoginUrl } from "@/lib/utils"
 import {
     ChevronDown,
     FileText,
@@ -19,7 +20,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef, useState, useTransition } from "react"
 
 interface AppHeaderProps {
@@ -49,6 +50,7 @@ export function AppHeader({
     const [searchQuery, setSearchQuery] = useState(searchValue)
     const [isAdmin, setIsAdmin] = useState(false)
     const router = useRouter()
+    const pathname = usePathname()
     const userMenuRef = useRef<HTMLDivElement>(null)
 
     // Check admin status
@@ -255,7 +257,7 @@ export function AppHeader({
                                         </div>
                                     </>
                                 ) : (
-                                    <Link href="/login" className="ml-2">
+                                    <Link href={getLoginUrl(pathname)} className="ml-2">
                                         <Button size="sm" className="rounded-full cursor-pointer bg-gradient-to-r from-secondary to-accent hover:from-secondary/90 hover:to-accent/90 text-accent-foreground font-semibold px-5 h-8 text-xs shadow-md hover:shadow-lg transition-all duration-300">
                                             Sign in
                                         </Button>
@@ -333,7 +335,7 @@ export function AppHeader({
                                             </Button>
                                         </div>
                                     ) : (
-                                        <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                                        <Link href={getLoginUrl(pathname)} onClick={() => setMobileMenuOpen(false)}>
                                             <Button className="w-full rounded-full bg-gradient-to-r from-secondary to-accent font-semibold h-9 text-sm">
                                                 Sign in
                                             </Button>

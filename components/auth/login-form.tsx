@@ -8,15 +8,23 @@ import { ArrowRight, Lock, Mail } from "lucide-react"
 import Link from "next/link"
 import { useState, useTransition } from "react"
 
-export function LoginForm() {
+export function LoginForm({ returnTo }: { returnTo?: string }) {
     const [isPending, startTransition] = useTransition()
     const [error, setError] = useState<string | null>(null)
+
+    console.log('LoginForm - returnTo prop:', returnTo)
 
     async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
         setError(null)
 
         const formData = new FormData(e.currentTarget)
+        if (returnTo) {
+            formData.append('returnTo', returnTo)
+            console.log('LoginForm - Added returnTo to formData:', returnTo)
+        } else {
+            console.log('LoginForm - No returnTo provided')
+        }
 
         startTransition(async () => {
             const result = await login(formData)
@@ -101,10 +109,13 @@ export function LoginForm() {
                     className="w-full h-10 border-input/50 hover:bg-input/20 hover:text-foreground cursor-pointer mt-4"
                     onClick={async () => {
                         const supabase = createClient()
+                        const redirectUrl = returnTo 
+                            ? `${location.origin}/auth/callback?next=${encodeURIComponent(returnTo)}`
+                            : `${location.origin}/auth/callback`
                         await supabase.auth.signInWithOAuth({
                             provider: 'google',
                             options: {
-                                redirectTo: `${location.origin}/auth/callback`,
+                                redirectTo: redirectUrl,
                             },
                         })
                     }}
@@ -119,7 +130,7 @@ export function LoginForm() {
 
             <p className="mt-8 text-center text-xs text-muted-foreground">
                 Don&apos;t have an account?{" "}
-                <Link href="/signup" className="text-secondary hover:text-accent font-semibold transition-colors">
+                <Link href={returnTo ? `/signup?returnTo=${encodeURIComponent(returnTo)}` : "/signup"} className="text-secondary hover:text-accent font-semibold transition-colors">
                     Sign up
                 </Link>
             </p>

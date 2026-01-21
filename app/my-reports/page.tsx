@@ -142,7 +142,7 @@ export default function MyReportsPage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push("/login?redirect=/my-reports")
+            router.push("/login?returnTo=/my-reports")
             return
         }
         if (user) {

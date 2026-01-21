@@ -165,7 +165,7 @@ export default function AdminPage() {
     useEffect(() => {
         const checkAccess = async () => {
             if (!authLoading && !user) {
-                router.push("/login?redirect=/admin")
+                router.push("/login?returnTo=/admin")
                 return
             }
 

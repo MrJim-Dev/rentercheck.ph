@@ -6,6 +6,11 @@ export const metadata: Metadata = {
     description: "Create a new account",
 }
 
-export default function SignupPage() {
-    return <SignupForm />
+export default async function SignupPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ returnTo?: string }>
+}) {
+    const params = await searchParams
+    return <SignupForm returnTo={params.returnTo} />
 }
