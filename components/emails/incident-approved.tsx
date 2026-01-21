@@ -86,7 +86,7 @@ export const IncidentApprovedEmail = ({
                             <tr>
                                 <td align="center" style={{ padding: '32px 0' }}>
                                     <a
-                                        href={`${baseUrl}/report/${reportId}`}
+                                        href={`${baseUrl}/my-reports`}
                                         style={{
                                             backgroundColor: '#00a4ef',
                                             borderRadius: '4px',
