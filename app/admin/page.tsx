@@ -57,6 +57,7 @@ import {
     RefreshCw,
     Search,
     Shield,
+    Trash2,
     User,
     XCircle
 } from "lucide-react"
@@ -76,6 +77,7 @@ const STATUS_CONFIG = {
     REJECTED: { label: "Rejected", color: "bg-red-500/20 text-red-300 border-red-500/30", icon: XCircle },
     DISPUTED: { label: "Disputed", color: "bg-orange-500/20 text-orange-300 border-orange-500/30", icon: AlertTriangle },
     RESOLVED: { label: "Resolved", color: "bg-purple-500/20 text-purple-300 border-purple-500/30", icon: CheckCircle2 },
+    DELETED: { label: "Disputed & Approved", color: "bg-gray-500/20 text-gray-300 border-gray-500/30", icon: Trash2 },
 }
 
 const INCIDENT_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
@@ -485,6 +487,7 @@ export default function AdminPage() {
                                         <SelectItem value="UNDER_REVIEW">Review</SelectItem>
                                         <SelectItem value="APPROVED">Approved</SelectItem>
                                         <SelectItem value="REJECTED">Rejected</SelectItem>
+                                        <SelectItem value="DELETED">Disputed & Approved</SelectItem>
                                     </SelectContent>
                                 </Select>
 

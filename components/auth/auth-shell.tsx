@@ -39,7 +39,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
                         opacity: 1
                     }}
                     transition={{ type: "spring", stiffness: 180, damping: 25, mass: 1 }}
-                    className="w-full md:w-1/2 h-full absolute top-0 left-0 z-10 flex items-center justify-center p-6 md:p-12"
+                    className="hidden md:flex w-full md:w-1/2 h-full absolute top-0 left-0 z-10 items-center justify-center p-6 md:p-12"
                 >
                     <div className="w-full max-w-sm">
                         {children}
