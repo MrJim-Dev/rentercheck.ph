@@ -13,7 +13,8 @@ export function FloatingReportButton() {
     // Hide on report-related pages
     const shouldHide = pathname.startsWith('/report') || 
                       pathname.startsWith('/my-reports') || 
-                      pathname.startsWith('/admin')
+                      pathname.startsWith('/admin') ||
+                      pathname.startsWith('/search')
 
     // useEffect(() => {
     //     const handleScroll = () => {
