@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SearchResultMatch } from "@/lib/types";
-import { AlertTriangle, Info, Lightbulb, Loader2, Lock, LogIn, SearchX, Shield } from "lucide-react";
+import { AlertTriangle, FileWarning, Info, Lightbulb, Loader2, Lock, LogIn, SearchX, Shield } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, useTransition } from "react";
@@ -175,13 +175,13 @@ function SearchResultsContent() {
                                         <div className="pt-4 space-y-3">
                                             <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                                 <Button asChild size="lg" className="min-w-[200px]">
-                                                    <Link href="/signup">
+                                                    <Link href="/signup?returnTo=/search">
                                                         <LogIn className="mr-2 h-5 w-5" />
                                                         Create Account
                                                     </Link>
                                                 </Button>
                                                 <Button asChild variant="outline" size="lg" className="min-w-[200px]">
-                                                    <Link href="/login">Sign In</Link>
+                                                    <Link href="/login?returnTo=/search">Sign In</Link>
                                                 </Button>
                                             </div>
                                         </div>
@@ -260,19 +260,43 @@ function SearchResultsContent() {
                                 )}
                             </div>
                         ) : query ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg bg-muted/20">
-                                <div className="rounded-full bg-muted p-4 mb-4">
-                                    <SearchX className="h-8 w-8 text-muted-foreground" />
+                            <div className="flex flex-col items-center justify-center py-8 px-4 text-center border-2 border-dashed rounded-lg bg-muted/20">
+                                <div className="rounded-full bg-green-100 dark:bg-green-900/20 p-4 mb-3">
+                                    <Shield className="h-8 w-8 text-green-600 dark:text-green-500" />
                                 </div>
-                                <h3 className="text-lg font-semibold">No matches found</h3>
-                                <p className="text-muted-foreground max-w-sm mt-2">
-                                    We couldn't find a renter matching "{query}". Try:
+                                <h3 className="text-lg font-semibold text-green-900 dark:text-green-100">Good News!</h3>
+                                <p className="text-muted-foreground max-w-md mt-2 px-2">
+                                    We don't have any incident reports for "{query}". This renter has a clean record in our system.
                                 </p>
-                                <ul className="text-sm text-muted-foreground mt-3 space-y-1 text-left">
+                                <p className="text-sm text-muted-foreground max-w-md mt-3 px-2">
+                                    If you couldn't find the person you're looking for, try:
+                                </p>
+                                <ul className="text-sm text-muted-foreground mt-2 space-y-1 text-left px-2">
                                     <li>• Checking the spelling of the name</li>
                                     <li>• Searching with phone number or email instead</li>
                                     <li>• Using the Facebook profile URL</li>
                                 </ul>
+                                
+                                {/* Call to Action */}
+                                <div className="mt-6 p-4 md:p-6 bg-background border rounded-lg max-w-md w-full mx-4">
+                                    <div className="flex items-start gap-3 mb-3">
+                                        <div className="rounded-full bg-red-100 dark:bg-red-900/20 p-2 flex-shrink-0">
+                                            <FileWarning className="h-4 w-4 md:h-5 md:w-5 text-red-600 dark:text-red-500" />
+                                        </div>
+                                        <div className="text-left flex-1">
+                                            <h4 className="font-semibold mb-1 text-sm md:text-base">Do you have an incident with this renter?</h4>
+                                            <p className="text-xs md:text-sm text-muted-foreground">
+                                                Create an incident report so that other rental owners can make informed decisions and protect their properties.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Link href="/report">
+                                        <Button className="w-full" variant="destructive" size="sm">
+                                            <FileWarning className="h-4 w-4 mr-2" />
+                                            Report an Incident
+                                        </Button>
+                                    </Link>
+                                </div>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg bg-muted/20">

@@ -59,7 +59,7 @@ export function FeaturesSection() {
                         transition={{ duration: 0.6 }}
                     >
                         <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground mb-3 text-balance tracking-tight">
-                            Protect Your Rental Business with{" "}
+                            Protect Your Rental Business with{" "}<br/>
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">Verified Tenant Screening</span>
                         </h2>
                         <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">

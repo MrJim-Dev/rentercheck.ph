@@ -1,10 +1,12 @@
 "use client"
 
 import { logout } from "@/app/actions/auth"
+import { checkIsAdmin } from "@/app/actions/admin"
 import { CreditBalance } from "@/components/credits/credit-balance"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { signOutClient, useAuth } from "@/lib/auth/auth-provider"
+import { getLoginUrl } from "@/lib/utils"
 import {
     ChevronDown,
     FileText,
@@ -18,7 +20,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef, useState, useTransition } from "react"
 
 interface AppHeaderProps {
@@ -46,8 +48,33 @@ export function AppHeader({
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [userMenuOpen, setUserMenuOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState(searchValue)
+    const [isAdmin, setIsAdmin] = useState(false)
     const router = useRouter()
+    const pathname = usePathname()
     const userMenuRef = useRef<HTMLDivElement>(null)
+
+    // Check admin status
+    useEffect(() => {
+        let isMounted = true
+        
+        const checkAdmin = async () => {
+            if (!user) {
+                if (isMounted) setIsAdmin(false)
+                return
+            }
+            
+            const result = await checkIsAdmin()
+            if (isMounted && result.success && result.data) {
+                setIsAdmin(result.data.isAdmin)
+            }
+        }
+        
+        checkAdmin()
+        
+        return () => {
+            isMounted = false
+        }
+    }, [user])
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -200,12 +227,14 @@ export function AppHeader({
                                                                     My Reports
                                                                 </Button>
                                                             </Link>
-                                                            <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
-                                                                <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
-                                                                    <Shield className="w-4 h-4" />
-                                                                    Admin Dashboard
-                                                                </Button>
-                                                            </Link>
+                                                            {isAdmin && (
+                                                                <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
+                                                                    <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
+                                                                        <Shield className="w-4 h-4" />
+                                                                        Admin Dashboard
+                                                                    </Button>
+                                                                </Link>
+                                                            )}
                                                         </div>
                                                         <div className="p-2 border-t">
                                                             <Button
@@ -228,7 +257,7 @@ export function AppHeader({
                                         </div>
                                     </>
                                 ) : (
-                                    <Link href="/login" className="ml-2">
+                                    <Link href={getLoginUrl(pathname)} className="ml-2">
                                         <Button size="sm" className="rounded-full cursor-pointer bg-gradient-to-r from-secondary to-accent hover:from-secondary/90 hover:to-accent/90 text-accent-foreground font-semibold px-5 h-8 text-xs shadow-md hover:shadow-lg transition-all duration-300">
                                             Sign in
                                         </Button>
@@ -284,12 +313,14 @@ export function AppHeader({
                                                 </div>
                                                 <p className="text-sm text-muted-foreground truncate flex-1">{user.email}</p>
                                             </div>
-                                            <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
-                                                <Button variant="ghost" className="w-full justify-start gap-3">
-                                                    <Shield className="w-4 h-4" />
-                                                    Admin Dashboard
-                                                </Button>
-                                            </Link>
+                                            {isAdmin && (
+                                                <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
+                                                    <Button variant="ghost" className="w-full justify-start gap-3">
+                                                        <Shield className="w-4 h-4" />
+                                                        Admin Dashboard
+                                                    </Button>
+                                                </Link>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 onClick={() => {
@@ -304,7 +335,7 @@ export function AppHeader({
                                             </Button>
                                         </div>
                                     ) : (
-                                        <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                                        <Link href={getLoginUrl(pathname)} onClick={() => setMobileMenuOpen(false)}>
                                             <Button className="w-full rounded-full bg-gradient-to-r from-secondary to-accent font-semibold h-9 text-sm">
                                                 Sign in
                                             </Button>

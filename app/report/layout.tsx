@@ -16,6 +16,18 @@ export const metadata: Metadata = {
     openGraph: {
         title: "Report Renter Incident | RenterCheck",
         description: "Help protect the rental community by reporting problematic tenant behavior. Verified admin-reviewed reports.",
+        images: [{
+            url: "/thumbnail.png",
+            width: 1200,
+            height: 630,
+            alt: "RenterCheck - Report Renter Incident"
+        }]
+    },
+    twitter: {
+        card: "summary_large_image",
+        title: "Report Renter Incident | RenterCheck",
+        description: "Help protect the rental community by reporting problematic tenant behavior. Verified admin-reviewed reports.",
+        images: ["/thumbnail.png"]
     },
 }
 

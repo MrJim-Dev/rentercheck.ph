@@ -106,116 +106,120 @@ export function ResultCard({ match }: ResultCardProps) {
             "overflow-hidden transition-all hover:shadow-md border-l-4 group",
             borderLeftColor
         )}>
-            <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-start justify-between space-y-0">
-                <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {/* Name - shown differently based on confidence */}
-                        <h3 className={cn(
-                            "font-bold text-lg tracking-tight",
-                            !showDetails && "text-muted-foreground"
-                        )}>
-                            {showDetails ? renter.nameMasked : "Hidden Name"}
-                        </h3>
+            <CardHeader className="pb-2 pt-3 px-3 sm:pb-3 sm:pt-4 sm:px-6 space-y-0">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
+                    <div className="space-y-1 sm:space-y-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            {/* Name - shown differently based on confidence */}
+                            <h3 className={cn(
+                                "font-bold text-sm sm:text-lg tracking-tight break-words",
+                                !showDetails && "text-muted-foreground"
+                            )}>
+                                {showDetails ? renter.nameMasked : "Hidden Name"}
+                            </h3>
 
-                        {/* Verification Badge */}
-                        {renter.verificationStatus === 'verified' && showDetails && (
-                            <Badge variant="secondary" className="text-xs h-5 px-1.5 bg-green-50 text-green-700 border-green-200">
-                                Verified
-                            </Badge>
-                        )}
-                    </div>
-
-                    {/* Aliases */}
-                    {showDetails && renter.aliases && renter.aliases.length > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <UserCircle className="h-3 w-3" />
-                            <span>Also known as:</span>
-                            <span className="font-medium text-foreground">
-                                {renter.aliases.slice(0, 2).join(", ")}
-                                {renter.aliases.length > 2 && ` +${renter.aliases.length - 2} more`}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Match Reason */}
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        {showDetails ? (
-                            <div className="flex items-center gap-1.5">
-                                <span>Match:</span>
-                                <span className="font-medium text-foreground">{matchReason}</span>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-xs font-medium w-fit">
-                                <Lock className="h-3 w-3" />
-                                Details hidden until confirmed
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Match Signals as chips */}
-                    {showDetails && matchSignals.length > 0 && (
-                        <div className="flex gap-1 flex-wrap mt-1">
-                            {matchSignals.slice(0, 3).map((signal, i) => {
-                                const SignalIcon = getSignalIcon(signal);
-                                return (
-                                    <Badge
-                                        key={i}
-                                        variant="outline"
-                                        className="text-xs h-5 px-2 gap-1 font-normal"
-                                    >
-                                        <SignalIcon className="h-3 w-3" />
-                                        {signal.replace("_EXACT", "").replace("_FUZZY", "").replace("_", " ")}
-                                    </Badge>
-                                );
-                            })}
-                            {matchSignals.length > 3 && (
-                                <span className="text-xs text-muted-foreground">
-                                    +{matchSignals.length - 3} more
-                                </span>
+                            {/* Verification Badge */}
+                            {renter.verificationStatus === 'verified' && showDetails && (
+                                <Badge variant="secondary" className="text-[10px] sm:text-xs h-4 sm:h-5 px-1 sm:px-1.5 bg-green-50 text-green-700 border-green-200">
+                                    Verified
+                                </Badge>
                             )}
                         </div>
-                    )}
-                </div>
 
-                {/* Confidence Badge */}
-                <div className="flex flex-col items-end gap-2">
-                    <Badge
-                        variant="outline"
-                        className={cn(
-                            "flex items-center gap-1.5 px-3 py-1 shadow-sm",
-                            config.bgColor,
-                            config.color,
-                            config.borderColor
+                        {/* Aliases */}
+                        {showDetails && renter.aliases && renter.aliases.length > 0 && (
+                            <div className="flex items-start gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground">
+                                <UserCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 mt-0.5 shrink-0" />
+                                <div className="flex flex-wrap items-center gap-1">
+                                    <span>Also known as:</span>
+                                    <span className="font-medium text-foreground">
+                                        {renter.aliases.slice(0, 2).join(", ")}
+                                        {renter.aliases.length > 2 && ` +${renter.aliases.length - 2} more`}
+                                    </span>
+                                </div>
+                            </div>
                         )}
-                    >
-                        <Icon className="h-3.5 w-3.5" />
-                        {displayLabel}
-                    </Badge>
 
-                    {/* Confidence Score */}
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{score}%</span>
-                        <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
-                            <div
-                                className={cn("h-full transition-all", config.progressColor)}
-                                style={{ width: `${Math.min(score, 100)}%` }}
-                            />
+                        {/* Match Reason */}
+                        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+                            {showDetails ? (
+                                <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+                                    <span>Match:</span>
+                                    <span className="font-medium text-foreground">{matchReason}</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md bg-muted text-muted-foreground text-[10px] sm:text-xs font-medium w-fit">
+                                    <Lock className="h-3 w-3 shrink-0" />
+                                    <span className="leading-tight">Details hidden until confirmed</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Match Signals as chips */}
+                        {showDetails && matchSignals.length > 0 && (
+                            <div className="flex gap-1 sm:gap-1.5 flex-wrap mt-0.5 sm:mt-1">
+                                {matchSignals.slice(0, 3).map((signal, i) => {
+                                    const SignalIcon = getSignalIcon(signal);
+                                    return (
+                                        <Badge
+                                            key={i}
+                                            variant="outline"
+                                            className="text-[10px] sm:text-xs h-5 sm:h-6 px-1.5 sm:px-2 gap-0.5 sm:gap-1 font-normal"
+                                        >
+                                            <SignalIcon className="h-3 w-3" />
+                                            {signal.replace("_EXACT", "").replace("_FUZZY", "").replace("_", " ")}
+                                        </Badge>
+                                    );
+                                })}
+                                {matchSignals.length > 3 && (
+                                    <span className="text-xs text-muted-foreground">
+                                        +{matchSignals.length - 3} more
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Confidence Badge */}
+                    <div className="flex flex-row sm:flex-col items-center sm:items-end gap-1.5 sm:gap-2">
+                        <Badge
+                            variant="outline"
+                            className={cn(
+                                "flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 shadow-sm whitespace-nowrap",
+                                config.bgColor,
+                                config.color,
+                                config.borderColor
+                            )}
+                        >
+                            <Icon className="h-3.5 w-3.5" />
+                            <span className="text-xs sm:text-sm">{displayLabel}</span>
+                        </Badge>
+
+                        {/* Confidence Score */}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-medium">{score}%</span>
+                            <div className="w-12 sm:w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div
+                                    className={cn("h-full transition-all", config.progressColor)}
+                                    style={{ width: `${Math.min(score, 100)}%` }}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
             </CardHeader>
 
-            <CardContent className="px-4 pb-3">
+            <CardContent className="px-3 sm:px-6 pb-2 sm:pb-4">
                 {showDetails ? (
                     // STRONG MATCH: Show Summary Info + Incident Details
-                    <div className="space-y-3">
+                    <div className="space-y-2 sm:space-y-4">
                         {/* Basic Stats Row */}
-                        <div className="flex items-center gap-6 text-sm">
-                            <div className="flex flex-col">
-                                <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-sm">
+                            <div className="flex flex-col space-y-0.5 sm:space-y-1">
+                                <span className="text-muted-foreground text-[10px] sm:text-xs uppercase tracking-wider font-medium">
                                     Reports
                                 </span>
-                                <span className="font-semibold text-lg">
+                                <span className="font-semibold text-base sm:text-lg">
                                     {renter.totalIncidents}
                                     {renter.verifiedIncidents > 0 && (
                                         <span className="text-xs font-normal text-green-600 ml-1">
@@ -226,26 +230,26 @@ export function ResultCard({ match }: ResultCardProps) {
                             </div>
 
                             {renter.city && (
-                                <div className="flex flex-col">
-                                    <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
+                                <div className="flex flex-col space-y-0.5 sm:space-y-1">
+                                    <span className="text-muted-foreground text-[10px] sm:text-xs uppercase tracking-wider font-medium">
                                         Location
                                     </span>
-                                    <div className="flex items-center gap-1">
-                                        <MapPin className="h-3 w-3 text-muted-foreground" />
-                                        <span className="font-medium">
+                                    <div className="flex items-center gap-1 sm:gap-1.5">
+                                        <MapPin className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground shrink-0" />
+                                        <span className="font-medium text-xs sm:text-sm break-words">
                                             {renter.city}{renter.region ? `, ${renter.region}` : ""}
                                         </span>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="flex flex-col ml-auto text-right">
-                                <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
+                            <div className="flex flex-col space-y-0.5 sm:space-y-1 sm:text-left">
+                                <span className="text-muted-foreground text-[10px] sm:text-xs uppercase tracking-wider font-medium">
                                     Last Activity
                                 </span>
-                                <div className="flex items-center gap-1 justify-end">
-                                    <Calendar className="h-3 w-3 text-muted-foreground" />
-                                    <span className="font-medium">
+                                <div className="flex items-center gap-1 sm:gap-1.5 sm:justify-start">
+                                    <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground shrink-0" />
+                                    <span className="font-medium text-xs sm:text-sm">
                                         {renter.lastIncidentDate
                                             ? new Date(renter.lastIncidentDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
                                             : "N/A"}
@@ -256,72 +260,70 @@ export function ResultCard({ match }: ResultCardProps) {
 
                         {/* Incident Summary Cards */}
                         {renter.incidentSummaries && renter.incidentSummaries.length > 0 && (
-                            <div className="border-t pt-3 space-y-2">
-                                <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                            <div className="border-t pt-2 sm:pt-4 space-y-2 sm:space-y-3">
+                                <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider font-medium">
                                     Incident Details
                                 </span>
-                                <div className="grid gap-2">
+                                <div className="grid gap-2 sm:gap-3">
                                     {renter.incidentSummaries.slice(0, 2).map((incident, idx) => (
                                         <div
                                             key={idx}
-                                            className="bg-muted/50 rounded-lg p-2 text-sm"
+                                            className="bg-muted/50 rounded-lg p-2 sm:p-3 text-sm"
                                         >
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div className="space-y-1.5 flex-1">
-                                                    {/* Incident Type & Category */}
-                                                    <div className="flex items-center gap-2 flex-wrap">
+                                            <div className="space-y-1.5 sm:space-y-2.5 flex-1">
+                                                {/* Incident Type & Category */}
+                                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={cn(
+                                                            "text-[10px] sm:text-xs font-medium h-5 sm:h-6",
+                                                            incident.type === 'SCAM' || incident.type === 'THREATS_HARASSMENT'
+                                                                ? "bg-red-50 text-red-700 border-red-200"
+                                                                : incident.type === 'NON_RETURN' || incident.type === 'UNPAID_BALANCE'
+                                                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                                    : "bg-gray-50 text-gray-700 border-gray-200"
+                                                        )}
+                                                    >
+                                                        <Tag className="h-3 w-3 mr-1" />
+                                                        {incident.typeLabel}
+                                                    </Badge>
+                                                    {incident.categoryLabel && (
                                                         <Badge
                                                             variant="outline"
-                                                            className={cn(
-                                                                "text-xs font-medium",
-                                                                incident.type === 'SCAM' || incident.type === 'THREATS_HARASSMENT'
-                                                                    ? "bg-red-50 text-red-700 border-red-200"
-                                                                    : incident.type === 'NON_RETURN' || incident.type === 'UNPAID_BALANCE'
-                                                                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                                                                        : "bg-gray-50 text-gray-700 border-gray-200"
-                                                            )}
+                                                            className="text-[10px] sm:text-xs font-medium bg-blue-50 text-blue-700 border-blue-200 h-5 sm:h-6"
                                                         >
-                                                            <Tag className="h-3 w-3 mr-1" />
-                                                            {incident.typeLabel}
+                                                            <Package className="h-3 w-3 mr-1" />
+                                                            {incident.categoryLabel}
                                                         </Badge>
-                                                        {incident.categoryLabel && (
-                                                            <Badge
-                                                                variant="outline"
-                                                                className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-200"
-                                                            >
-                                                                <Package className="h-3 w-3 mr-1" />
-                                                                {incident.categoryLabel}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Item Description */}
-                                                    {incident.itemDescription && (
-                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                            <Package className="h-3 w-3" />
-                                                            <span className="text-foreground">{incident.itemDescription}</span>
-                                                        </div>
                                                     )}
+                                                </div>
 
-                                                    {/* Location & Date */}
-                                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                                        {incident.location && (
-                                                            <span className="flex items-center gap-1">
-                                                                <MapPin className="h-3 w-3" />
-                                                                {incident.location}
-                                                            </span>
-                                                        )}
-                                                        <span className="flex items-center gap-1">
-                                                            <Calendar className="h-3 w-3" />
-                                                            {new Date(incident.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                                                        </span>
+                                                {/* Item Description */}
+                                                {incident.itemDescription && (
+                                                    <div className="flex items-start gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-muted-foreground">
+                                                        <Package className="h-3 w-3 sm:h-3.5 sm:w-3.5 mt-0.5 shrink-0" />
+                                                        <span className="text-foreground break-words">{incident.itemDescription}</span>
                                                     </div>
+                                                )}
+
+                                                {/* Location & Date */}
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-[10px] sm:text-xs text-muted-foreground">
+                                                    {incident.location && (
+                                                        <span className="flex items-center gap-1">
+                                                            <MapPin className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                                                            <span className="break-words">{incident.location}</span>
+                                                        </span>
+                                                    )}
+                                                    <span className="flex items-center gap-1">
+                                                        <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                                                        {new Date(incident.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
                                     ))}
                                     {renter.incidentSummaries.length > 2 && (
-                                        <p className="text-xs text-muted-foreground text-center">
+                                        <p className="text-xs text-muted-foreground text-center py-1">
                                             +{renter.incidentSummaries.length - 2} more incidents
                                         </p>
                                     )}
@@ -332,37 +334,37 @@ export function ResultCard({ match }: ResultCardProps) {
                 ) : requiresConfirmation ? (
                     // WEAK MATCH: Warning Message with suggested action
                     <div className={cn(
-                        "rounded-lg p-4 flex gap-3 text-sm shadow-sm",
+                        "rounded-lg p-3 sm:p-4 flex gap-2 sm:gap-3 text-sm shadow-sm",
                         confidence === "MEDIUM"
                             ? "bg-amber-50 border border-amber-200 text-amber-900"
                             : "bg-gray-50 border border-gray-200 text-gray-700"
                     )}>
                         <AlertTriangle className={cn(
-                            "h-5 w-5 shrink-0 mt-0.5",
+                            "h-4 w-4 sm:h-5 sm:w-5 shrink-0 mt-0.5",
                             confidence === "MEDIUM" ? "text-amber-600" : "text-gray-500"
                         )} />
-                        <div className="space-y-1">
-                            <p className="font-medium">Potential match found</p>
+                        <div className="space-y-1 sm:space-y-1.5 min-w-0">
+                            <p className="font-medium text-xs sm:text-base">Potential match found</p>
                             <p className={cn(
-                                "leading-relaxed",
+                                "leading-relaxed text-[10px] sm:text-sm",
                                 confidence === "MEDIUM" ? "text-amber-800/90" : "text-gray-600"
                             )}>
                                 We found records that may match, but details are hidden to prevent false identification.
                             </p>
                             {suggestedAction && (
-                                <p className="font-semibold mt-2">{suggestedAction}</p>
+                                <p className="font-semibold mt-2 text-xs sm:text-sm break-words">{suggestedAction}</p>
                             )}
                         </div>
                     </div>
                 ) : (
                     // NO MATCH/VERY LOW: Minimal info
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-muted-foreground leading-relaxed">
                         <p>Very low confidence match. Add more identifying information to verify.</p>
                     </div>
                 )}
             </CardContent>
 
-            <CardFooter className="bg-muted/40 px-4 py-2 border-t flex justify-end gap-2">
+            <CardFooter className="bg-muted/40 px-3 sm:px-6 py-2 sm:py-3 border-t flex justify-end gap-2">
                 {showDetails ? (
                     <>
                         {/* Only show Dispute if not already disputed/confirmed? 
@@ -377,10 +379,10 @@ export function ResultCard({ match }: ResultCardProps) {
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="bg-background hover:bg-amber-50 hover:text-amber-900 border-amber-200 gap-1.5"
+                                className="bg-background hover:bg-amber-50 hover:text-amber-900 border-amber-200 gap-1 sm:gap-1.5 text-[10px] sm:text-sm h-7 sm:h-9"
                             >
-                                <AlertTriangle className="h-3.5 w-3.5" />
-                                Dispute Incident
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                <span className="whitespace-nowrap">Dispute Incident</span>
                             </Button>
                         </DisputeDialog>
                     </>

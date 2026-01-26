@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster"
+import { FloatingReportButton } from "@/components/shared/floating-report-button"
 import { AuthProvider } from "@/lib/auth/auth-provider"
 import { Analytics } from "@vercel/analytics/next"
 import type { Metadata, Viewport } from "next"
@@ -126,6 +127,7 @@ export default function RootLayout({
             <body className={`${_geist.className} font-sans antialiased`}>
                 <AuthProvider>
                     {children}
+                    <FloatingReportButton />
                     <Toaster />
                 </AuthProvider>
                 <Analytics />
