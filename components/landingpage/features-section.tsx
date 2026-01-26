@@ -8,23 +8,23 @@ export function FeaturesSection() {
     const features = [
         {
             icon: Shield,
-            title: "Comprehensive Verification",
-            description: "Access detailed tenant history and background checks to make informed decisions.",
+            title: "Verified Tenant Reports",
+            description: "Access admin-verified renter incident reports including payment history, property damage, and lease violations to protect your rental business.",
         },
         {
             icon: Zap,
-            title: "Lightning Fast",
-            description: "Get results in seconds. Our database processes millions of records instantly.",
+            title: "Instant Background Checks",
+            description: "Get tenant verification results in seconds. Search by name, email, or phone to check renter history instantly.",
         },
         {
             icon: TrendingUp,
-            title: "Real-time Updates",
-            description: "Access the most current information with our continuously updated database.",
+            title: "Growing Database",
+            description: "Access continuously updated tenant records from rental businesses across the Philippines. Community-driven protection.",
         },
         {
             icon: Users,
-            title: "Trusted by Thousands",
-            description: "Join property managers across the country using RenterCheck daily.",
+            title: "Trusted by Landlords",
+            description: "Join property managers, landlords, and rental businesses using RenterCheck to screen tenants and avoid problem renters.",
         },
     ]
 
@@ -59,12 +59,11 @@ export function FeaturesSection() {
                         transition={{ duration: 0.6 }}
                     >
                         <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground mb-3 text-balance tracking-tight">
-                            Why Choose{" "}
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">RenterCheck</span>
+                            Protect Your Rental Business with{" "}<br/>
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">Verified Tenant Screening</span>
                         </h2>
                         <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                            We provide property managers with the tools they need to protect their investments and make better rental
-                            decisions.
+                            Background-check renters before signing leases. Access verified incident reports, payment history, and tenant background information from landlords across the Philippines.
                         </p>
                     </motion.div>
                 </div>

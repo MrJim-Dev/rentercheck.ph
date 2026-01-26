@@ -28,8 +28,7 @@ export default function ReportPage() {
                             Report a Renter Incident
                         </h1>
                         <p className="text-muted-foreground max-w-xl mx-auto">
-                            Help protect other landlords and businesses by reporting incidents. 
-                            All reports are reviewed by our team before being published.
+                            Protect fellow rental businesses by reporting problematic tenant behavior. Document unpaid rent, property damage, lease violations, and other incidents. All reports are verified by our admin team to ensure accuracy and prevent abuse.
                         </p>
                     </div>
 
@@ -88,13 +87,13 @@ export default function ReportPage() {
                             <div className="pt-4 space-y-3">
                                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                     <Button asChild size="lg" className="min-w-[200px]">
-                                        <Link href="/signup">
+                                        <Link href="/signup?returnTo=/report">
                                             <LogIn className="mr-2 h-5 w-5" />
                                             Create Account
                                         </Link>
                                     </Button>
                                     <Button asChild variant="outline" size="lg" className="min-w-[200px]">
-                                        <Link href="/login">Sign In</Link>
+                                        <Link href="/login?returnTo=/report">Sign In</Link>
                                     </Button>
                                 </div>
                             </div>

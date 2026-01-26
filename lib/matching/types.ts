@@ -54,6 +54,8 @@ export interface SearchFilters {
 
 /** Summary of an incident for display */
 export interface IncidentSummary {
+  /** Incident ID */
+  id: string;
   /** Incident type */
   type: string;
   /** Human-readable incident type label */

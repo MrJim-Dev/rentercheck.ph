@@ -1,0 +1,15 @@
+# RenterCheck robots.txt
+
+User-agent: *
+Allow: /
+Disallow: /search
+Disallow: /search/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /my-reports
+Disallow: /my-reports/*
+Disallow: /renter/
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://rentercheck.ph/sitemap.xml

@@ -272,7 +272,7 @@ export async function searchRenters(
             results: [],
             totalCount: 0,
             query: originalQuery,
-            error: "Insufficient credits. Please top up your wallet.",
+            error: "Insufficient credits. Refill for free to continue.",
             meta: {
               searchTime: 0,
               hasStrongInput: false,
@@ -983,6 +983,7 @@ export async function searchRenters(
       fingerprint: string;
       aliases?: string[];
       incidentSummaries?: Array<{
+        id: string;
         type: string;
         typeLabel: string;
         category: string | null;
@@ -1068,6 +1069,7 @@ export async function searchRenters(
 
           // Build incident summary
           const incidentSummary = {
+            id: r.id,
             type: r.incident_type,
             typeLabel: getIncidentTypeLabel(r.incident_type),
             category: r.rental_category,

@@ -8,7 +8,7 @@ import { FileViewerDialog } from "@/components/ui/file-viewer-dialog"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth/auth-provider"
 import { loadReportsCache, saveReportsCache } from "@/lib/cache/reports-cache"
-import type { Views } from "@/lib/database.types"
+import type { Database } from "@/lib/database.types"
 import {
     AlertTriangle,
     Calendar,
@@ -37,7 +37,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
-type MyReport = Views<"my_reports">
+type MyReport = Database["public"]["Views"]["my_reports"]["Row"]
 
 const STATUS_CONFIG = {
     DRAFT: {
@@ -142,7 +142,7 @@ export default function MyReportsPage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push("/login?redirect=/my-reports")
+            router.push("/login?returnTo=/my-reports")
             return
         }
         if (user) {
@@ -496,7 +496,7 @@ export default function MyReportsPage() {
                                                     )}
 
                                                     {/* Evidence */}
-                                                    {report.evidence_count !== null && report.evidence_count > 0 && (
+                                                    {report.evidence_count && report.evidence_count > 0 && (
                                                         <div>
                                                             <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase flex items-center gap-2 tracking-wide">
                                                                 <ImageIcon className="w-3.5 h-3.5" />
@@ -517,7 +517,7 @@ export default function MyReportsPage() {
                                                     )}
 
                                                     {/* Info Requests */}
-                                                    {report.pending_requests !== null && report.pending_requests > 0 && (
+                                                    {report.pending_requests && report.pending_requests > 0 && (
                                                         <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                                                             <h3 className="text-xs font-medium text-amber-400 mb-2 flex items-center gap-1.5 uppercase tracking-wide">
                                                                 <MessageSquare className="w-3.5 h-3.5" />

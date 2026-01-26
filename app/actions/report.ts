@@ -4,6 +4,8 @@ import { CreditAction, gateAction } from "@/lib/credits/gatekeeper"
 import type { Database, Enums } from "@/lib/database.types"
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { sendEmail } from "@/lib/email"
+import { NewReportAdminEmail } from "@/components/emails/new-report-admin"
 
 // Types for the form submission
 export interface ReportFormData {
@@ -112,7 +114,7 @@ export async function submitIncidentReport(
             await gateAction(CreditAction.REPORT_CREATION, user.id)
         } catch (error: any) {
             if (error.message === 'INSUFFICIENT_CREDITS' || error.message?.includes('Insufficient credits')) {
-                return { success: false, error: "Insufficient credits. Please top up your wallet." }
+                return { success: false, error: "Insufficient credits. Refill for free to continue." }
             }
             throw error // Re-throw other errors to be caught below
         }
@@ -233,6 +235,26 @@ export async function submitIncidentReport(
         // Revalidate paths to refresh data
         revalidatePath("/report")
         revalidatePath("/my-reports")
+
+        // Send admin notification email
+        try {
+            await sendEmail({
+                to: 'mrjim.development@gmail.com',
+                subject: `New Report Submitted - ${formData.fullName}`,
+                react: NewReportAdminEmail({
+                    reportId: report.id,
+                    reportedName: formData.fullName,
+                    reporterEmail: user.email || 'Unknown',
+                    incidentType: formData.incidentType,
+                    incidentDate: formData.incidentDate,
+                    summary: formData.summary,
+                    amountInvolved: formData.amountInvolved,
+                }),
+            });
+        } catch (emailError) {
+            console.error("Error sending admin notification email:", emailError);
+            // Don't fail the report submission if email fails
+        }
 
         // Note: Client-side cache should be cleared using clearReportsCache() 
         // from @/lib/cache after successful submission

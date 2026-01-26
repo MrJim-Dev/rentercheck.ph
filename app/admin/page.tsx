@@ -13,6 +13,7 @@ import {
 import { logout } from "@/app/actions/auth"
 import { AdminUserCreditTable } from "@/components/admin/admin-user-credit-table"
 import { CreditConfigTable } from "@/components/admin/credit-config-table"
+import { DisputesTable } from "@/components/admin/disputes-table"
 import { ReportEditorDialog } from "@/components/admin/report-editor-dialog"
 import { ReportHistoryDialog } from "@/components/admin/report-history-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -56,13 +57,14 @@ import {
     RefreshCw,
     Search,
     Shield,
+    Trash2,
     User,
     XCircle
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useEffect, useState, useTransition } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useState, useTransition } from "react"
 
 type Report = Database["public"]["Tables"]["incident_reports"]["Row"]
 type Evidence = Database["public"]["Tables"]["report_evidence"]["Row"]
@@ -75,6 +77,7 @@ const STATUS_CONFIG = {
     REJECTED: { label: "Rejected", color: "bg-red-500/20 text-red-300 border-red-500/30", icon: XCircle },
     DISPUTED: { label: "Disputed", color: "bg-orange-500/20 text-orange-300 border-orange-500/30", icon: AlertTriangle },
     RESOLVED: { label: "Resolved", color: "bg-purple-500/20 text-purple-300 border-purple-500/30", icon: CheckCircle2 },
+    DELETED: { label: "Disputed & Approved", color: "bg-gray-500/20 text-gray-300 border-gray-500/30", icon: Trash2 },
 }
 
 const INCIDENT_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
@@ -86,8 +89,16 @@ const INCIDENT_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
     OTHER: { label: "Other", icon: "📋" },
 }
 
-export default function AdminPage() {
-    const [view, setView] = useState<"REPORTS" | "CONFIG" | "USERS">("REPORTS")
+function AdminPageContent() {
+    const searchParams = useSearchParams()
+    const router = useRouter()
+    const tabParam = searchParams.get('tab')
+    const [view, setView] = useState<"REPORTS" | "CONFIG" | "USERS" | "DISPUTES">(
+        tabParam?.toUpperCase() === 'CONFIG' ? 'CONFIG' :
+        tabParam?.toUpperCase() === 'USERS' ? 'USERS' :
+        tabParam?.toUpperCase() === 'DISPUTES' ? 'DISPUTES' :
+        'REPORTS'
+    )
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
     const [adminRole, setAdminRole] = useState<string | null>(null)
     const [stats, setStats] = useState<Awaited<ReturnType<typeof getAdminStats>>["data"] | null>(null)
@@ -125,7 +136,23 @@ export default function AdminPage() {
     const [showHistoryDialog, setShowHistoryDialog] = useState(false)
 
     const { user, loading: authLoading } = useAuth()
-    const router = useRouter()
+
+    // Function to change tab and update URL
+    const changeTab = (newView: "REPORTS" | "CONFIG" | "USERS" | "DISPUTES") => {
+        setView(newView)
+        router.push(`/admin?tab=${newView.toLowerCase()}`)
+    }
+
+    // Sync view with URL params
+    useEffect(() => {
+        const currentTab = searchParams.get('tab')
+        if (currentTab) {
+            const normalizedTab = currentTab.toUpperCase()
+            if (['REPORTS', 'CONFIG', 'USERS', 'DISPUTES'].includes(normalizedTab)) {
+                setView(normalizedTab as "REPORTS" | "CONFIG" | "USERS" | "DISPUTES")
+            }
+        }
+    }, [searchParams])
 
     const handleLogout = async () => {
         await signOutClient()
@@ -138,7 +165,7 @@ export default function AdminPage() {
     useEffect(() => {
         const checkAccess = async () => {
             if (!authLoading && !user) {
-                router.push("/login?redirect=/admin")
+                router.push("/login?returnTo=/admin")
                 return
             }
 
@@ -433,25 +460,32 @@ export default function AdminPage() {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-6">
                         <div className="flex bg-muted/50 p-1 rounded-lg">
                             <button
-                                onClick={() => setView("REPORTS")}
+                                onClick={() => changeTab("REPORTS")}
                                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === "REPORTS" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 Reports
                             </button>
                             <button
-                                onClick={() => setView("CONFIG")}
+                                onClick={() => changeTab("CONFIG")}
                                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === "CONFIG" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 Credit Settings
                             </button>
                             <button
-                                onClick={() => setView("USERS")}
+                                onClick={() => changeTab("USERS")}
                                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === "USERS" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 Users
+                            </button>
+                            <button
+                                onClick={() => changeTab("DISPUTES")}
+                                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === "DISPUTES" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                            >
+                                Disputes
                             </button>
                         </div>
 
@@ -477,6 +511,7 @@ export default function AdminPage() {
                                         <SelectItem value="UNDER_REVIEW">Review</SelectItem>
                                         <SelectItem value="APPROVED">Approved</SelectItem>
                                         <SelectItem value="REJECTED">Rejected</SelectItem>
+                                        <SelectItem value="DELETED">Disputed & Approved</SelectItem>
                                     </SelectContent>
                                 </Select>
 
@@ -501,6 +536,10 @@ export default function AdminPage() {
                     ) : view === "USERS" ? (
                         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <AdminUserCreditTable />
+                        </div>
+                    ) : view === "DISPUTES" ? (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <DisputesTable />
                         </div>
                     ) : (
                         <>
@@ -870,5 +909,12 @@ export default function AdminPage() {
                 </main>
             </div>
         </div>
+    )
+}
+export default function AdminPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin" /></div>}>
+            <AdminPageContent />
+        </Suspense>
     )
 }
