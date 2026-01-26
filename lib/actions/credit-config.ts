@@ -7,6 +7,7 @@ export interface CreditActionConfig {
     action_key: string
     action_name: string
     cost: number
+    action_type: 'deduction' | 'addition'
     is_active: boolean
     description: string | null
     updated_at: string
@@ -25,10 +26,16 @@ export async function getCreditConfigs() {
         return { success: false, error: 'Failed to fetch configurations' }
     }
 
-    return { success: true, data: data as CreditActionConfig[] }
+    // Default to 'deduction' if null (backward compatibility)
+    const formattedData = (data as any[]).map(d => ({
+        ...d,
+        action_type: d.action_type || 'deduction'
+    }))
+
+    return { success: true, data: formattedData as CreditActionConfig[] }
 }
 
-export async function updateActionCost(key: string, cost: number) {
+export async function updateActionCost(key: string, cost: number, type?: 'deduction' | 'addition') {
     const supabase = await createClient()
 
     // Verify admin access
@@ -39,9 +46,18 @@ export async function updateActionCost(key: string, cost: number) {
     // const isAdmin = await checkIsSuperAdmin(user.id)
     // if (!isAdmin) return { success: false, error: 'Forbidden' }
 
+    const updates: any = {
+        cost,
+        updated_at: new Date().toISOString()
+    }
+
+    if (type) {
+        updates.action_type = type
+    }
+
     const { error } = await supabase
         .from('credit_action_costs')
-        .update({ cost, updated_at: new Date().toISOString() })
+        .update(updates)
         .eq('action_key', key)
 
     if (error) {
