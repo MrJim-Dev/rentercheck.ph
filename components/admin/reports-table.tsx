@@ -3,6 +3,14 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
     Table,
     TableBody,
     TableCell,
@@ -13,13 +21,19 @@ import {
 import type { Database } from "@/lib/database.types"
 import {
     AlertTriangle,
+    Ban,
     Calendar,
+    Check,
     CheckCircle2,
     Clock,
     DollarSign,
+    Edit,
     Eye,
     FileText,
+    History,
     MapPin,
+    MoreVertical,
+    Repeat,
     Trash2,
     User,
     XCircle,
@@ -51,9 +65,25 @@ interface ReportsTableProps {
     reports: Report[]
     isLoading: boolean
     onViewDetails: (report: Report) => void
+    onApprove?: (report: Report) => void
+    onReject?: (report: Report) => void
+    onTransfer?: (report: Report) => void
+    onEdit?: (report: Report) => void
+    onViewHistory?: (report: Report) => void
+    onHardDelete?: (report: Report) => void
 }
 
-export function ReportsTable({ reports, isLoading, onViewDetails }: ReportsTableProps) {
+export function ReportsTable({ 
+    reports, 
+    isLoading, 
+    onViewDetails,
+    onApprove,
+    onReject,
+    onTransfer,
+    onEdit,
+    onViewHistory,
+    onHardDelete,
+}: ReportsTableProps) {
     if (isLoading) {
         return (
             <div className="rounded-md border">
@@ -190,19 +220,96 @@ export function ReportsTable({ reports, isLoading, onViewDetails }: ReportsTable
                                         <span className="text-sm text-muted-foreground">—</span>
                                     )}
                                 </TableCell>
-                                <TableCell className="text-right">
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            onViewDetails(report)
-                                        }}
-                                        className="h-8 px-3"
-                                    >
-                                        <Eye className="w-4 h-4 mr-1.5" />
-                                        View
-                                    </Button>
+                                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="h-8 w-8 p-0"
+                                            >
+                                                <MoreVertical className="w-4 h-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-48">
+                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onViewDetails(report)
+                                                }}
+                                            >
+                                                <Eye className="w-4 h-4 mr-2" />
+                                                View Details
+                                            </DropdownMenuItem>
+                                            {(report.status === "PENDING" || report.status === "UNDER_REVIEW") && (
+                                                <>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            onApprove?.(report)
+                                                        }}
+                                                        className="text-emerald-600"
+                                                    >
+                                                        <Check className="w-4 h-4 mr-2" />
+                                                        Approve Report
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            onReject?.(report)
+                                                        }}
+                                                        className="text-red-600"
+                                                    >
+                                                        <Ban className="w-4 h-4 mr-2" />
+                                                        Reject Report
+                                                    </DropdownMenuItem>
+                                                </>
+                                            )}
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onTransfer?.(report)
+                                                }}
+                                            >
+                                                <Repeat className="w-4 h-4 mr-2" />
+                                                Transfer Report
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onEdit?.(report)
+                                                }}
+                                            >
+                                                <Edit className="w-4 h-4 mr-2" />
+                                                Edit Report
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onViewHistory?.(report)
+                                                }}
+                                            >
+                                                <History className="w-4 h-4 mr-2" />
+                                                View History
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onHardDelete?.(report)
+                                                }}
+                                                className="text-destructive"
+                                            >
+                                                <Trash2 className="w-4 h-4 mr-2" />
+                                                Hard Delete
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TableCell>
                             </TableRow>
                         )

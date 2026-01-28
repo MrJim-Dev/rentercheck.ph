@@ -547,6 +547,116 @@ export async function getReportEditHistory(reportId: string): Promise<ActionResu
 }
 
 /**
+ * Transfer report ownership to another user
+ */
+export async function transferReport(reportId: string, newUserId: string, reason?: string): Promise<ActionResult> {
+    try {
+        const supabase = await createClient()
+
+        // Check admin status
+        const adminCheck = await checkIsAdmin()
+        if (!adminCheck.success || !adminCheck.data?.isAdmin) {
+            return { success: false, error: "Admin access required" }
+        }
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            return { success: false, error: "User not authenticated" }
+        }
+
+        // Verify the report exists
+        const { data: report } = await supabase
+            .from("incident_reports")
+            .select("reporter_id")
+            .eq("id", reportId)
+            .single()
+
+        if (!report) {
+            return { success: false, error: "Report not found" }
+        }
+
+        // Verify the new user exists
+        const { data: newUser } = await supabase
+            .from("users")
+            .select("id, email, full_name")
+            .eq("id", newUserId)
+            .single()
+
+        if (!newUser) {
+            return { success: false, error: "Target user not found" }
+        }
+
+        // Update the report's reporter_id
+        const { error: updateError } = await supabase
+            .from("incident_reports")
+            .update({ reporter_id: newUserId })
+            .eq("id", reportId)
+
+        if (updateError) {
+            console.error("Error transferring report:", updateError)
+            return { success: false, error: "Failed to transfer report" }
+        }
+
+        // Log the transfer action
+        await supabase.from("report_admin_actions").insert({
+            report_id: reportId,
+            admin_id: user.id,
+            action_type: "TRANSFERRED",
+            notes: reason || `Report transferred to user ${newUser.full_name || newUser.email} (${newUserId})`,
+        })
+
+        revalidatePath("/admin")
+        revalidatePath("/my-reports")
+
+        return { success: true }
+    } catch (error) {
+        console.error("Unexpected error in transferReport:", error)
+        return { success: false, error: "An unexpected error occurred" }
+    }
+}
+
+/**
+ * Get all users for transfer dropdown
+ */
+export async function getAllUsers(search?: string, excludeUserId?: string): Promise<ActionResult<Array<{ id: string; email: string; full_name: string | null }>>> {
+    try {
+        const supabase = await createClient()
+
+        // Check admin status
+        const adminCheck = await checkIsAdmin()
+        if (!adminCheck.success || !adminCheck.data?.isAdmin) {
+            return { success: false, error: "Admin access required" }
+        }
+
+        let query = supabase
+            .from("users")
+            .select("id, email, full_name")
+            .order("full_name", { ascending: true })
+
+        if (search && search.trim()) {
+            query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`)
+        }
+
+        // Exclude a specific user (e.g., current reporter)
+        if (excludeUserId) {
+            query = query.neq("id", excludeUserId)
+        }
+
+        const { data, error } = await query.limit(50)
+
+        if (error) {
+            console.error("Error fetching users:", error)
+            return { success: false, error: "Failed to fetch users" }
+        }
+
+        return { success: true, data: data || [] }
+    } catch (error) {
+        console.error("Unexpected error in getAllUsers:", error)
+        return { success: false, error: "An unexpected error occurred" }
+    }
+}
+
+/**
  * Hard delete a report and all its related data
  * This permanently removes the report from the database
  * Use for spam or duplicate reports only

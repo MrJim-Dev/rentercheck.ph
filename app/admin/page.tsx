@@ -9,6 +9,7 @@ import {
     getReportDetails,
     getReportEditHistory,
     hardDeleteReport,
+    transferReport,
     updateReportDetails,
     updateReportStatus,
 } from "@/app/actions/admin"
@@ -20,6 +21,7 @@ import { ReportDetailsSheet } from "@/components/admin/report-details-sheet"
 import { ReportEditorDialog } from "@/components/admin/report-editor-dialog"
 import { ReportHistoryDialog } from "@/components/admin/report-history-dialog"
 import { ReportsTable } from "@/components/admin/reports-table"
+import { TransferReportDialog } from "@/components/admin/transfer-report-dialog"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -100,13 +102,20 @@ function AdminPageContent() {
 
     // Edit dialog state
     const [showEditDialog, setShowEditDialog] = useState(false)
+    const [reportToEdit, setReportToEdit] = useState<Report | null>(null)
 
     // History dialog state
     const [showHistoryDialog, setShowHistoryDialog] = useState(false)
+    const [reportForHistory, setReportForHistory] = useState<Report | null>(null)
 
     // Hard delete dialog state
     const [showHardDeleteDialog, setShowHardDeleteDialog] = useState(false)
+    const [reportToDelete, setReportToDelete] = useState<Report | null>(null)
     const [hardDeleteReason, setHardDeleteReason] = useState("")
+
+    // Transfer dialog state
+    const [showTransferDialog, setShowTransferDialog] = useState(false)
+    const [reportToTransfer, setReportToTransfer] = useState<Report | null>(null)
 
     const { user, loading: authLoading } = useAuth()
 
@@ -249,9 +258,9 @@ function AdminPageContent() {
 
     // Handle hard delete
     const handleHardDelete = async () => {
-        if (!selectedReport) return
+        if (!reportToDelete) return
 
-        const reportIdToDelete = selectedReport.id
+        const reportIdToDelete = reportToDelete.id
 
         startTransition(async () => {
             const result = await hardDeleteReport(reportIdToDelete, hardDeleteReason || "Spam/Duplicate report")
@@ -264,7 +273,10 @@ function AdminPageContent() {
                 // Close dialog and reset state
                 setShowHardDeleteDialog(false)
                 setHardDeleteReason("")
-                setSelectedReport(null)
+                setReportToDelete(null)
+                if (selectedReport?.id === reportIdToDelete) {
+                    setSelectedReport(null)
+                }
                 
                 // Fetch fresh data from server to ensure consistency
                 fetchData()
@@ -287,12 +299,16 @@ function AdminPageContent() {
 
     // Handle edit report
     const handleEditReport = async (updates: Partial<Report>, changeNote: string) => {
-        if (!selectedReport) return
+        if (!reportToEdit) return
 
-        const result = await updateReportDetails(selectedReport.id, updates, changeNote)
+        const result = await updateReportDetails(reportToEdit.id, updates, changeNote)
         if (result.success) {
-            // Refresh report details
-            await loadReportDetails(selectedReport)
+            setShowEditDialog(false)
+            setReportToEdit(null)
+            // Refresh the details sheet if it's open for the same report
+            if (selectedReport?.id === reportToEdit.id) {
+                await loadReportDetails(reportToEdit)
+            }
             fetchData()
         } else {
             alert(result.error || "Failed to update report")
@@ -306,6 +322,55 @@ function AdminPageContent() {
             return result.data
         }
         return []
+    }
+
+    // Handle transfer report
+    const handleTransferReport = async (newUserId: string, reason: string) => {
+        if (!reportToTransfer) return
+
+        startTransition(async () => {
+            const result = await transferReport(reportToTransfer.id, newUserId, reason)
+
+            if (result.success) {
+                setShowTransferDialog(false)
+                setReportToTransfer(null)
+                fetchData()
+            } else {
+                alert(result.error || "Failed to transfer report")
+            }
+        })
+    }
+
+    // Quick action handlers for table
+    const handleQuickApprove = async (report: Report) => {
+        setSelectedReport(report)
+        await handleStatusChange("APPROVED")
+    }
+
+    const handleQuickReject = async (report: Report) => {
+        setSelectedReport(report)
+        // Open the report details sheet with reject dialog
+        await loadReportDetails(report)
+    }
+
+    const handleQuickTransfer = (report: Report) => {
+        setReportToTransfer(report)
+        setShowTransferDialog(true)
+    }
+
+    const handleQuickEdit = (report: Report) => {
+        setReportToEdit(report)
+        setShowEditDialog(true)
+    }
+
+    const handleQuickViewHistory = (report: Report) => {
+        setReportForHistory(report)
+        setShowHistoryDialog(true)
+    }
+
+    const handleQuickHardDelete = (report: Report) => {
+        setReportToDelete(report)
+        setShowHardDeleteDialog(true)
     }
 
     if (authLoading || isAdmin === null) {
@@ -540,24 +605,39 @@ function AdminPageContent() {
                                 reports={reports}
                                 isLoading={isLoading}
                                 onViewDetails={loadReportDetails}
+                                onApprove={handleQuickApprove}
+                                onReject={handleQuickReject}
+                                onTransfer={handleQuickTransfer}
+                                onEdit={handleQuickEdit}
+                                onViewHistory={handleQuickViewHistory}
+                                onHardDelete={handleQuickHardDelete}
                             />
                         </>
                     )}
 
                     {/* Report Details Sheet */}
-                    {selectedReport && (
+                    {selectedReport && !showTransferDialog && (
                         <ReportDetailsSheet
                             report={selectedReport}
                             evidence={selectedEvidence}
-                            isOpen={!!selectedReport}
+                            isOpen={!!selectedReport && !showTransferDialog}
                             isLoadingDetails={isLoadingDetails}
                             isPending={isPending}
                             onClose={() => setSelectedReport(null)}
                             onStatusChange={handleStatusChange}
                             onViewEvidence={handleViewEvidence}
-                            onEdit={() => setShowEditDialog(true)}
-                            onViewHistory={() => setShowHistoryDialog(true)}
-                            onHardDelete={() => setShowHardDeleteDialog(true)}
+                            onEdit={() => {
+                                setReportToEdit(selectedReport)
+                                setShowEditDialog(true)
+                            }}
+                            onViewHistory={() => {
+                                setReportForHistory(selectedReport)
+                                setShowHistoryDialog(true)
+                            }}
+                            onHardDelete={() => {
+                                setReportToDelete(selectedReport)
+                                setShowHardDeleteDialog(true)
+                            }}
                         />
                     )}
 
@@ -570,82 +650,114 @@ function AdminPageContent() {
                         fileType={fileViewer.type}
                     />
 
-                    {selectedReport && (
-                        <>
-                            <ReportEditorDialog
-                                open={showEditDialog}
-                                onOpenChange={setShowEditDialog}
-                                report={selectedReport}
-                                onSave={handleEditReport}
-                            />
-
-                            <ReportHistoryDialog
-                                open={showHistoryDialog}
-                                onOpenChange={setShowHistoryDialog}
-                                reportId={selectedReport.id}
-                                onLoadHistory={handleLoadHistory}
-                            />
-
-                            <AlertDialog open={showHardDeleteDialog} onOpenChange={setShowHardDeleteDialog}>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle className="flex items-center gap-2 text-red-500">
-                                            <AlertTriangle className="w-5 h-5" />
-                                            Permanently Delete Report?
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription className="space-y-3">
-                                            <p>
-                                                This action cannot be undone. This will permanently delete the report and all associated data including:
-                                            </p>
-                                            <ul className="list-disc list-inside space-y-1 text-xs">
-                                                <li>All evidence files</li>
-                                                <li>All identifiers</li>
-                                                <li>Edit history</li>
-                                                <li>Disputes</li>
-                                            </ul>
-                                            <p className="text-sm font-medium text-foreground">
-                                                Report: <span className="font-mono">{selectedReport.reported_full_name}</span>
-                                            </p>
-                                            <div className="pt-2">
-                                                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                                                    Reason for deletion (optional):
-                                                </label>
-                                                <Textarea
-                                                    value={hardDeleteReason}
-                                                    onChange={(e) => setHardDeleteReason(e.target.value)}
-                                                    placeholder="e.g., Duplicate report, Spam, etc."
-                                                    className="text-xs min-h-15 resize-none"
-                                                />
-                                            </div>
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={(e) => {
-                                                e.preventDefault()
-                                                handleHardDelete()
-                                            }}
-                                            disabled={isPending}
-                                            className="bg-red-600 hover:bg-red-700"
-                                        >
-                                            {isPending ? (
-                                                <>
-                                                    <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
-                                                    Deleting...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Trash2 className="w-3.5 h-3.5 mr-2" />
-                                                    Delete Permanently
-                                                </>
-                                            )}
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </>
+                    {/* Edit Dialog - Independent */}
+                    {reportToEdit && (
+                        <ReportEditorDialog
+                            open={showEditDialog}
+                            onOpenChange={(open) => {
+                                setShowEditDialog(open)
+                                if (!open) setReportToEdit(null)
+                            }}
+                            report={reportToEdit}
+                            onSave={handleEditReport}
+                        />
                     )}
+
+                    {/* History Dialog - Independent */}
+                    {reportForHistory && (
+                        <ReportHistoryDialog
+                            open={showHistoryDialog}
+                            onOpenChange={(open) => {
+                                setShowHistoryDialog(open)
+                                if (!open) setReportForHistory(null)
+                            }}
+                            reportId={reportForHistory.id}
+                            onLoadHistory={handleLoadHistory}
+                        />
+                    )}
+
+                    {/* Hard Delete Dialog - Independent */}
+                    {reportToDelete && (
+                        <AlertDialog 
+                            open={showHardDeleteDialog} 
+                            onOpenChange={(open) => {
+                                setShowHardDeleteDialog(open)
+                                if (!open) {
+                                    setReportToDelete(null)
+                                    setHardDeleteReason("")
+                                }
+                            }}
+                        >
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle className="flex items-center gap-2 text-red-500">
+                                        <AlertTriangle className="w-5 h-5" />
+                                        Permanently Delete Report?
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription className="space-y-3">
+                                        <p>
+                                            This action cannot be undone. This will permanently delete the report and all associated data including:
+                                        </p>
+                                        <ul className="list-disc list-inside space-y-1 text-xs">
+                                            <li>All evidence files</li>
+                                            <li>All identifiers</li>
+                                            <li>Edit history</li>
+                                            <li>Disputes</li>
+                                        </ul>
+                                        <p className="text-sm font-medium text-foreground">
+                                            Report: <span className="font-mono">{reportToDelete.reported_full_name}</span>
+                                        </p>
+                                        <div className="pt-2">
+                                            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                                                Reason for deletion (optional):
+                                            </label>
+                                            <Textarea
+                                                value={hardDeleteReason}
+                                                onChange={(e) => setHardDeleteReason(e.target.value)}
+                                                placeholder="e.g., Duplicate report, Spam, etc."
+                                                className="text-xs min-h-15 resize-none"
+                                            />
+                                        </div>
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={(e) => {
+                                            e.preventDefault()
+                                            handleHardDelete()
+                                        }}
+                                        disabled={isPending}
+                                        className="bg-red-600 hover:bg-red-700"
+                                    >
+                                        {isPending ? (
+                                            <>
+                                                <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                                                Deleting...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                                Delete Permanently
+                                            </>
+                                        )}
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+
+                    {/* Transfer Report Dialog - Independent */}
+                    <TransferReportDialog
+                        report={reportToTransfer}
+                        isOpen={showTransferDialog}
+                        isPending={isPending}
+                        onClose={() => {
+                            setShowTransferDialog(false)
+                            setReportToTransfer(null)
+                        }}
+                        onConfirm={handleTransferReport}
+                    />
                 </main>
             </div>
         </div>
