@@ -545,3 +545,92 @@ export async function getReportEditHistory(reportId: string): Promise<ActionResu
         return { success: false, error: "An unexpected error occurred" }
     }
 }
+
+/**
+ * Hard delete a report and all its related data
+ * This permanently removes the report from the database
+ * Use for spam or duplicate reports only
+ */
+export async function hardDeleteReport(reportId: string, reason?: string): Promise<ActionResult> {
+    try {
+        const supabase = await createClient()
+
+        // Check admin status
+        const adminCheck = await checkIsAdmin()
+        if (!adminCheck.success || !adminCheck.data?.isAdmin) {
+            return { success: false, error: "Admin access required" }
+        }
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            return { success: false, error: "User not authenticated" }
+        }
+
+        // Get report details before deletion for logging
+        const { data: report } = await supabase
+            .from("incident_reports")
+            .select("*")
+            .eq("id", reportId)
+            .single()
+
+        if (!report) {
+            return { success: false, error: "Report not found" }
+        }
+
+        // Get all evidence storage paths for deletion
+        const { data: evidence } = await supabase
+            .from("report_evidence")
+            .select("storage_path")
+            .eq("report_id", reportId)
+
+        // Delete evidence files from storage
+        if (evidence && evidence.length > 0) {
+            const filePaths = evidence.map(e => e.storage_path)
+            const { error: storageError } = await supabase
+                .storage
+                .from("evidence")
+                .remove(filePaths)
+
+            if (storageError) {
+                console.error("Error deleting evidence files:", storageError)
+                // Continue with deletion even if storage removal fails
+            }
+        }
+
+        // Log the deletion action before deleting the report
+        await supabase.from("report_admin_actions").insert({
+            report_id: reportId,
+            admin_id: user.id,
+            action_type: "HARD_DELETED",
+            notes: reason || "Report hard deleted by admin",
+        })
+
+        // Delete related records (cascading should handle most, but being explicit)
+        // These will be deleted due to foreign key constraints, but we can be explicit:
+        // 1. report_evidence - CASCADE DELETE
+        // 2. report_identifiers - CASCADE DELETE
+        // 3. report_edits - CASCADE DELETE
+        // 4. disputes - CASCADE DELETE
+        // 5. Any other related tables
+
+        // Delete the report (this will cascade to related tables)
+        const { error: deleteError } = await supabase
+            .from("incident_reports")
+            .delete()
+            .eq("id", reportId)
+
+        if (deleteError) {
+            console.error("Error deleting report:", deleteError)
+            return { success: false, error: "Failed to delete report" }
+        }
+
+        revalidatePath("/admin")
+        revalidatePath("/search")
+        revalidatePath("/my-reports")
+
+        return { success: true }
+    } catch (error) {
+        console.error("Unexpected error in hardDeleteReport:", error)
+        return { success: false, error: "An unexpected error occurred" }
+    }
+}

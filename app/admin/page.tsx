@@ -7,6 +7,7 @@ import {
     getAllReports,
     getReportDetails,
     getReportEditHistory,
+    hardDeleteReport,
     updateReportDetails,
     updateReportStatus,
 } from "@/app/actions/admin"
@@ -16,6 +17,16 @@ import { CreditConfigTable } from "@/components/admin/credit-config-table"
 import { DisputesTable } from "@/components/admin/disputes-table"
 import { ReportEditorDialog } from "@/components/admin/report-editor-dialog"
 import { ReportHistoryDialog } from "@/components/admin/report-history-dialog"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { FileViewerDialog } from "@/components/ui/file-viewer-dialog"
@@ -134,6 +145,10 @@ function AdminPageContent() {
 
     // History dialog state
     const [showHistoryDialog, setShowHistoryDialog] = useState(false)
+
+    // Hard delete dialog state
+    const [showHardDeleteDialog, setShowHardDeleteDialog] = useState(false)
+    const [hardDeleteReason, setHardDeleteReason] = useState("")
 
     const { user, loading: authLoading } = useAuth()
 
@@ -286,6 +301,34 @@ function AdminPageContent() {
     // Copy to clipboard
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text)
+    }
+
+    // Handle hard delete
+    const handleHardDelete = async () => {
+        if (!selectedReport) return
+        setActionError(null)
+
+        const reportIdToDelete = selectedReport.id
+
+        startTransition(async () => {
+            const result = await hardDeleteReport(reportIdToDelete, hardDeleteReason || "Spam/Duplicate report")
+
+            if (result.success) {
+                // Immediately remove the report from UI state for instant feedback
+                setReports(prevReports => prevReports.filter(r => r.id !== reportIdToDelete))
+                setTotalReports(prev => Math.max(0, prev - 1))
+                
+                // Close dialog and reset state
+                setShowHardDeleteDialog(false)
+                setHardDeleteReason("")
+                setSelectedReport(null)
+                
+                // Fetch fresh data from server to ensure consistency
+                fetchData()
+            } else {
+                setActionError(result.error || "Failed to delete report")
+            }
+        })
     }
 
     // Handle view evidence with inline viewer
@@ -723,6 +766,16 @@ function AdminPageContent() {
                                                                             </Button>
                                                                         </>
                                                                     )}
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        onClick={() => setShowHardDeleteDialog(true)}
+                                                                        disabled={isPending}
+                                                                        className="h-8 border-red-500/50 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                                                        Hard Delete
+                                                                    </Button>
                                                                 </div>
 
                                                                 {actionError && (
@@ -904,6 +957,65 @@ function AdminPageContent() {
                                 reportId={selectedReport.id}
                                 onLoadHistory={handleLoadHistory}
                             />
+
+                            <AlertDialog open={showHardDeleteDialog} onOpenChange={setShowHardDeleteDialog}>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle className="flex items-center gap-2 text-red-500">
+                                            <AlertTriangle className="w-5 h-5" />
+                                            Permanently Delete Report?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription className="space-y-3">
+                                            <p>
+                                                This action cannot be undone. This will permanently delete the report and all associated data including:
+                                            </p>
+                                            <ul className="list-disc list-inside space-y-1 text-xs">
+                                                <li>All evidence files</li>
+                                                <li>All identifiers</li>
+                                                <li>Edit history</li>
+                                                <li>Disputes</li>
+                                            </ul>
+                                            <p className="text-sm font-medium text-foreground">
+                                                Report: <span className="font-mono">{selectedReport.reported_full_name}</span>
+                                            </p>
+                                            <div className="pt-2">
+                                                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                                                    Reason for deletion (optional):
+                                                </label>
+                                                <Textarea
+                                                    value={hardDeleteReason}
+                                                    onChange={(e) => setHardDeleteReason(e.target.value)}
+                                                    placeholder="e.g., Duplicate report, Spam, etc."
+                                                    className="text-xs min-h-[60px] resize-none"
+                                                />
+                                            </div>
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={(e) => {
+                                                e.preventDefault()
+                                                handleHardDelete()
+                                            }}
+                                            disabled={isPending}
+                                            className="bg-red-600 hover:bg-red-700"
+                                        >
+                                            {isPending ? (
+                                                <>
+                                                    <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                                                    Deleting...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                                    Delete Permanently
+                                                </>
+                                            )}
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </>
                     )}
                 </main>
