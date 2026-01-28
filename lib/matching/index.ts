@@ -13,6 +13,7 @@ export {
   normalizeFacebookUrl,
   extractFacebookId,
   normalizeName,
+  normalizeDateOfBirth,
   parseNameParts,
   getFirstLastName,
   normalizeLocation,

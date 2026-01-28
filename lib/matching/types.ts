@@ -31,6 +31,8 @@ export interface SearchQuery {
   email?: string;
   /** Facebook URL/username to search */
   facebook?: string;
+  /** Date of birth to search */
+  dateOfBirth?: string;
   /** Filter by city */
   city?: string;
   /** Filter by region */

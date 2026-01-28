@@ -17,6 +17,7 @@ import {
   normalizeFacebookUrl,
   normalizeName,
   normalizePhone,
+  normalizeDateOfBirth,
   getFirstLastName,
   normalizeLocation,
 } from './normalizers';
@@ -35,6 +36,7 @@ export type MatchSignalType =
   | 'NAME_EXACT'
   | 'NAME_FUZZY'
   | 'NAME_FIRST_LAST'
+  | 'DATE_OF_BIRTH_NAME_MATCH'
   | 'CITY_MATCH'
   | 'REGION_MATCH'
   | 'PARTIAL_PHONE';
@@ -77,6 +79,7 @@ export interface SearchInput {
   phone?: string | null;
   email?: string | null;
   facebook?: string | null;
+  dateOfBirth?: string | null;
   city?: string | null;
   region?: string | null;
   // Additional identifiers for multi-input search
@@ -89,6 +92,7 @@ export interface CandidateData {
   id: string;
   fullName: string;
   fullNameNormalized?: string | null;
+  dateOfBirth?: string | null;
   city?: string | null;
   region?: string | null;
   /** Aliases / other names for this person */
@@ -109,6 +113,9 @@ const WEIGHTS = {
   PHONE_EXACT: 80,
   EMAIL_EXACT: 75,
   FACEBOOK_EXACT: 85,
+
+  // Date of birth + name combination (strong identifier)
+  DATE_OF_BIRTH_NAME_MATCH: 80, // DOB + name match together
 
   // Name matches
   NAME_EXACT: 25, // After normalization
@@ -408,6 +415,47 @@ export function calculateMatchScore(
           isStrong: false,
         });
         score += WEIGHTS.ALIAS_FUZZY;
+      }
+    }
+  }
+
+  // ============================================
+  // CHECK DATE OF BIRTH + NAME COMBINATION
+  // DOB alone is not a strong identifier, but DOB + name match is
+  // ============================================
+  
+  if (search.dateOfBirth && candidate.dateOfBirth && searchNameNorm) {
+    const searchDOBNorm = normalizeDateOfBirth(search.dateOfBirth);
+    const candidateDOBNorm = normalizeDateOfBirth(candidate.dateOfBirth);
+    
+    if (searchDOBNorm && candidateDOBNorm && searchDOBNorm === candidateDOBNorm) {
+      // DOB matches - now check if name also matches
+      const dobNameMatch = searchNameNorm === candidateNameNorm || 
+                          (candidateNameNorm && searchNameNorm && 
+                           areNamesSimilar(searchNameNorm, candidateNameNorm).score >= 0.85);
+      
+      // Also check against aliases for DOB match
+      let aliasNameMatch = false;
+      if (!dobNameMatch && candidate.aliases && candidate.aliases.length > 0) {
+        for (const alias of candidate.aliases) {
+          const aliasNorm = normalizeName(alias);
+          if (aliasNorm && (aliasNorm === searchNameNorm || 
+              areNamesSimilar(searchNameNorm, aliasNorm).score >= 0.85)) {
+            aliasNameMatch = true;
+            break;
+          }
+        }
+      }
+      
+      if (dobNameMatch || aliasNameMatch) {
+        hasStrongMatch = true;
+        signals.push({
+          type: 'DATE_OF_BIRTH_NAME_MATCH',
+          points: WEIGHTS.DATE_OF_BIRTH_NAME_MATCH,
+          description: 'Date of birth and name both match',
+          isStrong: true,
+        });
+        score += WEIGHTS.DATE_OF_BIRTH_NAME_MATCH;
       }
     }
   }

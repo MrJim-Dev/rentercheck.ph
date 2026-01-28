@@ -414,10 +414,10 @@ export function ReportForm() {
         }
 
         // Additional validation for identifiers with clear messaging
-        if (data.phones.length === 0 && data.emails.length === 0 && data.facebooks.length === 0) {
+        if (data.phones.length === 0 && data.emails.length === 0 && data.facebooks.length === 0 && (!data.renterBirthdate || data.renterBirthdate.trim().length === 0)) {
             setError("root", {
                 type: "manual",
-                message: "Please provide at least one way to identify the renter: phone number, email address, or Facebook profile. This is essential for report verification."
+                message: "Please provide at least one way to identify the renter: phone number, email address, Facebook profile, or date of birth. This is essential for report verification."
             });
             scrollToError();
             return;

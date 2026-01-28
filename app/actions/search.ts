@@ -9,8 +9,10 @@ import {
   normalizeEmailStrict,
   normalizeFacebookUrl,
   normalizeName,
+  normalizeDateOfBirth,
   normalizePhone,
   scoreAndRankCandidates,
+  nameSimilarity,
   type CandidateData,
   type SearchFilters,
   type SearchInput,
@@ -27,8 +29,15 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Detect the type of a single identifier string
  */
-function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | 'name' {
+function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | 'date' | 'name' {
   const trimmed = value.trim();
+
+  // Check for date pattern (various formats)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||  // YYYY-MM-DD
+      /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed) ||  // MM/DD/YYYY
+      /^\d{1,2}-\d{1,2}-\d{4}$/.test(trimmed)) {  // DD-MM-YYYY
+    return 'date';
+  }
 
   // Check for email pattern
   if (trimmed.includes("@") && trimmed.includes(".")) {
@@ -66,7 +75,7 @@ function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | '
 
 /**
  * Parse a free-text query to extract multiple identifiers
- * Supports input like: "John Doe, 094554343445, johndoe@example.com"
+ * Supports input like: "John Doe, 094554343445, johndoe@example.com, 1990-01-15"
  * Intelligently detects and categorizes each part
  */
 function parseSearchQuery(query: string): SearchInput {
@@ -89,6 +98,8 @@ function parseSearchQuery(query: string): SearchInput {
         return { phone: parts[0] };
       case 'facebook':
         return { facebook: parts[0].replace(/^fb:/i, "") };
+      case 'date':
+        return { dateOfBirth: parts[0] };
       default:
         return { name: parts[0] };
     }
@@ -100,6 +111,7 @@ function parseSearchQuery(query: string): SearchInput {
   const phones: string[] = [];
   const emails: string[] = [];
   const facebooks: string[] = [];
+  let dateOfBirth: string | null = null;
 
   for (const part of parts) {
     const type = detectIdentifierType(part);
@@ -112,6 +124,9 @@ function parseSearchQuery(query: string): SearchInput {
         break;
       case 'facebook':
         facebooks.push(part.replace(/^fb:/i, ""));
+        break;
+      case 'date':
+        if (!dateOfBirth) dateOfBirth = part; // Only use first date found
         break;
       case 'name':
         names.push(part);
@@ -143,6 +158,9 @@ function parseSearchQuery(query: string): SearchInput {
     if (facebooks.length > 1) {
       result.additionalFacebooks = facebooks.slice(1);
     }
+  }
+  if (dateOfBirth) {
+    result.dateOfBirth = dateOfBirth;
   }
 
   return result;
@@ -244,6 +262,7 @@ export async function searchRenters(
         phone: searchInput.phone || undefined,
         email: searchInput.email || undefined,
         facebook: searchInput.facebook || undefined,
+        dateOfBirth: searchInput.dateOfBirth || undefined,
         city: searchInput.city || undefined,
         region: searchInput.region || undefined,
       };
@@ -254,6 +273,7 @@ export async function searchRenters(
         phone: queryOrInput.phone || undefined,
         email: queryOrInput.email || undefined,
         facebook: queryOrInput.facebook || undefined,
+        dateOfBirth: queryOrInput.dateOfBirth || undefined,
         city: queryOrInput.city || undefined,
         region: queryOrInput.region || undefined,
       };
@@ -652,6 +672,72 @@ export async function searchRenters(
     }
 
     // ============================================
+    // SEARCH BY DATE OF BIRTH (if provided)
+    // DOB alone is not strong enough, must also match name/alias
+    // ============================================
+    if (searchInput.dateOfBirth && nameNorm) {
+      const dobNorm = normalizeDateOfBirth(searchInput.dateOfBirth);
+      if (dobNorm) {
+        // Split search name into parts for matching
+        const searchNameParts = nameNorm.split(' ').filter(p => p.length >= 2);
+        
+        const { data: dobReports } = await supabase
+          .from("incident_reports")
+          .select("id, reported_full_name, reported_aliases, reported_date_of_birth")
+          .in("status", ["APPROVED", "UNDER_REVIEW"])
+          .is("renter_id", null)
+          .eq("reported_date_of_birth", dobNorm)
+          .limit(100);
+
+        if (dobReports) {
+          for (const report of dobReports) {
+            // Check if name also matches (main name or alias)
+            const reportNameNorm = normalizeName(report.reported_full_name);
+            let nameMatches = false;
+
+            if (reportNameNorm) {
+              const similarity = nameSimilarity(nameNorm, reportNameNorm);
+              if (similarity >= 0.85 || 
+                  reportNameNorm.includes(nameNorm) || 
+                  nameNorm.includes(reportNameNorm)) {
+                nameMatches = true;
+              }
+
+              // Also check name parts
+              if (!nameMatches && searchNameParts.length >= 2) {
+                const firstName = searchNameParts[0];
+                const lastName = searchNameParts[searchNameParts.length - 1];
+                if (reportNameNorm.includes(firstName) && reportNameNorm.includes(lastName)) {
+                  nameMatches = true;
+                }
+              }
+            }
+
+            // Check against aliases if main name doesn't match
+            if (!nameMatches && report.reported_aliases) {
+              const aliases = report.reported_aliases as string[] | null;
+              if (aliases && aliases.length > 0) {
+                nameMatches = aliases.some(alias => {
+                  const aliasNorm = normalizeName(alias);
+                  if (!aliasNorm) return false;
+                  const similarity = nameSimilarity(nameNorm, aliasNorm);
+                  return similarity >= 0.85 || 
+                         aliasNorm.includes(nameNorm) || 
+                         nameNorm.includes(aliasNorm) ||
+                         searchNameParts.every((part: string) => aliasNorm.includes(part));
+                });
+              }
+            }
+
+            if (nameMatches) {
+              unlinkedReportIds.add(report.id);
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================
     // SEARCH IN APPROVED AMENDMENTS
     // Look for NEW_IDENTIFIER amendments that have been approved
     // These contain additional phones/emails/FB that should be searchable
@@ -771,6 +857,8 @@ export async function searchRenters(
             identifier_value: string;
           }>) || [];
 
+          // Note: renters table doesn't have DOB directly
+          // DOB is in incident_reports table, we'll fetch it later if needed
           candidates.push({
             id: renter.id,
             fullName: renter.full_name,
@@ -807,6 +895,7 @@ export async function searchRenters(
           reported_emails,
           reported_facebooks,
           reported_aliases,
+          reported_date_of_birth,
           reported_city,
           incident_region,
           incident_date,
@@ -950,6 +1039,7 @@ export async function searchRenters(
             id: candidateId,
             fullName: report.reported_full_name,
             fullNameNormalized: normalizeName(report.reported_full_name),
+            dateOfBirth: report.reported_date_of_birth || undefined,
             city: report.reported_city || report.incident_region,
             region: report.incident_region,
             aliases: reportAliases && reportAliases.length > 0 ? reportAliases : undefined,

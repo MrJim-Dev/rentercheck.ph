@@ -451,6 +451,62 @@ export function hashIdentifier(value: string): string {
 export type IdentifierType = 'PHONE' | 'EMAIL' | 'FACEBOOK' | 'GOVT_ID' | 'NAME';
 
 /**
+ * Normalize date of birth to YYYY-MM-DD format
+ * Handles multiple input formats: MM/DD/YYYY, DD-MM-YYYY, YYYY-MM-DD, etc.
+ * 
+ * @example
+ * normalizeDateOfBirth('01/15/1990') → '1990-01-15'
+ * normalizeDateOfBirth('15-01-1990') → '1990-01-15'
+ * normalizeDateOfBirth('1990-01-15') → '1990-01-15'
+ */
+export function normalizeDateOfBirth(date: string | null | undefined): string | null {
+  if (!date) return null;
+  
+  const trimmed = date.trim();
+  if (!trimmed) return null;
+  
+  // Try to parse the date
+  let parsedDate: Date | null = null;
+  
+  // Check if it's already in YYYY-MM-DD format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    parsedDate = new Date(trimmed);
+  }
+  // Check for MM/DD/YYYY or M/D/YYYY format
+  else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed)) {
+    const parts = trimmed.split('/');
+    parsedDate = new Date(`${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`);
+  }
+  // Check for DD-MM-YYYY or D-M-YYYY format
+  else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(trimmed)) {
+    const parts = trimmed.split('-');
+    // Assume DD-MM-YYYY format
+    parsedDate = new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`);
+  }
+  // Check for YYYY/MM/DD format
+  else if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(trimmed)) {
+    const parts = trimmed.split('/');
+    parsedDate = new Date(`${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`);
+  }
+  // Try direct Date parsing as fallback
+  else {
+    parsedDate = new Date(trimmed);
+  }
+  
+  // Validate the date
+  if (!parsedDate || isNaN(parsedDate.getTime())) {
+    return null;
+  }
+  
+  // Return in YYYY-MM-DD format
+  const year = parsedDate.getFullYear();
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+  const day = String(parsedDate.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Normalize any identifier based on its type
  */
 export function normalizeIdentifier(
