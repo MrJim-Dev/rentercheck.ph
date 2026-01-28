@@ -93,7 +93,8 @@ export async function submitIncidentReport(
             return { success: false, error: "Renter's full name is required. Please provide the name of the person you're reporting." }
         }
 
-        if (!formData.phone && !formData.email && !formData.facebookLink) {
+        // Check if at least one identifier is provided (contact method OR date of birth)
+        if (!formData.phone && !formData.email && !formData.facebookLink && !formData.renterBirthdate) {
             return { success: false, error: "At least one contact method is required to identify the renter. Please provide a phone number, email address, or Facebook profile link." }
         }
 
