@@ -320,6 +320,19 @@ export function ReportDetailsSheet({
                                         <p className="text-sm font-medium">{report.reported_full_name}</p>
                                     </div>
                                 </div>
+                                {report.reported_date_of_birth && (
+                                    <div className="flex items-center gap-3">
+                                        <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Date of Birth</p>
+                                            <p className="text-sm font-medium">{new Date(report.reported_date_of_birth).toLocaleDateString('en-US', {
+                                                month: 'long',
+                                                day: 'numeric',
+                                                year: 'numeric',
+                                            })}</p>
+                                        </div>
+                                    </div>
+                                )}
                                 {report.reported_phone && (
                                     <div className="flex items-center gap-3">
                                         <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -337,12 +350,48 @@ export function ReportDetailsSheet({
                                         </Button>
                                     </div>
                                 )}
+                                {report.reported_phones && Array.isArray(report.reported_phones) && (report.reported_phones as string[]).length > 0 && (
+                                    <div className="flex items-start gap-3">
+                                        <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                        <div className="flex-1">
+                                            <p className="text-xs text-muted-foreground">Additional Phones</p>
+                                            <div className="space-y-1">
+                                                {(report.reported_phones as string[]).map((phone, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2">
+                                                        <p className="text-sm font-mono">{phone}</p>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-6 w-6 p-0"
+                                                            onClick={() => copyToClipboard(phone)}
+                                                        >
+                                                            <Copy className="w-3 h-3" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 {report.reported_email && (
                                     <div className="flex items-center gap-3">
                                         <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Email</p>
                                             <p className="text-sm">{report.reported_email}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                {report.reported_emails && Array.isArray(report.reported_emails) && (report.reported_emails as string[]).length > 0 && (
+                                    <div className="flex items-start gap-3">
+                                        <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Additional Emails</p>
+                                            <div className="space-y-1">
+                                                {(report.reported_emails as string[]).map((email, idx) => (
+                                                    <p key={idx} className="text-sm">{email}</p>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -363,12 +412,91 @@ export function ReportDetailsSheet({
                                         </div>
                                     </div>
                                 )}
+                                {report.reported_facebooks && Array.isArray(report.reported_facebooks) && (report.reported_facebooks as string[]).length > 0 && (
+                                    <div className="flex items-start gap-3">
+                                        <Facebook className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Additional Facebook Profiles</p>
+                                            <div className="space-y-1">
+                                                {(report.reported_facebooks as string[]).map((fb, idx) => (
+                                                    <a
+                                                        key={idx}
+                                                        href={fb}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-sm text-secondary hover:underline flex items-center gap-1"
+                                                    >
+                                                        View Profile {idx + 1}
+                                                        <ExternalLink className="w-3 h-3" />
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {report.reported_aliases && Array.isArray(report.reported_aliases) && (report.reported_aliases as string[]).length > 0 && (
+                                    <div className="flex items-start gap-3">
+                                        <User className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Known Aliases</p>
+                                            <div className="flex flex-wrap gap-1.5 mt-1">
+                                                {(report.reported_aliases as string[]).map((alias, idx) => (
+                                                    <Badge key={idx} variant="secondary" className="text-xs">
+                                                        {alias}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 {report.reported_address && (
                                     <div className="flex items-start gap-3">
                                         <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Address</p>
                                             <p className="text-sm">{report.reported_address}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                {(report.reported_city || report.incident_region) && (
+                                    <div className="flex items-start gap-3">
+                                        <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">City/Region</p>
+                                            <p className="text-sm">
+                                                {[report.reported_city, report.incident_region].filter(Boolean).join(", ")}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <Separator />
+
+                        {/* Rental Information */}
+                        <div className="space-y-3">
+                            <h3 className="text-sm font-medium uppercase tracking-wide">Rental Information</h3>
+                            <div className="space-y-3 bg-muted/30 rounded-lg p-4">
+                                {report.rental_category && (
+                                    <div className="flex items-start gap-3">
+                                        <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Rental Category</p>
+                                            <p className="text-sm font-medium">
+                                                {report.rental_category.split('_').map(word => 
+                                                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                                                ).join(' ')}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                                {report.rental_item_description && (
+                                    <div className="flex items-start gap-3">
+                                        <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Item Description</p>
+                                            <p className="text-sm">{report.rental_item_description}</p>
                                         </div>
                                     </div>
                                 )}
@@ -380,6 +508,28 @@ export function ReportDetailsSheet({
                                             <p className="text-sm">
                                                 {[report.incident_city, report.incident_region].filter(Boolean).join(", ")}
                                             </p>
+                                        </div>
+                                    </div>
+                                )}
+                                {report.incident_place && (
+                                    <div className="flex items-start gap-3">
+                                        <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Specific Place</p>
+                                            <p className="text-sm">{report.incident_place}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                {report.incident_end_date && (
+                                    <div className="flex items-center gap-3">
+                                        <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Incident End Date</p>
+                                            <p className="text-sm">{new Date(report.incident_end_date).toLocaleDateString('en-US', {
+                                                month: 'long',
+                                                day: 'numeric',
+                                                year: 'numeric',
+                                            })}</p>
                                         </div>
                                     </div>
                                 )}
