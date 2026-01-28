@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { Enums } from "@/lib/database.types"
-import { zodResolver } from "@hookform/resolvers/zod"
 import {
     AlertTriangle,
     ArrowRight,
@@ -46,10 +45,7 @@ import {
     X,
     Zap,
 } from "lucide-react"
-import Link from "next/link"
 import { useCallback, useRef, useState } from "react"
-import { Controller, useForm } from "react-hook-form"
-import { z } from "zod"
 
 // Incident types - covering various rental-related issues
 const INCIDENT_TYPES = [
@@ -146,133 +142,63 @@ const REGIONS = [
     "Other",
 ] as const
 
-// Zod validation schema
-const reportFormSchema = z.object({
-    // Step 1: Renter identification (required)
-    fullName: z.string()
-        .min(2, "Full name must be at least 2 characters")
-        .max(100, "Full name is too long")
-        .regex(/^[a-zA-Z\s\u00C0-\u024F\u1E00-\u1EFF.-]+$/, "Please enter a valid name (letters, spaces, hyphens, and periods only)"),
-    
-    // Multiple identifiers (at least one required - validated in refine below)
-    phones: z.array(z.string()).default([]),
-    emails: z.array(z.string()).default([]),
-    facebooks: z.array(z.string()).default([]),
-    aliases: z.array(z.string()).default([]),
-
-    // Additional renter details (optional)
-    renterAddress: z.string().max(200, "Address is too long").optional(),
-    renterCity: z.string().max(100, "City name is too long").optional(),
-    renterBirthdate: z.string().optional(),
-
-    // Step 2: Rental item details
-    rentalCategory: z.string().optional(),
-    rentalItemDescription: z.string().max(200, "Item description is too long").optional(),
-
-    // Step 2: Incident details
-    incidentType: z.string()
-        .min(1, "Please select what type of incident occurred"),
-    incidentDate: z.string()
-        .min(1, "Incident date is required")
-        .refine((date) => {
-            const d = new Date(date);
-            const today = new Date();
-            today.setHours(23, 59, 59, 999);
-            return d <= today;
-        }, "Incident date cannot be in the future"),
-    amountInvolved: z.string().optional(),
-
-    // Step 2: Incident location (optional)
-    incidentRegion: z.string().optional(),
-    incidentCity: z.string().max(100, "City name is too long").optional(),
-    incidentPlace: z.string().max(200, "Place description is too long").optional(),
-
-    // Step 4: Summary
-    summary: z.string()
-        .min(20, "Please provide a more detailed summary (at least 20 characters)")
-        .max(500, "Summary is too long (maximum 500 characters)"),
-
-    // Step 5: Confirmations
-    confirmTruth: z.boolean().refine((val) => val === true, {
-        message: "You must confirm that this report is true"
-    }),
-    confirmBan: z.boolean().refine((val) => val === true, {
-        message: "You must acknowledge the consequences of false reports"
-    }),
-}).refine((data) => {
-    // Custom validation: at least one identifier required
-    return data.phones.length > 0 || data.emails.length > 0 || data.facebooks.length > 0;
-}, {
-    message: "At least one contact method (phone, email, or Facebook) is required to identify the renter",
-    path: ["phones"]
-});
-
-type ReportFormSchema = z.infer<typeof reportFormSchema>
-
 export function ReportForm() {
-    // React Hook Form with Zod validation
-    const {
-        control,
-        handleSubmit,
-        watch,
-        formState: { errors, isSubmitting: formIsSubmitting },
-        setError,
-        clearErrors,
-    } = useForm<ReportFormSchema>({
-        resolver: zodResolver(reportFormSchema),
-        defaultValues: {
-            fullName: "",
-            phones: [],
-            emails: [],
-            facebooks: [],
-            aliases: [],
-            renterAddress: "",
-            renterCity: "",
-            renterBirthdate: "",
-            rentalCategory: "",
-            rentalItemDescription: "",
-            incidentType: "",
-            incidentDate: "",
-            amountInvolved: "",
-            incidentRegion: "",
-            incidentCity: "",
-            incidentPlace: "",
-            summary: "",
-            confirmTruth: false,
-            confirmBan: false,
-        },
-        mode: "onTouched", // Validate on blur/touch
-    });
+    // Step 1: Renter identification (required)
+    const [fullName, setFullName] = useState("")
+    // Multiple identifiers support
+    const [phones, setPhones] = useState<string[]>([])
+    const [emails, setEmails] = useState<string[]>([])
+    const [facebooks, setFacebooks] = useState<string[]>([])
+    const [aliases, setAliases] = useState<string[]>([])
 
-    // Watch form values for dynamic UI
-    const phones = watch("phones");
-    const emails = watch("emails");
-    const facebooks = watch("facebooks");
-    const aliases = watch("aliases");
-    const renterAddress = watch("renterAddress");
-    const renterCity = watch("renterCity");
-    const renterBirthdate = watch("renterBirthdate");
-    const summary = watch("summary");
-    const fullName = watch("fullName");
-
-    // UI state
+    // Step 1: Additional renter details (optional - strong identifiers)
     const [showMoreDetails, setShowMoreDetails] = useState(false)
     const [showAliases, setShowAliases] = useState(false)
+    const [renterAddress, setRenterAddress] = useState("")
+    const [renterCity, setRenterCity] = useState("")
+    const [renterBirthdate, setRenterBirthdate] = useState("")
+
+    // Step 2: Rental item details
+    const [rentalCategory, setRentalCategory] = useState<RentalCategory | "">("")
+    const [rentalItemDescription, setRentalItemDescription] = useState("")
+
+    // Step 2: Incident details
+    const [incidentType, setIncidentType] = useState<IncidentType | "">("")
+    const [incidentDate, setIncidentDate] = useState("")
+    const [amountInvolved, setAmountInvolved] = useState("")
+
+    // Step 2: Incident location (optional)
+    const [incidentRegion, setIncidentRegion] = useState("")
+    const [incidentCity, setIncidentCity] = useState("")
+    const [incidentPlace, setIncidentPlace] = useState("")
+
+    // Step 3: Proof files
     const [proofFiles, setProofFiles] = useState<ProofFile[]>([])
     const [isDragging, setIsDragging] = useState(false)
     const [activeProofType, setActiveProofType] = useState<ProofType>("agreement")
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // Step 4: Summary
+    const [summary, setSummary] = useState("")
+
+    // Step 5: Confirmations
+    const [confirmTruth, setConfirmTruth] = useState(false)
+    const [confirmBan, setConfirmBan] = useState(false)
+
+    // Form state
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isSubmitted, setIsSubmitted] = useState(false)
     const [submitError, setSubmitError] = useState<string | null>(null)
     const [reportId, setReportId] = useState<string | null>(null)
-    
-    const fileInputRef = useRef<HTMLInputElement>(null)
-    const formRef = useRef<HTMLFormElement>(null)
+
+    // Validation helpers
+    const hasIdentifier = phones.length > 0 || emails.length > 0 || facebooks.length > 0
+    const hasRequiredFields = fullName.trim() && hasIdentifier && incidentType && incidentDate && proofFiles.length > 0 && summary.trim() && confirmTruth && confirmBan
 
     // Count optional strong identifiers filled
     const strongIdentifiersCount = [
-        renterAddress?.trim(),
-        renterCity?.trim(),
+        renterAddress.trim(),
+        renterCity.trim(),
         renterBirthdate,
         proofFiles.some(f => f.type === "renter_id"),
         proofFiles.some(f => f.type === "renter_photo"),
@@ -281,9 +207,6 @@ export function ReportForm() {
 
     // Count total identifiers
     const totalIdentifiersCount = phones.length + emails.length + facebooks.length
-
-    // Check if user has provided at least one identifier
-    const hasIdentifier = totalIdentifiersCount > 0;
 
     // Phone normalization helper
     const normalizePhone = (value: string) => {
@@ -298,13 +221,13 @@ export function ReportForm() {
         return cleaned
     }
 
-    // Phone validation helper
+    // Phone validation helper - more lenient, just check it has some digits
     const validatePhone = (value: string) => {
         const digits = value.replace(/\D/g, "")
-        return digits.length >= 7
+        return digits.length >= 7 // At least 7 digits for a phone number
     }
 
-    // Email validation helper
+    // Email validation helper - basic check
     const validateEmail = (value: string) => {
         return value.includes("@") && value.includes(".") && value.length >= 5
     }
@@ -350,9 +273,7 @@ export function ReportForm() {
         })
 
         setProofFiles(prev => [...prev, ...newFiles])
-        // Clear any proof file errors
-        clearErrors("root")
-    }, [clearErrors])
+    }, [])
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault()
@@ -387,83 +308,49 @@ export function ReportForm() {
         return mapping[proofType]
     }
 
-    // Scroll to first error
-    const scrollToError = useCallback(() => {
-        // Wait for DOM update
-        setTimeout(() => {
-            const firstError = formRef.current?.querySelector('[data-error="true"]');
-            if (firstError) {
-                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Focus the input if possible
-                const input = firstError.querySelector('input, textarea, select, button');
-                if (input instanceof HTMLElement) {
-                    input.focus();
-                }
-            }
-        }, 100);
-    }, []);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!hasRequiredFields) return
 
-    const onSubmit = async (data: ReportFormSchema) => {
-        // Additional validation for proof files
-        if (proofFiles.length === 0) {
-            setError("root", {
-                type: "manual",
-                message: "At least one proof/evidence file is required to submit your report. Please upload photos, documents, or screenshots related to the incident."
-            });
-            scrollToError();
-            return;
-        }
-
-        // Additional validation for identifiers with clear messaging
-        if (data.phones.length === 0 && data.emails.length === 0 && data.facebooks.length === 0) {
-            setError("root", {
-                type: "manual",
-                message: "Please provide at least one way to identify the renter: phone number, email address, or Facebook profile. This is essential for report verification."
-            });
-            scrollToError();
-            return;
-        }
-
-        setSubmitError(null);
-        setIsSubmitting(true);
+        setIsSubmitting(true)
+        setSubmitError(null)
 
         try {
             // Prepare form data with multiple identifiers
             const formData: ReportFormData = {
-                fullName: data.fullName.trim(),
+                fullName: fullName.trim(),
                 // Primary identifiers (first from each array)
-                phone: data.phones[0] ? normalizePhone(data.phones[0]) : undefined,
-                email: data.emails[0] || undefined,
-                facebookLink: data.facebooks[0] ? normalizeFacebookLink(data.facebooks[0]) : undefined,
+                phone: phones[0] ? normalizePhone(phones[0]) : undefined,
+                email: emails[0] || undefined,
+                facebookLink: facebooks[0] ? normalizeFacebookLink(facebooks[0]) : undefined,
                 // Additional identifiers (rest of arrays)
-                additionalPhones: data.phones.slice(1).map(p => normalizePhone(p)),
-                additionalEmails: data.emails.slice(1),
-                additionalFacebooks: data.facebooks.slice(1).map(f => normalizeFacebookLink(f)),
-                aliases: data.aliases.length > 0 ? data.aliases : undefined,
+                additionalPhones: phones.slice(1).map(p => normalizePhone(p)),
+                additionalEmails: emails.slice(1),
+                additionalFacebooks: facebooks.slice(1).map(f => normalizeFacebookLink(f)),
+                aliases: aliases.length > 0 ? aliases : undefined,
                 // Other fields
-                renterAddress: data.renterAddress?.trim() || undefined,
-                renterCity: data.renterCity?.trim() || undefined,
-                renterBirthdate: data.renterBirthdate || undefined,
-                rentalCategory: data.rentalCategory as Enums<"rental_category"> || undefined,
-                rentalItemDescription: data.rentalItemDescription?.trim() || undefined,
-                incidentType: data.incidentType as Enums<"incident_type">,
-                incidentDate: data.incidentDate,
-                amountInvolved: data.amountInvolved ? parseFloat(data.amountInvolved) : undefined,
-                incidentRegion: data.incidentRegion || undefined,
-                incidentCity: data.incidentCity?.trim() || undefined,
-                incidentPlace: data.incidentPlace?.trim() || undefined,
-                summary: data.summary.trim(),
-                confirmTruth: data.confirmTruth,
-                confirmBan: data.confirmBan,
+                renterAddress: renterAddress.trim() || undefined,
+                renterCity: renterCity.trim() || undefined,
+                renterBirthdate: renterBirthdate || undefined,
+                rentalCategory: rentalCategory as Enums<"rental_category"> || undefined,
+                rentalItemDescription: rentalItemDescription.trim() || undefined,
+                incidentType: incidentType as Enums<"incident_type">,
+                incidentDate: incidentDate,
+                amountInvolved: amountInvolved ? parseFloat(amountInvolved) : undefined,
+                incidentRegion: incidentRegion || undefined,
+                incidentCity: incidentCity.trim() || undefined,
+                incidentPlace: incidentPlace.trim() || undefined,
+                summary: summary.trim(),
+                confirmTruth,
+                confirmBan,
             }
 
             // Submit the report
             const result = await submitIncidentReport(formData)
 
             if (!result.success || !result.data) {
-                setSubmitError(result.error || "Failed to submit report. Please try again.")
-                setIsSubmitting(false);
-                scrollToError();
+                setSubmitError(result.error || "Failed to submit report")
+                setIsSubmitting(false)
                 return
             }
 
@@ -486,15 +373,11 @@ export function ReportForm() {
             }
 
             setIsSubmitted(true)
-            
-            // Scroll to top to show success message
-            window.scrollTo({ top: 0, behavior: 'smooth' });
         } catch (error) {
             console.error("Error submitting report:", error)
-            setSubmitError("An unexpected error occurred while submitting your report. Please try again. If the problem persists, contact support.")
-            scrollToError();
+            setSubmitError("An unexpected error occurred. Please try again.")
         } finally {
-            setIsSubmitting(false);
+            setIsSubmitting(false)
         }
     }
 
@@ -515,72 +398,54 @@ export function ReportForm() {
                         Your incident report is now under review.
                     </p>
                     {reportId && (
-                        <p className="text-sm text-muted-foreground/80 mb-6">
-                            Report ID: <span className="font-mono font-medium">{reportId.slice(0, 8)}</span>
+                        <p className="text-xs text-muted-foreground mb-4 font-mono">
+                            Report ID: {reportId.slice(0, 8)}...
                         </p>
                     )}
 
-                    <div className="bg-card border rounded-lg p-6 space-y-4 text-left">
-                        <div className="flex items-start gap-3">
-                            <Clock className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+                    <div className="bg-card border rounded-xl p-5 mb-6 text-left space-y-3">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                                <Clock className="w-4 h-4 text-amber-400" />
+                            </div>
                             <div>
-                                <p className="font-medium text-sm mb-1">Under Review</p>
-                                <p className="text-xs text-muted-foreground">
-                                    Our admin team will review your report within 24-48 hours
-                                </p>
+                                <p className="font-medium text-sm">Status: Pending Admin Review</p>
+                                <p className="text-xs text-muted-foreground">Usually takes 24-48 hours</p>
                             </div>
                         </div>
 
-                        <div className="flex items-start gap-3">
-                            <Mail className="w-5 h-5 text-violet-400 mt-0.5 shrink-0" />
-                            <div>
-                                <p className="font-medium text-sm mb-1">Email Notification</p>
-                                <p className="text-xs text-muted-foreground">
-                                    You&apos;ll receive an email when your report is approved or if we need more information
-                                </p>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                                <Mail className="w-4 h-4 text-blue-400" />
                             </div>
-                        </div>
-
-                        <div className="flex items-start gap-3">
-                            <Shield className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
                             <div>
-                                <p className="font-medium text-sm mb-1">Protecting the Community</p>
-                                <p className="text-xs text-muted-foreground">
-                                    Thank you for helping keep rental businesses safe
-                                </p>
+                                <p className="font-medium text-sm">We&apos;ll notify you</p>
+                                <p className="text-xs text-muted-foreground">If more proof is needed</p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="mt-6 flex gap-3">
-                        <Button asChild variant="outline" className="flex-1">
-                            <Link href="/my-reports">View My Reports</Link>
-                        </Button>
-                        <Button asChild className="flex-1">
-                            <Link href="/search">Search Database</Link>
-                        </Button>
-                    </div>
+                    <Button
+                        onClick={() => window.location.href = "/search"}
+                        className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity font-bold"
+                    >
+                        Back to Search
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
                 </div>
             </div>
         )
     }
 
     return (
-        <form ref={formRef} onSubmit={handleSubmit(onSubmit, () => scrollToError())} className="space-y-6 pb-8">
-            {/* Global errors */}
-            {(errors.root || submitError) && (
-                <div data-error="true" className="p-4 rounded-lg bg-rose-500/10 border-2 border-rose-500/30 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                        <p className="font-medium text-rose-400 text-sm mb-1">Unable to Submit Report</p>
-                        <p className="text-sm text-rose-300/90">
-                            {errors.root?.message || submitError}
-                        </p>
-                    </div>
-                </div>
-            )}
+        <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Progress hint */}
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Clock className="w-4 h-4" />
+                <span>~1 minute to finish</span>
+            </div>
 
-            {/* Step 1: Identify the Renter */}
+            {/* Step 1: Identify Renter */}
             <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
                 <div className="flex items-center gap-3 mb-2">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
@@ -593,31 +458,21 @@ export function ReportForm() {
                 </div>
 
                 {/* Full Name - Required */}
-                <div className="space-y-2" data-error={errors.fullName ? "true" : undefined}>
+                <div className="space-y-2">
                     <Label htmlFor="fullName" className="text-sm">
                         Full Name <span className="text-destructive">*</span>
                     </Label>
                     <div className="relative group">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 group-focus-within:text-secondary transition-colors w-4 h-4" />
-                        <Controller
-                            name="fullName"
-                            control={control}
-                            render={({ field }) => (
-                                <Input
-                                    {...field}
-                                    id="fullName"
-                                    placeholder="Juan Dela Cruz"
-                                    className={`pl-10 h-11 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 ${errors.fullName ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}`}
-                                />
-                            )}
+                        <Input
+                            id="fullName"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            placeholder="Juan Dela Cruz"
+                            className="pl-10 h-11 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                            required
                         />
                     </div>
-                    {errors.fullName && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.fullName.message}
-                        </p>
-                    )}
                 </div>
 
                 {/* Identifier hint */}
@@ -642,22 +497,16 @@ export function ReportForm() {
                                 Phone Number{phones.length > 1 ? "s" : ""}
                                 <span className="text-xs text-emerald-400 font-normal">(recommended)</span>
                             </Label>
-                            <Controller
-                                name="phones"
-                                control={control}
-                                render={({ field }) => (
-                                    <MultiInput
-                                        values={field.value}
-                                        onChange={field.onChange}
-                                        placeholder="09171234567 or +63 917 123 4567"
-                                        maxItems={5}
-                                        icon={<Phone className="w-4 h-4" />}
-                                        validateFn={validatePhone}
-                                        normalizeFn={normalizePhone}
-                                        addLabel="Add another phone"
-                                        validationMessage="Enter at least 7 digits"
-                                    />
-                                )}
+                            <MultiInput
+                                values={phones}
+                                onChange={setPhones}
+                                placeholder="09171234567 or +63 917 123 4567"
+                                maxItems={5}
+                                icon={<Phone className="w-4 h-4" />}
+                                validateFn={validatePhone}
+                                normalizeFn={normalizePhone}
+                                addLabel="Add another phone"
+                                validationMessage="Enter at least 7 digits"
                             />
                         </div>
 
@@ -667,22 +516,16 @@ export function ReportForm() {
                                 <Mail className="w-3.5 h-3.5 text-blue-400" />
                                 Email Address{emails.length > 1 ? "es" : ""}
                             </Label>
-                            <Controller
-                                name="emails"
-                                control={control}
-                                render={({ field }) => (
-                                    <MultiInput
-                                        values={field.value}
-                                        onChange={field.onChange}
-                                        placeholder="renter@email.com"
-                                        maxItems={5}
-                                        icon={<Mail className="w-4 h-4" />}
-                                        validateFn={validateEmail}
-                                        normalizeFn={(v) => v.toLowerCase().trim()}
-                                        addLabel="Add another email"
-                                        validationMessage="Enter a valid email address"
-                                    />
-                                )}
+                            <MultiInput
+                                values={emails}
+                                onChange={setEmails}
+                                placeholder="renter@email.com"
+                                maxItems={5}
+                                icon={<Mail className="w-4 h-4" />}
+                                validateFn={validateEmail}
+                                normalizeFn={(v) => v.toLowerCase().trim()}
+                                addLabel="Add another email"
+                                validationMessage="Enter a valid email address"
                             />
                         </div>
 
@@ -692,20 +535,14 @@ export function ReportForm() {
                                 <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />
                                 Facebook Profile{facebooks.length > 1 ? "s" : ""}
                             </Label>
-                            <Controller
-                                name="facebooks"
-                                control={control}
-                                render={({ field }) => (
-                                    <MultiInput
-                                        values={field.value}
-                                        onChange={field.onChange}
-                                        placeholder="facebook.com/username or profile link"
-                                        maxItems={5}
-                                        icon={<Facebook className="w-4 h-4" />}
-                                        normalizeFn={normalizeFacebookLink}
-                                        addLabel="Add another Facebook"
-                                    />
-                                )}
+                            <MultiInput
+                                values={facebooks}
+                                onChange={setFacebooks}
+                                placeholder="facebook.com/username or profile link"
+                                maxItems={5}
+                                icon={<Facebook className="w-4 h-4" />}
+                                normalizeFn={normalizeFacebookLink}
+                                addLabel="Add another Facebook"
                             />
                         </div>
                     </div>
@@ -729,19 +566,13 @@ export function ReportForm() {
 
                         {showAliases && (
                             <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
-                                <Controller
-                                    name="aliases"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <MultiInput
-                                            values={field.value}
-                                            onChange={field.onChange}
-                                            placeholder="Known alias or nickname"
-                                            maxItems={5}
-                                            icon={<User className="w-4 h-4" />}
-                                            addLabel="Add another alias"
-                                        />
-                                    )}
+                                <MultiInput
+                                    values={aliases}
+                                    onChange={setAliases}
+                                    placeholder="Known alias or nickname"
+                                    maxItems={5}
+                                    icon={<User className="w-4 h-4" />}
+                                    addLabel="Add another alias"
                                 />
                                 <p className="text-xs text-muted-foreground mt-2">
                                     If the renter uses different names on different platforms
@@ -804,17 +635,12 @@ export function ReportForm() {
                                     Renter&apos;s Date of Birth
                                     <span className="text-xs text-muted-foreground font-normal">(if known)</span>
                                 </Label>
-                                <Controller
-                                    name="renterBirthdate"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Input
-                                            {...field}
-                                            id="renterBirthdate"
-                                            type="date"
-                                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
-                                        />
-                                    )}
+                                <Input
+                                    id="renterBirthdate"
+                                    type="date"
+                                    value={renterBirthdate}
+                                    onChange={(e) => setRenterBirthdate(e.target.value)}
+                                    className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
                                 />
                             </div>
 
@@ -825,17 +651,12 @@ export function ReportForm() {
                                     Renter&apos;s Address
                                     <span className="text-xs text-muted-foreground font-normal">(if provided)</span>
                                 </Label>
-                                <Controller
-                                    name="renterAddress"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Input
-                                            {...field}
-                                            id="renterAddress"
-                                            placeholder="Street, Barangay, etc."
-                                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                        />
-                                    )}
+                                <Input
+                                    id="renterAddress"
+                                    value={renterAddress}
+                                    onChange={(e) => setRenterAddress(e.target.value)}
+                                    placeholder="Street, Barangay, etc."
+                                    className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
                                 />
                             </div>
 
@@ -845,17 +666,12 @@ export function ReportForm() {
                                     <Building className="w-3.5 h-3.5 text-teal-400" />
                                     Renter&apos;s City/Municipality
                                 </Label>
-                                <Controller
-                                    name="renterCity"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Input
-                                            {...field}
-                                            id="renterCity"
-                                            placeholder="e.g., Makati, Cebu City, Davao"
-                                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                        />
-                                    )}
+                                <Input
+                                    id="renterCity"
+                                    value={renterCity}
+                                    onChange={(e) => setRenterCity(e.target.value)}
+                                    placeholder="e.g., Makati, Cebu City, Davao"
+                                    className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
                                 />
                             </div>
 
@@ -893,27 +709,21 @@ export function ReportForm() {
                             <Label htmlFor="rentalCategory" className="text-sm">
                                 Rental Category
                             </Label>
-                            <Controller
-                                name="rentalCategory"
-                                control={control}
-                                render={({ field }) => (
-                                    <Select value={field.value} onValueChange={field.onChange}>
-                                        <SelectTrigger className="h-10 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
-                                            <SelectValue placeholder="Select category..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {RENTAL_CATEGORIES.map((cat) => (
-                                                <SelectItem key={cat.value} value={cat.value}>
-                                                    <span className="flex items-center gap-2">
-                                                        <span>{cat.icon}</span>
-                                                        <span>{cat.label}</span>
-                                                    </span>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
+                            <Select value={rentalCategory} onValueChange={(v) => setRentalCategory(v as RentalCategory)}>
+                                <SelectTrigger className="h-10 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
+                                    <SelectValue placeholder="Select category..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {RENTAL_CATEGORIES.map((cat) => (
+                                        <SelectItem key={cat.value} value={cat.value}>
+                                            <span className="flex items-center gap-2">
+                                                <span>{cat.icon}</span>
+                                                <span>{cat.label}</span>
+                                            </span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         {/* Specific item */}
@@ -921,93 +731,66 @@ export function ReportForm() {
                             <Label htmlFor="rentalItemDescription" className="text-sm">
                                 Item Description
                             </Label>
-                            <Controller
-                                name="rentalItemDescription"
-                                control={control}
-                                render={({ field }) => (
-                                    <Input
-                                        {...field}
-                                        id="rentalItemDescription"
-                                        placeholder="e.g., Canon EOS R5, 2BR Condo, Honda Click"
-                                        className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                    />
-                                )}
+                            <Input
+                                id="rentalItemDescription"
+                                value={rentalItemDescription}
+                                onChange={(e) => setRentalItemDescription(e.target.value)}
+                                placeholder="e.g., Canon EOS R5, 2BR Condo, Honda Click"
+                                className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
                             />
                         </div>
                     </div>
                 </div>
 
                 {/* Incident Type */}
-                <div className="space-y-2" data-error={errors.incidentType ? "true" : undefined}>
+                <div className="space-y-2">
                     <Label htmlFor="incidentType" className="text-sm">
                         Incident Type <span className="text-destructive">*</span>
                     </Label>
-                    <Controller
-                        name="incidentType"
-                        control={control}
-                        render={({ field }) => (
-                            <Select value={field.value} onValueChange={field.onChange}>
-                                <SelectTrigger className={`h-11 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20 ${errors.incidentType ? "border-red-500" : ""}`}>
-                                    <SelectValue placeholder="Select what happened..." />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px]">
-                                    {/* Group by category */}
-                                    {["Transaction", "Property", "Trust", "Behavior", "Other"].map((category) => {
-                                        const categoryItems = INCIDENT_TYPES.filter(t => t.category === category);
-                                        if (categoryItems.length === 0) return null;
-                                        return (
-                                            <div key={category}>
-                                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                    {category} Issues
-                                                </div>
-                                                {categoryItems.map((type) => (
-                                                    <SelectItem key={type.value} value={type.value}>
-                                                        <span className="flex items-center gap-2">
-                                                            <span>{type.icon}</span>
-                                                            <span>{type.label}</span>
-                                                        </span>
-                                                    </SelectItem>
-                                                ))}
-                                            </div>
-                                        );
-                                    })}
-                                </SelectContent>
-                            </Select>
-                        )}
-                    />
-                    {errors.incidentType && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.incidentType.message}
-                        </p>
-                    )}
+                    <Select value={incidentType} onValueChange={(v) => setIncidentType(v as IncidentType)}>
+                        <SelectTrigger className="h-11 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
+                            <SelectValue placeholder="Select what happened..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                            {/* Group by category */}
+                            {["Transaction", "Property", "Trust", "Behavior", "Other"].map((category) => {
+                                const categoryItems = INCIDENT_TYPES.filter(t => t.category === category);
+                                if (categoryItems.length === 0) return null;
+                                return (
+                                    <div key={category}>
+                                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                            {category} Issues
+                                        </div>
+                                        {categoryItems.map((type) => (
+                                            <SelectItem key={type.value} value={type.value}>
+                                                <span className="flex items-center gap-2">
+                                                    <span>{type.icon}</span>
+                                                    <span>{type.label}</span>
+                                                </span>
+                                            </SelectItem>
+                                        ))}
+                                    </div>
+                                );
+                            })}
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Date */}
-                    <div className="space-y-2" data-error={errors.incidentDate ? "true" : undefined}>
+                    <div className="space-y-2">
                         <Label htmlFor="incidentDate" className="text-sm flex items-center gap-2">
                             <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                             When did it happen? <span className="text-destructive">*</span>
                         </Label>
-                        <Controller
-                            name="incidentDate"
-                            control={control}
-                            render={({ field }) => (
-                                <Input
-                                    {...field}
-                                    id="incidentDate"
-                                    type="date"
-                                    className={`h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert ${errors.incidentDate ? "border-red-500" : ""}`}
-                                />
-                            )}
+                        <Input
+                            id="incidentDate"
+                            type="date"
+                            value={incidentDate}
+                            onChange={(e) => setIncidentDate(e.target.value)}
+                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
+                            required
                         />
-                        {errors.incidentDate && (
-                            <p className="text-sm text-red-500 flex items-center gap-1.5">
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                                {errors.incidentDate.message}
-                            </p>
-                        )}
                     </div>
 
                     {/* Amount */}
@@ -1018,18 +801,13 @@ export function ReportForm() {
                         </Label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">₱</span>
-                            <Controller
-                                name="amountInvolved"
-                                control={control}
-                                render={({ field }) => (
-                                    <Input
-                                        {...field}
-                                        id="amount"
-                                        type="number"
-                                        placeholder="0.00"
-                                        className="pl-8 h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                    />
-                                )}
+                            <Input
+                                id="amount"
+                                type="number"
+                                value={amountInvolved}
+                                onChange={(e) => setAmountInvolved(e.target.value)}
+                                placeholder="0.00"
+                                className="pl-8 h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
                             />
                         </div>
                     </div>
@@ -1046,40 +824,29 @@ export function ReportForm() {
                         {/* Region */}
                         <div className="space-y-2">
                             <Label htmlFor="incidentRegion" className="text-sm">Region</Label>
-                            <Controller
-                                name="incidentRegion"
-                                control={control}
-                                render={({ field }) => (
-                                    <Select value={field.value} onValueChange={field.onChange}>
-                                        <SelectTrigger className="h-10 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
-                                            <SelectValue placeholder="Select region..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {REGIONS.map((region) => (
-                                                <SelectItem key={region} value={region}>
-                                                    {region}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
+                            <Select value={incidentRegion} onValueChange={setIncidentRegion}>
+                                <SelectTrigger className="h-10 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
+                                    <SelectValue placeholder="Select region..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {REGIONS.map((region) => (
+                                        <SelectItem key={region} value={region}>
+                                            {region}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         {/* City */}
                         <div className="space-y-2">
                             <Label htmlFor="incidentCity" className="text-sm">City/Municipality</Label>
-                            <Controller
-                                name="incidentCity"
-                                control={control}
-                                render={({ field }) => (
-                                    <Input
-                                        {...field}
-                                        id="incidentCity"
-                                        placeholder="e.g., Makati, Cebu City"
-                                        className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                    />
-                                )}
+                            <Input
+                                id="incidentCity"
+                                value={incidentCity}
+                                onChange={(e) => setIncidentCity(e.target.value)}
+                                placeholder="e.g., Makati, Cebu City"
+                                className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
                             />
                         </div>
                     </div>
@@ -1087,17 +854,12 @@ export function ReportForm() {
                     {/* Specific place */}
                     <div className="space-y-2">
                         <Label htmlFor="incidentPlace" className="text-sm">Specific Location/Establishment</Label>
-                        <Controller
-                            name="incidentPlace"
-                            control={control}
-                            render={({ field }) => (
-                                <Input
-                                    {...field}
-                                    id="incidentPlace"
-                                    placeholder="e.g., Rental shop name, branch, address"
-                                    className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                />
-                            )}
+                        <Input
+                            id="incidentPlace"
+                            value={incidentPlace}
+                            onChange={(e) => setIncidentPlace(e.target.value)}
+                            placeholder="e.g., Rental shop name, branch, address"
+                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
                         />
                     </div>
                 </div>
@@ -1295,32 +1057,22 @@ export function ReportForm() {
                     </div>
                 </div>
 
-                <div className="space-y-2" data-error={errors.summary ? "true" : undefined}>
-                    <Controller
-                        name="summary"
-                        control={control}
-                        render={({ field }) => (
-                            <Textarea
-                                {...field}
-                                placeholder="Example: 'Unit due Jan 5, not returned. Renter stopped replying after Jan 7.'"
-                                className={`min-h-[100px] bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 resize-none ${errors.summary ? "border-red-500" : ""}`}
-                                maxLength={500}
-                            />
-                        )}
+                <div className="space-y-2">
+                    <Textarea
+                        value={summary}
+                        onChange={(e) => setSummary(e.target.value)}
+                        placeholder="Example: 'Unit due Jan 5, not returned. Renter stopped replying after Jan 7.'"
+                        className="min-h-[100px] bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 resize-none"
+                        maxLength={500}
+                        required
                     />
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <p className="flex items-center gap-1">
                             <Sparkles className="w-3 h-3" />
                             Write only facts—avoid opinions or speculation
                         </p>
-                        <span>{summary?.length || 0}/500</span>
+                        <span>{summary.length}/500</span>
                     </div>
-                    {errors.summary && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.summary.message}
-                        </p>
-                    )}
                 </div>
             </section>
 
@@ -1337,18 +1089,12 @@ export function ReportForm() {
                 </div>
 
                 {/* Confirmation checkboxes */}
-                <div className="space-y-4" data-error={(errors.confirmTruth || errors.confirmBan) ? "true" : undefined}>
+                <div className="space-y-4">
                     <label className="flex items-start gap-3 cursor-pointer group">
-                        <Controller
-                            name="confirmTruth"
-                            control={control}
-                            render={({ field }) => (
-                                <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                    className="mt-0.5"
-                                />
-                            )}
+                        <Checkbox
+                            checked={confirmTruth}
+                            onCheckedChange={(checked) => setConfirmTruth(checked === true)}
+                            className="mt-0.5"
                         />
                         <div className="space-y-1">
                             <p className="text-sm font-medium group-hover:text-foreground transition-colors flex items-center gap-2">
@@ -1360,24 +1106,12 @@ export function ReportForm() {
                             </p>
                         </div>
                     </label>
-                    {errors.confirmTruth && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5 -mt-2">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.confirmTruth.message}
-                        </p>
-                    )}
 
                     <label className="flex items-start gap-3 cursor-pointer group">
-                        <Controller
-                            name="confirmBan"
-                            control={control}
-                            render={({ field }) => (
-                                <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                    className="mt-0.5"
-                                />
-                            )}
+                        <Checkbox
+                            checked={confirmBan}
+                            onCheckedChange={(checked) => setConfirmBan(checked === true)}
+                            className="mt-0.5"
                         />
                         <div className="space-y-1">
                             <p className="text-sm font-medium group-hover:text-foreground transition-colors flex items-center gap-2">
@@ -1389,12 +1123,6 @@ export function ReportForm() {
                             </p>
                         </div>
                     </label>
-                    {errors.confirmBan && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5 -mt-2">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.confirmBan.message}
-                        </p>
-                    )}
                 </div>
 
                 {/* Error message */}
@@ -1411,7 +1139,7 @@ export function ReportForm() {
                 {/* Submit button */}
                 <Button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={!hasRequiredFields || isSubmitting}
                     className="w-full h-12 bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity font-bold text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isSubmitting ? (
@@ -1426,6 +1154,13 @@ export function ReportForm() {
                         </>
                     )}
                 </Button>
+
+                {/* Required fields hint */}
+                {!hasRequiredFields && (
+                    <p className="text-center text-xs text-muted-foreground">
+                        Complete all required fields to enable submit
+                    </p>
+                )}
             </section>
         </form>
     )

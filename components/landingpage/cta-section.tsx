@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
 import { ArrowRight } from "lucide-react"
+import Link from "next/link"
 
 export function CTASection() {
     return (
@@ -33,11 +34,11 @@ export function CTASection() {
                     transition={{ duration: 0.7 }}
                 >
                     <h2 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6 sm:mb-8 text-balance tracking-tight">
-                        Start Screening Tenants{" "}
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">With Confidence</span>
+                        Report Tenant Incidents{" "}
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary to-accent">Protect Your Business</span>
                     </h2>
                     <p className="text-base sm:text-lg text-muted-foreground mb-8 sm:mb-12 max-w-2xl mx-auto leading-relaxed">
-                        Protect your rental property investment with instant tenant verification. Join landlords and property managers across the Philippines who background-check renters before approving applications.
+                        Had issues with a tenant? Document unpaid rent, property damage, or lease violations to help other landlords make informed decisions. Join property owners and managers building a safer rental community across the Philippines.
                     </p>
                 </motion.div>
 
@@ -48,19 +49,21 @@ export function CTASection() {
                     transition={{ duration: 0.7, delay: 0.2 }}
                     className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center"
                 >
-                    <Button
-                        size="lg"
-                        className="bg-gradient-to-r from-secondary to-accent cursor-pointer text-accent-foreground font-semibold h-12 px-8 text-base rounded-xl hover:opacity-90 transition-opacity duration-200"
-                    >
-                        Get Started Free
-                        <ArrowRight className="ml-2" size={18} />
-                    </Button>
+                    <Link href="/report">
+                        <Button
+                            size="lg"
+                            className="bg-gradient-to-r from-secondary to-accent cursor-pointer text-accent-foreground font-semibold h-12 px-8 text-base rounded-xl hover:opacity-90 transition-opacity duration-200"
+                        >
+                            Report an Incident
+                            <ArrowRight className="ml-2" size={18} />
+                        </Button>
+                    </Link>
                     <Button
                         size="lg"
                         variant="outline"
                         className="border-white/10 text-white cursor-pointer hover:bg-white/10 hover:border-white/30 h-10 px-6 text-sm sm:h-12 sm:px-8 sm:text-base rounded-xl bg-transparent transition-all duration-300 backdrop-blur-sm"
                     >
-                        Schedule a Demo
+                        Learn More
                     </Button>
                 </motion.div>
 
@@ -71,7 +74,7 @@ export function CTASection() {
                     transition={{ duration: 0.7, delay: 0.4 }}
                     className="mt-12 text-xs sm:text-sm text-muted-foreground/60"
                 >
-                    No credit card required. Full access to our platform for 14 days.
+                    Help build a transparent rental community. Your reports help protect fellow property owners.
                 </motion.p>
             </div>
         </section>
