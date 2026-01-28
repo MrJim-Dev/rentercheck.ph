@@ -42,7 +42,8 @@ export async function updateSession(request: NextRequest) {
   // Public pages - accessible without login
   const isPublicPage = request.nextUrl.pathname === '/' ||
                        request.nextUrl.pathname.startsWith('/search') ||
-                       request.nextUrl.pathname.startsWith('/renter')
+                       request.nextUrl.pathname.startsWith('/renter') ||
+                       request.nextUrl.pathname.startsWith('/legal')
   
   // Pages that handle their own auth (redirect to login if not authenticated)
   const isSelfAuthPage = request.nextUrl.pathname.startsWith('/report') ||

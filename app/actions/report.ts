@@ -85,24 +85,28 @@ export async function submitIncidentReport(
         const { data: { user }, error: authError } = await supabase.auth.getUser()
 
         if (authError || !user) {
-            return { success: false, error: "You must be logged in to submit a report" }
+            return { success: false, error: "You must be logged in to submit a report. Please sign in or create an account to continue." }
         }
 
         // Validate required fields
         if (!formData.fullName.trim()) {
-            return { success: false, error: "Full name is required" }
+            return { success: false, error: "Renter's full name is required. Please provide the name of the person you're reporting." }
         }
 
         if (!formData.phone && !formData.email && !formData.facebookLink) {
-            return { success: false, error: "At least one identifier (phone, email, or Facebook link) is required" }
+            return { success: false, error: "At least one contact method is required to identify the renter. Please provide a phone number, email address, or Facebook profile link." }
         }
 
         if (!formData.incidentType || !formData.incidentDate || !formData.summary.trim()) {
-            return { success: false, error: "Incident type, date, and summary are required" }
+            const missing = [];
+            if (!formData.incidentType) missing.push("incident type");
+            if (!formData.incidentDate) missing.push("incident date");
+            if (!formData.summary.trim()) missing.push("incident summary");
+            return { success: false, error: `Missing required information: ${missing.join(", ")}. Please complete all required fields.` }
         }
 
         if (!formData.confirmTruth || !formData.confirmBan) {
-            return { success: false, error: "You must confirm both acknowledgements" }
+            return { success: false, error: "You must confirm that your report is truthful and acknowledge the consequences of submitting false information." }
         }
 
         // =================================================================
@@ -112,9 +116,10 @@ export async function submitIncidentReport(
         // Uses the centralized gateAction helper which handles caching & atomic deduction
         try {
             await gateAction(CreditAction.REPORT_CREATION, user.id)
-        } catch (error: any) {
-            if (error.message === 'INSUFFICIENT_CREDITS' || error.message?.includes('Insufficient credits')) {
-                return { success: false, error: "Insufficient credits. Refill for free to continue." }
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage === 'INSUFFICIENT_CREDITS' || errorMessage.includes('Insufficient credits')) {
+                return { success: false, error: "You don't have enough credits to submit this report. Credits refill for free daily. Please check your credit balance and try again later or contact support if you believe this is an error." }
             }
             throw error // Re-throw other errors to be caught below
         }
@@ -180,7 +185,7 @@ export async function submitIncidentReport(
 
         if (reportError) {
             console.error("Error creating report:", reportError)
-            return { success: false, error: "Failed to create report. Please try again." }
+            return { success: false, error: "Failed to save your report to the database. This may be due to a technical issue. Please try again in a few moments or contact support if the problem persists." }
         }
 
         // Create report identifiers for matching (all phones, emails, facebooks)
@@ -262,7 +267,7 @@ export async function submitIncidentReport(
         return { success: true, data: { reportId: report.id } }
     } catch (error) {
         console.error("Unexpected error in submitIncidentReport:", error)
-        return { success: false, error: "An unexpected error occurred" }
+        return { success: false, error: "An unexpected error occurred while processing your report. Please try again. If the issue continues, please contact support with details about what you were trying to do." }
     }
 }
 
@@ -281,7 +286,7 @@ export async function uploadEvidence(
         const { data: { user }, error: authError } = await supabase.auth.getUser()
 
         if (authError || !user) {
-            return { success: false, error: "You must be logged in to upload evidence" }
+            return { success: false, error: "You must be logged in to upload evidence files. Please refresh the page and try again." }
         }
 
         // Verify the report belongs to this user
