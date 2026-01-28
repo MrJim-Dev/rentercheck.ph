@@ -200,10 +200,10 @@ const reportFormSchema = z.object({
         message: "You must acknowledge the consequences of false reports"
     }),
 }).refine((data) => {
-    // Custom validation: at least one identifier required
-    return data.phones.length > 0 || data.emails.length > 0 || data.facebooks.length > 0;
+    // Custom validation: at least one strong identifier required
+    return data.phones.length > 0 || data.emails.length > 0 || data.facebooks.length > 0 || (data.renterBirthdate && data.renterBirthdate.trim().length > 0);
 }, {
-    message: "At least one contact method (phone, email, or Facebook) is required to identify the renter",
+    message: "At least one identifier (phone, email, Facebook, or date of birth) is required to identify the renter",
     path: ["phones"]
 });
 
@@ -269,18 +269,17 @@ export function ReportForm() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const formRef = useRef<HTMLFormElement>(null)
 
-    // Count optional strong identifiers filled
+    // Count optional strong identifiers filled (excluding DOB which is now a primary identifier)
     const strongIdentifiersCount = [
         renterAddress?.trim(),
         renterCity?.trim(),
-        renterBirthdate,
         proofFiles.some(f => f.type === "renter_id"),
         proofFiles.some(f => f.type === "renter_photo"),
         aliases.length > 0,
     ].filter(Boolean).length
 
-    // Count total identifiers
-    const totalIdentifiersCount = phones.length + emails.length + facebooks.length
+    // Count total identifiers (including date of birth as a strong identifier)
+    const totalIdentifiersCount = phones.length + emails.length + facebooks.length + (renterBirthdate ? 1 : 0)
 
     // Check if user has provided at least one identifier
     const hasIdentifier = totalIdentifiersCount > 0;
@@ -708,6 +707,30 @@ export function ReportForm() {
                                 )}
                             />
                         </div>
+
+                        {/* Date of Birth */}
+                        <div className="space-y-2">
+                            <Label htmlFor="renterBirthdate" className="text-sm flex items-center gap-2">
+                                <Calendar className="w-3.5 h-3.5 text-violet-400" />
+                                Date of Birth
+                                
+                            </Label>
+                            <Controller
+                                name="renterBirthdate"
+                                control={control}
+                                render={({ field }) => (
+                                    <Input
+                                        {...field}
+                                        id="renterBirthdate"
+                                        type="date"
+                                        className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
+                                    />
+                                )}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Can be used if no phone, email, or Facebook is available
+                            </p>
+                        </div>
                     </div>
 
                     {/* Aliases section (collapsible) */}
@@ -755,7 +778,7 @@ export function ReportForm() {
                 {fullName && !hasIdentifier && (
                     <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
-                        <span>Please add at least one identifier (phone, email, or Facebook link)</span>
+                        <span>Please add at least one identifier (phone, email, Facebook, or date of birth)</span>
                     </div>
                 )}
 
@@ -796,27 +819,6 @@ export function ReportForm() {
                     {showMoreDetails && (
                         <div className="p-4 pt-0 space-y-4 animate-in slide-in-from-top-2 duration-200">
                             <div className="h-px bg-border mb-4" />
-
-                            {/* Date of Birth */}
-                            <div className="space-y-2">
-                                <Label htmlFor="renterBirthdate" className="text-sm flex items-center gap-2">
-                                    <Calendar className="w-3.5 h-3.5 text-violet-400" />
-                                    Renter&apos;s Date of Birth
-                                    <span className="text-xs text-muted-foreground font-normal">(if known)</span>
-                                </Label>
-                                <Controller
-                                    name="renterBirthdate"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Input
-                                            {...field}
-                                            id="renterBirthdate"
-                                            type="date"
-                                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
-                                        />
-                                    )}
-                                />
-                            </div>
 
                             {/* Renter's Address */}
                             <div className="space-y-2">
