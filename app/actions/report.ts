@@ -1036,32 +1036,37 @@ export async function updateIncidentReport(
         const allEmails = [formData.email, ...(formData.additionalEmails || [])].filter(Boolean)
         const allFacebooks = [formData.facebookLink, ...(formData.additionalFacebooks || [])].filter(Boolean)
 
+        // Get existing full arrays for comparison
+        const existingPhones = [existingReport.reported_phone, ...(existingReport.reported_phones as string[] || [])].filter(Boolean)
+        const existingEmails = [existingReport.reported_email, ...(existingReport.reported_emails as string[] || [])].filter(Boolean)
+        const existingFacebooks = [existingReport.reported_facebook, ...(existingReport.reported_facebooks as string[] || [])].filter(Boolean)
+
         // Check phone array
-        if (hasChanged(allPhones, existingReport.reported_phones || [])) {
+        if (hasChanged(allPhones, existingPhones)) {
             updateData.reported_phone = allPhones[0] || null
             updateData.reported_phones = allPhones.slice(1) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_phones"]
             changes.reported_phones = {
-                before: [existingReport.reported_phone, ...(existingReport.reported_phones as string[] || [])].filter(Boolean),
+                before: existingPhones,
                 after: allPhones,
             }
         }
 
         // Check email array
-        if (hasChanged(allEmails, existingReport.reported_emails || [])) {
+        if (hasChanged(allEmails, existingEmails)) {
             updateData.reported_email = allEmails[0] || null
             updateData.reported_emails = allEmails.slice(1) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_emails"]
             changes.reported_emails = {
-                before: [existingReport.reported_email, ...(existingReport.reported_emails as string[] || [])].filter(Boolean),
+                before: existingEmails,
                 after: allEmails,
             }
         }
 
         // Check facebook array
-        if (hasChanged(allFacebooks, existingReport.reported_facebooks || [])) {
+        if (hasChanged(allFacebooks, existingFacebooks)) {
             updateData.reported_facebook = allFacebooks[0] || null
             updateData.reported_facebooks = allFacebooks.slice(1) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_facebooks"]
             changes.reported_facebooks = {
-                before: [existingReport.reported_facebook, ...(existingReport.reported_facebooks as string[] || [])].filter(Boolean),
+                before: existingFacebooks,
                 after: allFacebooks,
             }
         }
@@ -1092,17 +1097,17 @@ export async function updateIncidentReport(
         }
 
         // Create edit history record
-        const editorType = isAdmin ? "ADMIN" : "REPORTER"
-        const editReason = isAdmin ? "Admin updated report details" : "Reporter updated report details"
+        const changeNote = isAdmin 
+            ? "Admin updated report details via admin panel" 
+            : "Reporter updated report details via edit form"
         
         const { error: historyError } = await supabase
             .from("report_edits")
             .insert({
                 report_id: reportId,
-                editor_id: user.id,
-                editor_type: editorType,
+                edited_by: user.id,
                 changes,
-                edit_reason: editReason,
+                change_note: changeNote,
             })
 
         if (historyError) {

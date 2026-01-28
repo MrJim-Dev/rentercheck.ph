@@ -1,8 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
 import { Clock, User, Loader2, FileEdit } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -10,7 +9,7 @@ interface ReportEdit {
     id: string
     edited_at: string
     edited_by_email: string | null
-    changes: Record<string, { old: any; new: any }>
+    changes: Record<string, { old: unknown; new: unknown }>
     change_note: string
 }
 
@@ -22,21 +21,42 @@ interface ReportHistoryDialogProps {
 }
 
 const FIELD_LABELS: Record<string, string> = {
+    // Renter Identity
     reported_full_name: "Full Name",
-    reported_phone: "Phone",
-    reported_email: "Email",
-    reported_facebook: "Facebook",
+    reported_phone: "Phone Number",
+    reported_email: "Email Address",
+    reported_facebook: "Facebook Profile",
     reported_address: "Address",
+    reported_city: "City",
     reported_date_of_birth: "Date of Birth",
+    
+    // Multiple Identifiers (arrays)
+    reported_phones: "Phone Numbers",
+    reported_emails: "Email Addresses",
+    reported_facebooks: "Facebook Profiles",
+    reported_aliases: "Aliases / Alternative Names",
+    
+    // Rental Details
+    rental_category: "Rental Business Type",
+    rental_item_description: "Rental Item Description",
+    
+    // Incident Details
+    incident_type: "Incident Type",
     incident_date: "Incident Date",
     incident_end_date: "End Date",
-    incident_place: "Place",
-    incident_city: "City",
-    incident_region: "Region",
-    amount_involved: "Amount",
-    summary: "Summary",
+    incident_place: "Incident Location",
+    incident_city: "Incident City",
+    incident_region: "Incident Region",
+    amount_involved: "Amount Involved",
+    summary: "Incident Summary",
+    
+    // Admin Fields
     admin_notes: "Admin Notes",
     status: "Status",
+    rejection_reason: "Rejection Reason",
+    
+    // Review Status
+    credibility_score: "Credibility Score",
 }
 
 export function ReportHistoryDialog({
@@ -48,13 +68,7 @@ export function ReportHistoryDialog({
     const [history, setHistory] = useState<ReportEdit[]>([])
     const [loading, setLoading] = useState(false)
 
-    useEffect(() => {
-        if (open && reportId) {
-            loadHistory()
-        }
-    }, [open, reportId])
-
-    const loadHistory = async () => {
+    const loadHistory = useCallback(async () => {
         setLoading(true)
         try {
             const data = await onLoadHistory(reportId)
@@ -64,9 +78,15 @@ export function ReportHistoryDialog({
         } finally {
             setLoading(false)
         }
-    }
+    }, [reportId, onLoadHistory])
 
-    const formatValue = (value: any) => {
+    useEffect(() => {
+        if (open && reportId) {
+            loadHistory()
+        }
+    }, [open, reportId, loadHistory])
+
+    const formatValue = (value: unknown) => {
         if (value === null || value === undefined || value === "") {
             return <span className="text-muted-foreground italic">Empty</span>
         }
@@ -75,6 +95,18 @@ export function ReportHistoryDialog({
         }
         if (typeof value === "number") {
             return value.toLocaleString()
+        }
+        if (Array.isArray(value)) {
+            if (value.length === 0) {
+                return <span className="text-muted-foreground italic">None</span>
+            }
+            return (
+                <div className="space-y-1">
+                    {value.map((item, idx) => (
+                        <div key={idx} className="text-xs">• {String(item)}</div>
+                    ))}
+                </div>
+            )
         }
         return String(value)
     }
@@ -101,7 +133,7 @@ export function ReportHistoryDialog({
                 ) : (
                     <ScrollArea className="max-h-[calc(90vh-120px)]">
                         <div className="space-y-4 pr-4">
-                            {history.map((edit, index) => (
+                            {history.map((edit) => (
                                 <div key={edit.id} className="border rounded-lg p-4 space-y-3">
                                     {/* Header */}
                                     <div className="flex items-start justify-between gap-4">
