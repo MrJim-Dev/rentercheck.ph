@@ -523,13 +523,27 @@ export async function getReportById(reportId: string): Promise<ActionResult<{
             return { success: false, error: "You must be logged in" }
         }
 
-        // Get the report (verify ownership)
-        const { data: report, error: reportError } = await supabase
+        // Check if user is an admin
+        const { data: adminUser } = await supabase
+            .from("admin_users")
+            .select("role, is_active")
+            .eq("id", user.id)
+            .single()
+
+        const isAdmin = adminUser?.is_active === true
+
+        // Get the report (verify ownership or admin access)
+        let reportQuery = supabase
             .from("incident_reports")
             .select("*")
             .eq("id", reportId)
-            .eq("reporter_id", user.id)
-            .single()
+
+        // If not admin, restrict to user's own reports
+        if (!isAdmin) {
+            reportQuery = reportQuery.eq("reporter_id", user.id)
+        }
+
+        const { data: report, error: reportError } = await reportQuery.single()
 
         if (reportError || !report) {
             return { success: false, error: "Report not found or access denied" }
@@ -931,3 +945,183 @@ export async function deleteAmendment(amendmentId: string): Promise<ActionResult
         return { success: false, error: "An unexpected error occurred" }
     }
 }
+
+/**
+ * Update an existing incident report (edit mode)
+ * Tracks changes in report_edits table
+ */
+export async function updateIncidentReport(
+    reportId: string,
+    formData: ReportFormData
+): Promise<ActionResult<{ reportId: string }>> {
+    try {
+        const supabase = await createClient()
+
+        // Get authenticated user
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+        if (authError || !user) {
+            return { success: false, error: "You must be logged in to update a report" }
+        }
+
+        // Check if user is an admin
+        const { data: adminUser } = await supabase
+            .from("admin_users")
+            .select("role, is_active")
+            .eq("id", user.id)
+            .single()
+
+        const isAdmin = adminUser?.is_active === true
+
+        // Get the report (verify ownership or admin access)
+        let reportQuery = supabase
+            .from("incident_reports")
+            .select("*")
+            .eq("id", reportId)
+
+        // If not admin, restrict to user's own reports
+        if (!isAdmin) {
+            reportQuery = reportQuery.eq("reporter_id", user.id)
+        }
+
+        const { data: existingReport, error: reportError } = await reportQuery.single()
+
+        if (reportError || !existingReport) {
+            return { success: false, error: "Report not found or access denied" }
+        }
+
+        // Prepare update data
+        const updateData: Partial<Database["public"]["Tables"]["incident_reports"]["Row"]> = {}
+        const changes: Record<string, { before: unknown; after: unknown }> = {}
+
+        // Helper to compare values (handles arrays, objects, and primitives)
+        const hasChanged = (newVal: unknown, oldVal: unknown): boolean => {
+            if (Array.isArray(newVal) && Array.isArray(oldVal)) {
+                return JSON.stringify(newVal.sort()) !== JSON.stringify(oldVal.sort())
+            }
+            if (typeof newVal === 'object' && typeof oldVal === 'object' && newVal !== null && oldVal !== null) {
+                return JSON.stringify(newVal) !== JSON.stringify(oldVal)
+            }
+            return newVal !== oldVal
+        }
+
+        // Track simple field updates
+        const fieldUpdates: Record<string, unknown> = {
+            reported_full_name: formData.fullName,
+            reported_address: formData.renterAddress,
+            reported_city: formData.renterCity,
+            reported_date_of_birth: formData.renterBirthdate,
+            rental_category: formData.rentalCategory,
+            rental_item_description: formData.rentalItemDescription,
+            incident_type: formData.incidentType,
+            incident_date: formData.incidentDate,
+            amount_involved: formData.amountInvolved,
+            incident_region: formData.incidentRegion,
+            incident_city: formData.incidentCity,
+            incident_place: formData.incidentPlace,
+            summary: formData.summary,
+        }
+
+        // Check simple fields
+        for (const [dbField, newValue] of Object.entries(fieldUpdates)) {
+            const oldValue = (existingReport as Record<string, unknown>)[dbField]
+            if (hasChanged(newValue, oldValue)) {
+                (updateData as Record<string, unknown>)[dbField] = newValue
+                changes[dbField] = { before: oldValue, after: newValue }
+            }
+        }
+
+        // Handle array fields - combine primary + additional into full arrays
+        const allPhones = [formData.phone, ...(formData.additionalPhones || [])].filter(Boolean)
+        const allEmails = [formData.email, ...(formData.additionalEmails || [])].filter(Boolean)
+        const allFacebooks = [formData.facebookLink, ...(formData.additionalFacebooks || [])].filter(Boolean)
+
+        // Check phone array
+        if (hasChanged(allPhones, existingReport.reported_phones || [])) {
+            updateData.reported_phone = allPhones[0] || null
+            updateData.reported_phones = allPhones.slice(1) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_phones"]
+            changes.reported_phones = {
+                before: [existingReport.reported_phone, ...(existingReport.reported_phones as string[] || [])].filter(Boolean),
+                after: allPhones,
+            }
+        }
+
+        // Check email array
+        if (hasChanged(allEmails, existingReport.reported_emails || [])) {
+            updateData.reported_email = allEmails[0] || null
+            updateData.reported_emails = allEmails.slice(1) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_emails"]
+            changes.reported_emails = {
+                before: [existingReport.reported_email, ...(existingReport.reported_emails as string[] || [])].filter(Boolean),
+                after: allEmails,
+            }
+        }
+
+        // Check facebook array
+        if (hasChanged(allFacebooks, existingReport.reported_facebooks || [])) {
+            updateData.reported_facebook = allFacebooks[0] || null
+            updateData.reported_facebooks = allFacebooks.slice(1) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_facebooks"]
+            changes.reported_facebooks = {
+                before: [existingReport.reported_facebook, ...(existingReport.reported_facebooks as string[] || [])].filter(Boolean),
+                after: allFacebooks,
+            }
+        }
+
+        // Check aliases
+        if (hasChanged(formData.aliases || [], existingReport.reported_aliases || [])) {
+            updateData.reported_aliases = (formData.aliases || []) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_aliases"]
+            changes.reported_aliases = {
+                before: existingReport.reported_aliases,
+                after: formData.aliases,
+            }
+        }
+
+        // If nothing changed, no need to update
+        if (Object.keys(updateData).length === 0) {
+            return { success: true, data: { reportId } }
+        }
+
+        // Update the report
+        const { error: updateError } = await supabase
+            .from("incident_reports")
+            .update(updateData)
+            .eq("id", reportId)
+
+        if (updateError) {
+            console.error("Error updating report:", updateError)
+            return { success: false, error: "Failed to update report" }
+        }
+
+        // Create edit history record
+        const editorType = isAdmin ? "ADMIN" : "REPORTER"
+        const editReason = isAdmin ? "Admin updated report details" : "Reporter updated report details"
+        
+        const { error: historyError } = await supabase
+            .from("report_edits")
+            .insert({
+                report_id: reportId,
+                editor_id: user.id,
+                editor_type: editorType,
+                changes,
+                edit_reason: editReason,
+            })
+
+        if (historyError) {
+            console.error("Error creating edit history:", historyError)
+            // Don't fail the update if history fails
+        }
+
+        // Revalidate paths
+        revalidatePath(`/my-reports/${reportId}`)
+        revalidatePath(`/report?id=${reportId}`)
+        revalidatePath("/admin")
+
+        return {
+            success: true,
+            data: { reportId },
+        }
+    } catch (error) {
+        console.error("Unexpected error in updateIncidentReport:", error)
+        return { success: false, error: "An unexpected error occurred" }
+    }
+}
+

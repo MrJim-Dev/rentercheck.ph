@@ -7,9 +7,14 @@ import { AppHeader } from "@/components/shared/app-header"
 import { useAuth } from "@/lib/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
+import { useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 
-export default function ReportPage() {
+function ReportPageContent() {
     const { user, loading } = useAuth();
+    const searchParams = useSearchParams();
+    const reportId = searchParams.get('id');
+    const isEditMode = !!reportId;
 
     return (
         <div className="min-h-screen bg-background">
@@ -22,13 +27,16 @@ export default function ReportPage() {
                     <div className="text-center mb-10">
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-destructive/10 border border-destructive/20 text-destructive text-sm font-medium mb-4">
                             <FileWarning className="w-4 h-4" />
-                            File an Incident Report
+                            {isEditMode ? "Edit Incident Report" : "File an Incident Report"}
                         </div>
                         <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">
-                            Report a Renter Incident
+                            {isEditMode ? "Update Your Report" : "Report a Renter Incident"}
                         </h1>
                         <p className="text-muted-foreground max-w-xl mx-auto">
-                            Protect fellow rental businesses by reporting problematic tenant behavior. Document unpaid rent, property damage, lease violations, and other incidents. All reports are verified by our admin team to ensure accuracy and prevent abuse.
+                            {isEditMode 
+                                ? "Update the details of your report. Changes will be tracked and reviewed by our admin team."
+                                : "Protect fellow rental businesses by reporting problematic tenant behavior. Document unpaid rent, property damage, lease violations, and other incidents. All reports are verified by our admin team to ensure accuracy and prevent abuse."
+                            }
                         </p>
                     </div>
 
@@ -109,7 +117,7 @@ export default function ReportPage() {
                             </div>
                         </div>
                     ) : (
-                        <ReportForm />
+<ReportForm reportId={reportId || undefined} />
                     )}
 
                     {/* Footer disclaimer */}
@@ -133,5 +141,13 @@ export default function ReportPage() {
                 <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-gradient-to-tl from-secondary/5 to-transparent rounded-full blur-3xl" />
             </div>
         </div>
+    )
+}
+
+export default function ReportPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin" /></div>}>
+            <ReportPageContent />
+        </Suspense>
     )
 }

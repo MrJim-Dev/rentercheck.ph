@@ -1,6 +1,6 @@
 "use client"
 
-import { submitIncidentReport, uploadEvidence, type ReportFormData } from "@/app/actions/report"
+import { submitIncidentReport, uploadEvidence, updateIncidentReport, getReportById, getEvidenceUrl, type ReportFormData } from "@/app/actions/report"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -47,9 +47,11 @@ import {
     Zap,
 } from "lucide-react"
 import Link from "next/link"
-import { useCallback, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { z } from "zod"
+import { ReportAmendments } from "./report-amendments"
 
 // Incident types - covering various rental-related issues
 const INCIDENT_TYPES = [
@@ -209,12 +211,16 @@ const reportFormSchema = z.object({
 
 type ReportFormSchema = z.infer<typeof reportFormSchema>
 
-export function ReportForm() {
+export function ReportForm({ reportId: initialReportId }: { reportId?: string }) {
+    const isEditMode = !!initialReportId
+    const router = useRouter()
+
     // React Hook Form with Zod validation
     const {
         control,
         handleSubmit,
         watch,
+        reset,
         formState: { errors, isSubmitting: formIsSubmitting },
         setError,
         clearErrors,
@@ -244,6 +250,101 @@ export function ReportForm() {
         mode: "onTouched", // Validate on blur/touch
     });
 
+    // UI state
+    const [isLoadingReport, setIsLoadingReport] = useState(false)
+    const [showMoreDetails, setShowMoreDetails] = useState(false)
+    const [showAliases, setShowAliases] = useState(false)
+    const [proofFiles, setProofFiles] = useState<ProofFile[]>([])
+    const [existingEvidence, setExistingEvidence] = useState<Array<{ id: string; storage_path: string; evidence_type: string; url?: string }>>([])
+    const [isDragging, setIsDragging] = useState(false)
+    const [activeProofType, setActiveProofType] = useState<ProofType>("agreement")
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isSubmitted, setIsSubmitted] = useState(false)
+    const [submitError, setSubmitError] = useState<string | null>(null)
+    const [reportId, setReportId] = useState<string | null>(initialReportId || null)
+    
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    const formRef = useRef<HTMLFormElement>(null)
+
+    // Load report data in edit mode
+    useEffect(() => {
+        if (isEditMode && initialReportId) {
+            setIsLoadingReport(true)
+            getReportById(initialReportId)
+                .then((result) => {
+                    if (result.success && result.data) {
+                        const report = result.data.report
+                        
+                        // Combine primary identifiers with additional ones
+                        const allPhones = [report.reported_phone, ...(report.reported_phones as string[] || [])].filter(Boolean) as string[]
+                        const allEmails = [report.reported_email, ...(report.reported_emails as string[] || [])].filter(Boolean) as string[]
+                        const allFacebooks = [report.reported_facebook, ...(report.reported_facebooks as string[] || [])].filter(Boolean) as string[]
+
+                        // Reset form with loaded data
+                        reset({
+                            fullName: report.reported_full_name || "",
+                            phones: allPhones,
+                            emails: allEmails,
+                            facebooks: allFacebooks,
+                            aliases: (report.reported_aliases as string[] || []),
+                            renterAddress: report.reported_address || "",
+                            renterCity: report.reported_city || "",
+                            renterBirthdate: report.reported_date_of_birth || "",
+                            rentalCategory: report.rental_category || "",
+                            rentalItemDescription: report.rental_item_description || "",
+                            incidentType: report.incident_type || "",
+                            incidentDate: report.incident_date || "",
+                            amountInvolved: report.amount_involved?.toString() || "",
+                            incidentRegion: report.incident_region || "",
+                            incidentCity: report.incident_city || "",
+                            incidentPlace: report.incident_place || "",
+                            summary: report.summary || "",
+                            confirmTruth: true, // Already confirmed when created
+                            confirmBan: true, // Already confirmed when created
+                        })
+
+                        // Show optional fields if they have data
+                        if (report.reported_aliases && (report.reported_aliases as string[]).length > 0) {
+                            setShowAliases(true)
+                        }
+                        if (report.reported_address || report.reported_city) {
+                            setShowMoreDetails(true)
+                        }
+
+                        // Load existing evidence
+                        const evidence = result.data.evidence || []
+                        setExistingEvidence(evidence.map(ev => ({
+                            id: ev.id,
+                            storage_path: ev.storage_path,
+                            evidence_type: ev.evidence_type,
+                        })))
+
+                        // Load URLs for existing evidence
+                        Promise.all(
+                            evidence.map(async (ev) => {
+                                const urlResult = await getEvidenceUrl(ev.storage_path)
+                                return {
+                                    id: ev.id,
+                                    storage_path: ev.storage_path,
+                                    evidence_type: ev.evidence_type,
+                                    url: urlResult.success ? urlResult.data?.url : undefined,
+                                }
+                            })
+                        ).then(evidenceWithUrls => {
+                            setExistingEvidence(evidenceWithUrls)
+                        })
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error loading report:", error)
+                    setSubmitError("Failed to load report data")
+                })
+                .finally(() => {
+                    setIsLoadingReport(false)
+                })
+        }
+    }, [isEditMode, initialReportId, reset, setIsLoadingReport, setShowAliases, setShowMoreDetails, setSubmitError])
+
     // Watch form values for dynamic UI
     const phones = watch("phones");
     const emails = watch("emails");
@@ -254,20 +355,6 @@ export function ReportForm() {
     const renterBirthdate = watch("renterBirthdate");
     const summary = watch("summary");
     const fullName = watch("fullName");
-
-    // UI state
-    const [showMoreDetails, setShowMoreDetails] = useState(false)
-    const [showAliases, setShowAliases] = useState(false)
-    const [proofFiles, setProofFiles] = useState<ProofFile[]>([])
-    const [isDragging, setIsDragging] = useState(false)
-    const [activeProofType, setActiveProofType] = useState<ProofType>("agreement")
-    const [isSubmitting, setIsSubmitting] = useState(false)
-    const [isSubmitted, setIsSubmitted] = useState(false)
-    const [submitError, setSubmitError] = useState<string | null>(null)
-    const [reportId, setReportId] = useState<string | null>(null)
-    
-    const fileInputRef = useRef<HTMLInputElement>(null)
-    const formRef = useRef<HTMLFormElement>(null)
 
     // Count optional strong identifiers filled (excluding DOB which is now a primary identifier)
     const strongIdentifiersCount = [
@@ -403,8 +490,8 @@ export function ReportForm() {
     }, []);
 
     const onSubmit = async (data: ReportFormSchema) => {
-        // Additional validation for proof files
-        if (proofFiles.length === 0) {
+        // In edit mode, proof files are optional (already have evidence)
+        if (!isEditMode && proofFiles.length === 0) {
             setError("root", {
                 type: "manual",
                 message: "At least one proof/evidence file is required to submit your report. Please upload photos, documents, or screenshots related to the incident."
@@ -456,38 +543,63 @@ export function ReportForm() {
                 confirmBan: data.confirmBan,
             }
 
-            // Submit the report
-            const result = await submitIncidentReport(formData)
+            let newReportId: string
 
-            if (!result.success || !result.data) {
-                setSubmitError(result.error || "Failed to submit report. Please try again.")
-                setIsSubmitting(false);
-                scrollToError();
-                return
+            if (isEditMode && reportId) {
+                // Update existing report
+                const result = await updateIncidentReport(reportId, formData)
+
+                if (!result.success || !result.data) {
+                    setSubmitError(result.error || "Failed to update report. Please try again.")
+                    setIsSubmitting(false);
+                    scrollToError();
+                    return
+                }
+
+                newReportId = result.data.reportId
+            } else {
+                // Submit new report
+                const result = await submitIncidentReport(formData)
+
+                if (!result.success || !result.data) {
+                    setSubmitError(result.error || "Failed to submit report. Please try again.")
+                    setIsSubmitting(false);
+                    scrollToError();
+                    return
+                }
+
+                newReportId = result.data.reportId
+                setReportId(newReportId)
             }
 
-            const newReportId = result.data.reportId
-            setReportId(newReportId)
+            // Upload new evidence files if any
+            if (proofFiles.length > 0) {
+                const uploadPromises = proofFiles.map(async (proofFile) => {
+                    const evidenceType = proofTypeToEvidenceType(proofFile.type)
+                    return uploadEvidence(newReportId, evidenceType, proofFile.file)
+                })
 
-            // Upload evidence files
-            const uploadPromises = proofFiles.map(async (proofFile) => {
-                const evidenceType = proofTypeToEvidenceType(proofFile.type)
-                return uploadEvidence(newReportId, evidenceType, proofFile.file)
-            })
+                const uploadResults = await Promise.all(uploadPromises)
 
-            const uploadResults = await Promise.all(uploadPromises)
-
-            // Check if any uploads failed
-            const failedUploads = uploadResults.filter(r => !r.success)
-            if (failedUploads.length > 0) {
-                console.warn(`${failedUploads.length} evidence files failed to upload`)
-                // Continue anyway - the report is submitted
+                // Check if any uploads failed
+                const failedUploads = uploadResults.filter(r => !r.success)
+                if (failedUploads.length > 0) {
+                    console.warn(`${failedUploads.length} evidence files failed to upload`)
+                    // Continue anyway - the report is submitted/updated
+                }
             }
 
             setIsSubmitted(true)
             
-            // Scroll to top to show success message
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // In edit mode, redirect back to previous page after a short delay
+            if (isEditMode) {
+                setTimeout(() => {
+                    router.back()
+                }, 1000)
+            } else {
+                // Scroll to top to show success message for new reports
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+            }
         } catch (error) {
             console.error("Error submitting report:", error)
             setSubmitError("An unexpected error occurred while submitting your report. Please try again. If the problem persists, contact support.")
@@ -499,6 +611,27 @@ export function ReportForm() {
 
     // Success state
     if (isSubmitted) {
+        // For edit mode, show brief success message before redirect
+        if (isEditMode) {
+            return (
+                <div className="min-h-[60vh] flex items-center justify-center">
+                    <div className="text-center max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="relative mb-6">
+                            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 flex items-center justify-center border border-emerald-500/30">
+                                <CheckCircle2 className="w-10 h-10 text-emerald-400" />
+                            </div>
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">Report Updated!</h2>
+                        <p className="text-muted-foreground mb-4">
+                            Redirecting you back...
+                        </p>
+                        <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" />
+                    </div>
+                </div>
+            )
+        }
+
+        // For new reports, show full success message
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="text-center max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -509,9 +642,13 @@ export function ReportForm() {
                         <div className="absolute inset-0 w-20 h-20 mx-auto rounded-full bg-emerald-500/20 animate-ping" />
                     </div>
 
-                    <h2 className="text-2xl font-bold mb-2">Report Submitted!</h2>
+                    <h2 className="text-2xl font-bold mb-2">
+                        {isEditMode ? "Report Updated!" : "Report Submitted!"}
+                    </h2>
                     <p className="text-muted-foreground mb-2">
-                        Your incident report is now under review.
+                        {isEditMode 
+                            ? "Your changes have been saved and are under review."
+                            : "Your incident report is now under review."}
                     </p>
                     {reportId && (
                         <p className="text-sm text-muted-foreground/80 mb-6">
@@ -523,9 +660,13 @@ export function ReportForm() {
                         <div className="flex items-start gap-3">
                             <Clock className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
                             <div>
-                                <p className="font-medium text-sm mb-1">Under Review</p>
+                                <p className="font-medium text-sm mb-1">
+                                    {isEditMode ? "Changes Under Review" : "Under Review"}
+                                </p>
                                 <p className="text-xs text-muted-foreground">
-                                    Our admin team will review your report within 24-48 hours
+                                    {isEditMode
+                                        ? "Our admin team will review your updates within 24-48 hours"
+                                        : "Our admin team will review your report within 24-48 hours"}
                                 </p>
                             </div>
                         </div>
@@ -535,7 +676,7 @@ export function ReportForm() {
                             <div>
                                 <p className="font-medium text-sm mb-1">Email Notification</p>
                                 <p className="text-xs text-muted-foreground">
-                                    You&apos;ll receive an email when your report is approved or if we need more information
+                                    You&apos;ll receive an email when your {isEditMode ? "changes are" : "report is"} approved or if we need more information
                                 </p>
                             </div>
                         </div>
@@ -564,8 +705,26 @@ export function ReportForm() {
         )
     }
 
+    // Loading state when fetching report in edit mode
+    if (isLoadingReport) {
+        return (
+            <div className="min-h-[60vh] flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+                    <p className="text-muted-foreground">Loading report data...</p>
+                </div>
+            </div>
+        )
+    }
+
     return (
-        <form ref={formRef} onSubmit={handleSubmit(onSubmit, () => scrollToError())} className="space-y-6 pb-8">
+        <div className="space-y-6">
+            {/* Amendments Section - Only in Edit Mode */}
+            {isEditMode && reportId && (
+                <ReportAmendments reportId={reportId} />
+            )}
+
+            <form ref={formRef} onSubmit={handleSubmit(onSubmit, () => scrollToError())} className="space-y-6 pb-8">
             {/* Global errors */}
             {(errors.root || submitError) && (
                 <div data-error="true" className="p-4 rounded-lg bg-rose-500/10 border-2 border-rose-500/30 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
@@ -1276,11 +1435,49 @@ export function ReportForm() {
                     </div>
                 )}
 
+                {/* Existing evidence from database */}
+                {isEditMode && existingEvidence.length > 0 && (
+                    <div className="space-y-3">
+                        <p className="text-sm font-medium text-muted-foreground">
+                            Existing Evidence ({existingEvidence.length} file{existingEvidence.length !== 1 ? "s" : ""})
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {existingEvidence.map((ev) => (
+                                <div
+                                    key={ev.id}
+                                    className="relative group rounded-lg overflow-hidden border bg-muted/20 aspect-square"
+                                >
+                                    {ev.url && ev.evidence_type.includes("PHOTO") ? (
+                                        <img
+                                            src={ev.url}
+                                            alt="Evidence"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <FileText className="w-8 h-8 text-muted-foreground" />
+                                        </div>
+                                    )}
+                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                                        <p className="text-xs text-white truncate capitalize">{ev.evidence_type.toLowerCase().replace("_", " ")}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* No proof warning */}
-                {proofFiles.length === 0 && (
+                {proofFiles.length === 0 && !isEditMode && (
                     <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
                         <span>At least one proof file is required to submit</span>
+                    </div>
+                )}
+                {proofFiles.length === 0 && isEditMode && existingEvidence.length === 0 && (
+                    <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>No evidence files attached to this report</span>
                     </div>
                 )}
             </section>
@@ -1419,16 +1616,17 @@ export function ReportForm() {
                     {isSubmitting ? (
                         <>
                             <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                            Submitting Report...
+                            {isEditMode ? "Updating Report..." : "Submitting Report..."}
                         </>
                     ) : (
                         <>
-                            Submit Incident Report
+                            {isEditMode ? "Update Report" : "Submit Incident Report"}
                             <ArrowRight className="w-5 h-5 ml-2" />
                         </>
                     )}
                 </Button>
             </section>
         </form>
+        </div>
     )
 }

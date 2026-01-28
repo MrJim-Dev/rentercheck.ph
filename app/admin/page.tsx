@@ -359,8 +359,7 @@ function AdminPageContent() {
     }
 
     const handleQuickEdit = (report: Report) => {
-        setReportToEdit(report)
-        setShowEditDialog(true)
+        router.push(`/report?id=${report.id}`)
     }
 
     const handleQuickViewHistory = (report: Report) => {
@@ -627,8 +626,7 @@ function AdminPageContent() {
                             onStatusChange={handleStatusChange}
                             onViewEvidence={handleViewEvidence}
                             onEdit={() => {
-                                setReportToEdit(selectedReport)
-                                setShowEditDialog(true)
+                                router.push(`/report?id=${selectedReport.id}`)
                             }}
                             onViewHistory={() => {
                                 setReportForHistory(selectedReport)
