@@ -450,8 +450,8 @@ export async function getMyReports(): Promise<ActionResult<Database["public"]["V
             ...report,
             renter_name: (report.renter as { full_name: string | null } | null)?.full_name || null,
             renter_fingerprint: (report.renter as { fingerprint: string | null } | null)?.fingerprint || null,
-            evidence_count: null, // Will be populated separately if needed
-            pending_requests: null, // Will be populated separately if needed
+            evidence_count: 0 as number, // Explicitly cast to number to prevent null type prevent null type
+            pending_requests: 0 as number, // Explicitly cast to number to prevent null type prevent null type
         }))
 
         return { success: true, data: transformedReports as Database["public"]["Views"]["my_reports"]["Row"][] }

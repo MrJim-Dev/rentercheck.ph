@@ -376,10 +376,10 @@ export default function MyReportsPage() {
                                                                 ₱{report.amount_involved.toLocaleString()}
                                                             </span>
                                                         )}
-                                                        {report.evidence_count > 0 && (
+                                                        {(report.evidence_count ?? 0) > 0 && (
                                                             <span className="flex items-center gap-1.5">
                                                                 <FileText className="w-3.5 h-3.5" />
-                                                                {report.evidence_count} file{report.evidence_count !== 1 ? "s" : ""}
+                                                                {report.evidence_count} file{(report.evidence_count ?? 0) !== 1 ? "s" : ""}
                                                             </span>
                                                         )}
                                                     </div>
@@ -388,7 +388,7 @@ export default function MyReportsPage() {
                                             </div>
 
                                             {/* Info Request Alert (Summary) */}
-                                            {!isExpanded && report.pending_requests > 0 && (
+                                            {!isExpanded && (report.pending_requests ?? 0) > 0 && (
                                                 <div className="mt-3 p-2.5 rounded bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
                                                     <MessageSquare className="w-4 h-4 text-amber-400 shrink-0" />
                                                     <p className="text-xs text-amber-300 flex-1">Admin requested additional information</p>
@@ -496,11 +496,11 @@ export default function MyReportsPage() {
                                                     )}
 
                                                     {/* Evidence */}
-                                                    {report.evidence_count > 0 && (
+                                                    {(report.evidence_count ?? 0) > 0 && (
                                                         <div>
                                                             <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase flex items-center gap-2 tracking-wide">
                                                                 <ImageIcon className="w-3.5 h-3.5" />
-                                                                Evidence ({report.evidence_count})
+                                                                Evidence ({report.evidence_count ?? 0})
                                                             </h3>
                                                             <p className="text-xs text-muted-foreground bg-background/50 border p-3 rounded-md">
                                                                 View detailed evidence files by visiting the full report page.
@@ -517,11 +517,11 @@ export default function MyReportsPage() {
                                                     )}
 
                                                     {/* Info Requests */}
-                                                    {report.pending_requests > 0 && (
+                                                    {(report.pending_requests ?? 0) > 0 && (
                                                         <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                                                             <h3 className="text-xs font-medium text-amber-400 mb-2 flex items-center gap-1.5 uppercase tracking-wide">
                                                                 <MessageSquare className="w-3.5 h-3.5" />
-                                                                Information Request ({report.pending_requests})
+                                                                Information Request ({report.pending_requests ?? 0})
                                                             </h3>
                                                             <p className="text-sm text-muted-foreground mb-3">Admin has requested additional information.</p>
                                                             <Link href={`/my-reports/${report.id}`}>
