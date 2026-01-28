@@ -72,6 +72,10 @@ export interface MatchResult {
   matchReason: string;
   /** Suggested CTA if confidence is low/medium */
   suggestedAction?: string;
+  /** Whether this match was found via an alias instead of main name */
+  foundViaAlias?: boolean;
+  /** The specific alias that matched (if foundViaAlias is true) */
+  matchedAlias?: string;
 }
 
 export interface SearchInput {
@@ -368,10 +372,13 @@ export function calculateMatchScore(
   // ============================================
   // CHECK ALIASES
   // Match search name against candidate's known aliases
+  // Aliases are treated as equivalent to names, not secondary
   // ============================================
   
+  let foundViaAlias = false;
+  let matchedAliasName = '';
+  
   if (searchNameNorm && candidate.aliases && candidate.aliases.length > 0) {
-    let aliasMatchFound = false;
     let bestAliasScore = 0;
     let matchedAlias = '';
     
@@ -381,7 +388,6 @@ export function calculateMatchScore(
       
       // Exact alias match
       if (aliasNorm === searchNameNorm) {
-        aliasMatchFound = true;
         bestAliasScore = 1.0;
         matchedAlias = alias;
         break;
@@ -395,26 +401,41 @@ export function calculateMatchScore(
       }
     }
     
-    // Only add alias signal if we haven't already matched on main name
+    // Always add alias signal if there's a match - treat aliases as equivalent to names
+    // If both name and alias match, use the better score
     const hasNameSignal = signals.some(s => s.type === 'NAME_EXACT' || s.type === 'NAME_FUZZY' || s.type === 'NAME_FIRST_LAST');
     
-    if (!hasNameSignal) {
-      if (bestAliasScore === 1.0) {
+    if (bestAliasScore === 1.0) {
+      // If we already have a name exact match, don't add duplicate points
+      if (!hasNameSignal || !signals.some(s => s.type === 'NAME_EXACT')) {
         signals.push({
           type: 'NAME_EXACT',
           points: WEIGHTS.ALIAS_EXACT,
-          description: `Matches known alias "${matchedAlias}"`,
+          description: matchedAlias ? `Matches known alias "${matchedAlias}"` : 'Matches alias',
           isStrong: false,
         });
         score += WEIGHTS.ALIAS_EXACT;
-      } else if (bestAliasScore >= 0.85) {
+        // Track that this was found via alias (only if no main name matched)
+        if (!hasNameSignal) {
+          foundViaAlias = true;
+          matchedAliasName = matchedAlias;
+        }
+      }
+    } else if (bestAliasScore >= 0.85) {
+      // Only add fuzzy alias points if there's no exact name match
+      if (!signals.some(s => s.type === 'NAME_EXACT')) {
         signals.push({
           type: 'NAME_FUZZY',
           points: WEIGHTS.ALIAS_FUZZY,
-          description: `Similar to alias "${matchedAlias}" (${Math.round(bestAliasScore * 100)}%)`,
+          description: matchedAlias ? `Similar to alias "${matchedAlias}" (${Math.round(bestAliasScore * 100)}%)` : 'Similar to alias',
           isStrong: false,
         });
         score += WEIGHTS.ALIAS_FUZZY;
+        // Track that this was found via alias (only if no main name matched)
+        if (!hasNameSignal) {
+          foundViaAlias = true;
+          matchedAliasName = matchedAlias;
+        }
       }
     }
   }
@@ -506,6 +527,8 @@ export function calculateMatchScore(
     hasStrongMatch,
     matchReason,
     suggestedAction,
+    foundViaAlias,
+    matchedAlias: foundViaAlias ? matchedAliasName : undefined,
   };
 }
 

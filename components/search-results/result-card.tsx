@@ -83,12 +83,24 @@ function getSignalIcon(signal: string) {
     if (signal.includes("PHONE")) return Phone;
     if (signal.includes("EMAIL")) return Mail;
     if (signal.includes("FACEBOOK")) return Facebook;
+    if (signal.includes("DATE_OF_BIRTH")) return Calendar;
     if (signal.includes("CITY") || signal.includes("REGION")) return MapPin;
     return User;
 }
 
+function getSignalLabel(signal: string): string {
+    if (signal === "DATE_OF_BIRTH_NAME_MATCH") return "Date of Birth";
+    if (signal.includes("PHONE")) return "Phone";
+    if (signal.includes("EMAIL")) return "Email";
+    if (signal.includes("FACEBOOK")) return "Facebook";
+    if (signal.includes("NAME")) return "Name";
+    if (signal === "CITY_MATCH") return "City";
+    if (signal === "REGION_MATCH") return "Region";
+    return signal.replace("_EXACT", "").replace("_FUZZY", "").replace("_", " ");
+}
+
 export function ResultCard({ match }: ResultCardProps) {
-    const { renter, confidence, score, matchReason, hasStrongMatch, showDetails, requiresConfirmation, suggestedAction, matchSignals, displayLabel } = match;
+    const { renter, confidence, score, matchReason, hasStrongMatch, showDetails, requiresConfirmation, suggestedAction, matchSignals, displayLabel, foundViaAlias, matchedAlias } = match;
 
     const config = confidenceConfig[confidence];
     const Icon = config.icon;
@@ -118,6 +130,14 @@ export function ResultCard({ match }: ResultCardProps) {
                                 {showDetails ? renter.nameMasked : "Hidden Name"}
                             </h3>
 
+                            {/* Found as Alias Badge */}
+                            {foundViaAlias && matchedAlias && showDetails && (
+                                <Badge variant="secondary" className="text-[10px] sm:text-xs h-4 sm:h-5 px-1 sm:px-1.5 bg-purple-50 text-purple-700 border-purple-200" title={`Found as alias: ${matchedAlias}`}>
+                                    <Tag className="h-3 w-3 mr-0.5" />
+                                    Found as Alias
+                                </Badge>
+                            )}
+
                             {/* Verification Badge */}
                             {renter.verificationStatus === 'verified' && showDetails && (
                                 <Badge variant="secondary" className="text-[10px] sm:text-xs h-4 sm:h-5 px-1 sm:px-1.5 bg-green-50 text-green-700 border-green-200">
@@ -126,58 +146,68 @@ export function ResultCard({ match }: ResultCardProps) {
                             )}
                         </div>
 
-                        {/* Aliases */}
+                        {/* Aliases Count (never show actual names) */}
                         {showDetails && renter.aliases && renter.aliases.length > 0 && (
                             <div className="flex items-start gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-muted-foreground">
                                 <UserCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 mt-0.5 shrink-0" />
-                                <div className="flex flex-wrap items-center gap-1">
-                                    <span>Also known as:</span>
-                                    <span className="font-medium text-foreground">
-                                        {renter.aliases.slice(0, 2).join(", ")}
-                                        {renter.aliases.length > 2 && ` +${renter.aliases.length - 2} more`}
-                                    </span>
-                                </div>
+                                <span>
+                                    {renter.aliases.length} {renter.aliases.length === 1 ? 'known alias' : 'known aliases'}
+                                </span>
                             </div>
                         )}
 
-                        {/* Match Reason */}
-                        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
-                            {showDetails ? (
-                                <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
-                                    <span>Match:</span>
-                                    <span className="font-medium text-foreground">{matchReason}</span>
-                                </div>
-                            ) : (
+                        {/* Match Info */}
+                        <div className="flex flex-col gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                            {!showDetails && (
                                 <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md bg-muted text-muted-foreground text-[10px] sm:text-xs font-medium w-fit">
                                     <Lock className="h-3 w-3 shrink-0" />
                                     <span className="leading-tight">Details hidden until confirmed</span>
                                 </div>
                             )}
-                        </div>
 
-                        {/* Match Signals as chips */}
-                        {showDetails && matchSignals.length > 0 && (
-                            <div className="flex gap-1 sm:gap-1.5 flex-wrap mt-0.5 sm:mt-1">
-                                {matchSignals.slice(0, 3).map((signal, i) => {
-                                    const SignalIcon = getSignalIcon(signal);
-                                    return (
+                            {/* Match label */}
+                            <div className="text-[10px] sm:text-xs text-muted-foreground">
+                                <span>Match:</span>
+                            </div>
+
+                            {/* Match Signals as icon-only badges */}
+                            <div className="flex gap-1 sm:gap-1.5 flex-wrap">
+                                {showDetails && matchSignals.length > 0 ? (
+                                    <>
+                                        {matchSignals.slice(0, 4).map((signal, i) => {
+                                            const SignalIcon = getSignalIcon(signal);
+                                            const label = getSignalLabel(signal);
+                                            return (
+                                                <Badge
+                                                    key={i}
+                                                    variant="outline"
+                                                    className="text-[10px] sm:text-xs h-5 sm:h-6 px-1.5 sm:px-2 gap-0.5 sm:gap-1 font-normal"
+                                                    title={label}
+                                                >
+                                                    <SignalIcon className="h-3 w-3" />
+                                                    <span>{label}</span>
+                                                </Badge>
+                                            );
+                                        })}
+                                        {matchSignals.length > 4 && (
+                                            <span className="text-xs text-muted-foreground self-center">
+                                                +{matchSignals.length - 4}
+                                            </span>
+                                        )}
+                                    </>
+                                ) : (
+                                    foundViaAlias && matchedAlias && (
                                         <Badge
-                                            key={i}
-                                            variant="outline"
-                                            className="text-[10px] sm:text-xs h-5 sm:h-6 px-1.5 sm:px-2 gap-0.5 sm:gap-1 font-normal"
+                                            variant="secondary"
+                                            className="text-[10px] sm:text-xs h-5 sm:h-6 px-1.5 sm:px-2 gap-0.5 sm:gap-1 bg-purple-50 text-purple-700 border-purple-200 font-medium"
                                         >
-                                            <SignalIcon className="h-3 w-3" />
-                                            {signal.replace("_EXACT", "").replace("_FUZZY", "").replace("_", " ")}
+                                            <Tag className="h-3 w-3" />
+                                            FOUND AS ALIAS
                                         </Badge>
-                                    );
-                                })}
-                                {matchSignals.length > 3 && (
-                                    <span className="text-xs text-muted-foreground">
-                                        +{matchSignals.length - 3} more
-                                    </span>
+                                    )
                                 )}
                             </div>
-                        )}
+                        </div>
                     </div>
 
                     {/* Confidence Badge */}

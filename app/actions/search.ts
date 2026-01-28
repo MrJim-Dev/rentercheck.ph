@@ -1222,6 +1222,8 @@ export async function searchRenters(
         showDetails: policy.showDetails,
         requiresConfirmation: policy.requiresConfirmation,
         displayLabel: policy.displayLabel,
+        foundViaAlias: candidate.match.foundViaAlias,
+        matchedAlias: candidate.match.matchedAlias,
       };
     });
 

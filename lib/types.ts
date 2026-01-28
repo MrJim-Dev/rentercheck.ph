@@ -136,6 +136,10 @@ export interface SearchResultMatch {
     requiresConfirmation: boolean;
     /** Display label for the match */
     displayLabel: string;
+    /** Whether this match was found via an alias instead of main name */
+    foundViaAlias?: boolean;
+    /** The specific alias that matched (if foundViaAlias is true) */
+    matchedAlias?: string;
 }
 
 // ============================================

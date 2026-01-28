@@ -238,17 +238,35 @@ function AdminPageContent() {
     const handleStatusChange = async (newStatus: Enums<"report_status">, reason?: string) => {
         if (!selectedReport) return
 
+        const reportId = selectedReport.id
+        
+        // Optimistically update local state
+        setSelectedReport(prev => prev ? { ...prev, status: newStatus } : null)
+        setReports(prev => prev.map(r => 
+            r.id === reportId ? { ...r, status: newStatus } : r
+        ))
+
+        // Sync with server in background
         startTransition(async () => {
             const result = await updateReportStatus(
-                selectedReport.id,
+                reportId,
                 newStatus,
                 undefined,
                 reason
             )
 
-            if (result.success) {
-                setSelectedReport(prev => prev ? { ...prev, status: newStatus } : null)
-                fetchData()
+            if (!result.success) {
+                // Rollback on failure - refetch to get correct state
+                const reportsResult = await getAllReports({
+                    status: statusFilter !== "ALL" ? statusFilter as Enums<"report_status"> : undefined,
+                    search: searchQuery || undefined,
+                    limit: 50,
+                })
+                if (reportsResult.success && reportsResult.data) {
+                    setReports(reportsResult.data.reports)
+                    const report = reportsResult.data.reports.find(r => r.id === reportId)
+                    if (report) setSelectedReport(report)
+                }
             }
         })
     }
@@ -262,24 +280,33 @@ function AdminPageContent() {
 
         const reportIdToDelete = reportToDelete.id
 
+        // Optimistically remove from UI immediately
+        setReports(prevReports => prevReports.filter(r => r.id !== reportIdToDelete))
+        setTotalReports(prev => Math.max(0, prev - 1))
+        
+        // Close dialog and reset state
+        setShowHardDeleteDialog(false)
+        setHardDeleteReason("")
+        setReportToDelete(null)
+        if (selectedReport?.id === reportIdToDelete) {
+            setSelectedReport(null)
+        }
+
+        // Sync with server in background
         startTransition(async () => {
             const result = await hardDeleteReport(reportIdToDelete, hardDeleteReason || "Spam/Duplicate report")
 
-            if (result.success) {
-                // Immediately remove the report from UI state for instant feedback
-                setReports(prevReports => prevReports.filter(r => r.id !== reportIdToDelete))
-                setTotalReports(prev => Math.max(0, prev - 1))
-                
-                // Close dialog and reset state
-                setShowHardDeleteDialog(false)
-                setHardDeleteReason("")
-                setReportToDelete(null)
-                if (selectedReport?.id === reportIdToDelete) {
-                    setSelectedReport(null)
+            if (!result.success) {
+                // Rollback on failure - refetch to get correct state
+                const reportsResult = await getAllReports({
+                    status: statusFilter !== "ALL" ? statusFilter as Enums<"report_status"> : undefined,
+                    search: searchQuery || undefined,
+                    limit: 50,
+                })
+                if (reportsResult.success && reportsResult.data) {
+                    setReports(reportsResult.data.reports)
+                    setTotalReports(reportsResult.data.total)
                 }
-                
-                // Fetch fresh data from server to ensure consistency
-                fetchData()
             }
         })
     }
@@ -301,17 +328,42 @@ function AdminPageContent() {
     const handleEditReport = async (updates: Partial<Report>, changeNote: string) => {
         if (!reportToEdit) return
 
-        const result = await updateReportDetails(reportToEdit.id, updates, changeNote)
-        if (result.success) {
-            setShowEditDialog(false)
-            setReportToEdit(null)
-            // Refresh the details sheet if it's open for the same report
-            if (selectedReport?.id === reportToEdit.id) {
-                await loadReportDetails(reportToEdit)
-            }
-            fetchData()
-        } else {
+        const reportId = reportToEdit.id
+        
+        // Optimistically update local state
+        const updatedReport = { ...reportToEdit, ...updates }
+        setReports(prev => prev.map(r => 
+            r.id === reportId ? updatedReport : r
+        ))
+        if (selectedReport?.id === reportId) {
+            setSelectedReport(updatedReport)
+        }
+        
+        setShowEditDialog(false)
+        setReportToEdit(null)
+
+        // Sync with server in background
+        const result = await updateReportDetails(reportId, updates, changeNote)
+        if (!result.success) {
             alert(result.error || "Failed to update report")
+            // Rollback on failure - refetch to get correct state
+            const reportsResult = await getAllReports({
+                status: statusFilter !== "ALL" ? statusFilter as Enums<"report_status"> : undefined,
+                search: searchQuery || undefined,
+                limit: 50,
+            })
+            if (reportsResult.success && reportsResult.data) {
+                setReports(reportsResult.data.reports)
+                const report = reportsResult.data.reports.find(r => r.id === reportId)
+                if (report && selectedReport?.id === reportId) {
+                    setSelectedReport(report)
+                }
+            }
+        } else {
+            // Refresh the details if it's open for the same report
+            if (selectedReport?.id === reportId) {
+                await loadReportDetails(updatedReport)
+            }
         }
     }
 
@@ -328,42 +380,111 @@ function AdminPageContent() {
     const handleTransferReport = async (newUserId: string, reason: string) => {
         if (!reportToTransfer) return
 
-        startTransition(async () => {
-            const result = await transferReport(reportToTransfer.id, newUserId, reason)
+        const reportId = reportToTransfer.id
+        
+        // Optimistically update local state
+        setReports(prev => prev.map(r => 
+            r.id === reportId ? { ...r, user_id: newUserId } : r
+        ))
+        if (selectedReport?.id === reportId) {
+            setSelectedReport(prev => prev ? { ...prev, user_id: newUserId } : null)
+        }
+        
+        setShowTransferDialog(false)
+        setReportToTransfer(null)
 
-            if (result.success) {
-                setShowTransferDialog(false)
-                setReportToTransfer(null)
-                fetchData()
-            } else {
+        // Sync with server in background
+        startTransition(async () => {
+            const result = await transferReport(reportId, newUserId, reason)
+
+            if (!result.success) {
                 alert(result.error || "Failed to transfer report")
+                // Rollback on failure - refetch to get correct state
+                const reportsResult = await getAllReports({
+                    status: statusFilter !== "ALL" ? statusFilter as Enums<"report_status"> : undefined,
+                    search: searchQuery || undefined,
+                    limit: 50,
+                })
+                if (reportsResult.success && reportsResult.data) {
+                    setReports(reportsResult.data.reports)
+                    const report = reportsResult.data.reports.find(r => r.id === reportId)
+                    if (report && selectedReport?.id === reportId) {
+                        setSelectedReport(report)
+                    }
+                }
             }
         })
     }
 
     // Quick action handlers for table
     const handleQuickApprove = async (report: Report) => {
+        const reportId = report.id
+        
+        // Optimistically update local state
+        setReports(prev => prev.map(r => 
+            r.id === reportId ? { ...r, status: "APPROVED" } : r
+        ))
+        if (selectedReport?.id === reportId) {
+            setSelectedReport(prev => prev ? { ...prev, status: "APPROVED" } : null)
+        }
+
+        // Sync with server in background
         startTransition(async () => {
             const result = await updateReportStatus(
-                report.id,
+                reportId,
                 "APPROVED"
             )
 
-            if (result.success) {
-                fetchData()
+            if (!result.success) {
+                // Rollback on failure - refetch to get correct state
+                const reportsResult = await getAllReports({
+                    status: statusFilter !== "ALL" ? statusFilter as Enums<"report_status"> : undefined,
+                    search: searchQuery || undefined,
+                    limit: 50,
+                })
+                if (reportsResult.success && reportsResult.data) {
+                    setReports(reportsResult.data.reports)
+                    const reportData = reportsResult.data.reports.find(r => r.id === reportId)
+                    if (reportData && selectedReport?.id === reportId) {
+                        setSelectedReport(reportData)
+                    }
+                }
             }
         })
     }
 
     const handleQuickReject = async (report: Report) => {
+        const reportId = report.id
+        
+        // Optimistically update local state
+        setReports(prev => prev.map(r => 
+            r.id === reportId ? { ...r, status: "REJECTED" } : r
+        ))
+        if (selectedReport?.id === reportId) {
+            setSelectedReport(prev => prev ? { ...prev, status: "REJECTED" } : null)
+        }
+
+        // Sync with server in background
         startTransition(async () => {
             const result = await updateReportStatus(
-                report.id,
+                reportId,
                 "REJECTED"
             )
 
-            if (result.success) {
-                fetchData()
+            if (!result.success) {
+                // Rollback on failure - refetch to get correct state
+                const reportsResult = await getAllReports({
+                    status: statusFilter !== "ALL" ? statusFilter as Enums<"report_status"> : undefined,
+                    search: searchQuery || undefined,
+                    limit: 50,
+                })
+                if (reportsResult.success && reportsResult.data) {
+                    setReports(reportsResult.data.reports)
+                    const reportData = reportsResult.data.reports.find(r => r.id === reportId)
+                    if (reportData && selectedReport?.id === reportId) {
+                        setSelectedReport(reportData)
+                    }
+                }
             }
         })
     }

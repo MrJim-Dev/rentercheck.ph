@@ -451,13 +451,33 @@ export function hashIdentifier(value: string): string {
 export type IdentifierType = 'PHONE' | 'EMAIL' | 'FACEBOOK' | 'GOVT_ID' | 'NAME';
 
 /**
+ * Month name to number mapping
+ */
+const MONTH_NAMES: Record<string, number> = {
+  'january': 1, 'jan': 1,
+  'february': 2, 'feb': 2,
+  'march': 3, 'mar': 3,
+  'april': 4, 'apr': 4,
+  'may': 5,
+  'june': 6, 'jun': 6,
+  'july': 7, 'jul': 7,
+  'august': 8, 'aug': 8,
+  'september': 9, 'sep': 9, 'sept': 9,
+  'october': 10, 'oct': 10,
+  'november': 11, 'nov': 11,
+  'december': 12, 'dec': 12,
+};
+
+/**
  * Normalize date of birth to YYYY-MM-DD format
- * Handles multiple input formats: MM/DD/YYYY, DD-MM-YYYY, YYYY-MM-DD, etc.
+ * Handles multiple input formats: MM/DD/YYYY, DD-MM-YYYY, YYYY-MM-DD, "July 28, 1991", etc.
  * 
  * @example
  * normalizeDateOfBirth('01/15/1990') → '1990-01-15'
  * normalizeDateOfBirth('15-01-1990') → '1990-01-15'
  * normalizeDateOfBirth('1990-01-15') → '1990-01-15'
+ * normalizeDateOfBirth('July 28, 1991') → '1991-07-28'
+ * normalizeDateOfBirth('Jan 15 1990') → '1990-01-15'
  */
 export function normalizeDateOfBirth(date: string | null | undefined): string | null {
   if (!date) return null;
@@ -488,9 +508,47 @@ export function normalizeDateOfBirth(date: string | null | undefined): string | 
     const parts = trimmed.split('/');
     parsedDate = new Date(`${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`);
   }
-  // Try direct Date parsing as fallback
+  // Check for month name formats: "July 28, 1991", "Jan 15 1990", "28 July 1991"
   else {
-    parsedDate = new Date(trimmed);
+    const lowerTrimmed = trimmed.toLowerCase();
+    let matchedMonth: number | null = null;
+    let day: number | null = null;
+    let year: number | null = null;
+    
+    // Try to find month name
+    for (const [monthName, monthNum] of Object.entries(MONTH_NAMES)) {
+      if (lowerTrimmed.includes(monthName)) {
+        matchedMonth = monthNum;
+        
+        // Extract numbers from the string
+        const numbers = trimmed.match(/\d+/g);
+        if (numbers && numbers.length >= 2) {
+          // Determine which number is day and which is year
+          const nums = numbers.map(n => parseInt(n, 10));
+          
+          // Year is the 4-digit number or the larger number
+          year = nums.find(n => n > 1900 && n < 2100) || null;
+          if (!year) {
+            year = Math.max(...nums) > 31 ? Math.max(...nums) : null;
+          }
+          
+          // Day is the other number (1-31)
+          day = nums.find(n => n >= 1 && n <= 31 && n !== year) || null;
+        }
+        
+        if (matchedMonth && day && year) {
+          const monthStr = String(matchedMonth).padStart(2, '0');
+          const dayStr = String(day).padStart(2, '0');
+          parsedDate = new Date(`${year}-${monthStr}-${dayStr}`);
+          break;
+        }
+      }
+    }
+    
+    // If month name parsing didn't work, try direct Date parsing as fallback
+    if (!parsedDate) {
+      parsedDate = new Date(trimmed);
+    }
   }
   
   // Validate the date
