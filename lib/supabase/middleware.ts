@@ -36,20 +36,21 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Protected routes logic
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 
-                     request.nextUrl.pathname.startsWith('/signup')
-  
+  const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/signup')
+
   // Public pages - accessible without login
   const isPublicPage = request.nextUrl.pathname === '/' ||
-                       request.nextUrl.pathname.startsWith('/search') ||
-                       request.nextUrl.pathname.startsWith('/renter') ||
-                       request.nextUrl.pathname.startsWith('/legal')
-  
+    request.nextUrl.pathname.startsWith('/search') ||
+    request.nextUrl.pathname.startsWith('/renter') ||
+    request.nextUrl.pathname.startsWith('/legal') ||
+    request.nextUrl.pathname.startsWith('/api')
+
   // Pages that handle their own auth (redirect to login if not authenticated)
   const isSelfAuthPage = request.nextUrl.pathname.startsWith('/report') ||
-                         request.nextUrl.pathname.startsWith('/my-reports') ||
-                         request.nextUrl.pathname.startsWith('/admin')
-  
+    request.nextUrl.pathname.startsWith('/my-reports') ||
+    request.nextUrl.pathname.startsWith('/admin')
+
   if (!user && !isAuthPage && !isPublicPage && !isSelfAuthPage) {
     // If not logged in and trying to access protected route, redirect to home
     const url = request.nextUrl.clone()

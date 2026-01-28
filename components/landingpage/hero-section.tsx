@@ -3,17 +3,68 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { motion } from "framer-motion"
-import { ArrowRight, Search } from "lucide-react"
+import { ArrowRight, Camera, Loader2, Search } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { toast } from "sonner"
 
 export function HeroSection() {
     const [searchValue, setSearchValue] = useState("")
+    const [isScanning, setIsScanning] = useState(false)
     const router = useRouter()
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     const handleSearch = () => {
         if (searchValue.trim()) {
             router.push(`/search?q=${encodeURIComponent(searchValue)}`)
+        }
+    }
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        console.log("Starting upload for file:", file.name)
+
+        try {
+            setIsScanning(true)
+            toast.info("Scanning ID...", { description: "This may take a moment." })
+
+            // Import scanner dynamically
+            const { scanID } = await import('@/lib/ocr/scanner')
+
+            const { name, dob, address } = await scanID(file)
+            console.log("Scan Result:", { name, dob, address })
+
+            if (name) {
+                // Populate search with Name and DOB (search backend does not support address)
+                const searchString = [name, dob].filter(Boolean).join(", ")
+                setSearchValue(searchString)
+
+                // Auto-search for better UX
+                router.push(`/search?q=${encodeURIComponent(searchString)}`)
+
+                toast.success("ID Scanned Successfully", {
+                    description: (
+                        <div className="flex flex-col gap-1 mt-1">
+                            <p><strong>Name:</strong> {name}</p>
+                            {dob && <p><strong>DOB:</strong> {dob}</p>}
+                            {address && <p><strong>Address:</strong> {address}</p>}
+                        </div>
+                    ),
+                    duration: 5000
+                })
+            } else {
+                toast.error("Could not find Name", { description: "Try a clearer image or type manually." })
+            }
+        } catch (error) {
+            console.error("OCR Error:", error)
+            toast.error("Scan Failed", { description: "Something went wrong while scanning." })
+        } finally {
+            setIsScanning(false)
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "" // Reset input
+            }
         }
     }
 
@@ -97,23 +148,46 @@ export function HeroSection() {
                         <div className="flex-1 relative group">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-accent transition-colors" size={16} />
                             <Input
-                                placeholder="Search by name, birthdate, email, or phone number..."
+                                placeholder={isScanning ? "Scanning ID..." : "Search by name, birthdate, email, or phone number..."}
                                 value={searchValue}
                                 onChange={(e) => setSearchValue(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                                disabled={isScanning}
                                 autoComplete="off"
-                                className="pl-9 h-9 sm:h-11 bg-transparent border-none text-sm text-foreground placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none autofill:bg-transparent"
+                                className="pl-9 pr-10 h-9 sm:h-11 bg-transparent border-none text-sm text-foreground placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none autofill:bg-transparent"
                                 style={{
                                     WebkitBoxShadow: "0 0 0 30px transparent inset",
                                     WebkitTextFillColor: "var(--foreground)",
                                     transition: "background-color 5000s ease-in-out 0s",
                                 }}
                             />
+
+                            {/* File Upload Button */}
+                            <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                ref={fileInputRef}
+                                onChange={handleFileUpload}
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isScanning}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-accent transition-colors disabled:opacity-50"
+                                title="Upload ID to Search"
+                            >
+                                {isScanning ? (
+                                    <Loader2 className="animate-spin" size={18} />
+                                ) : (
+                                    <Camera size={18} />
+                                )}
+                            </button>
                         </div>
                         <Button
                             size="lg"
                             className="bg-gradient-to-r from-secondary to-accent cursor-pointer text-accent-foreground font-semibold h-9 sm:h-11 px-5 text-sm rounded-lg hover:opacity-90 transition-opacity duration-200"
                             onClick={handleSearch}
+                            disabled={isScanning}
                         >
                             Search
                             <ArrowRight className="ml-2" size={14} />
