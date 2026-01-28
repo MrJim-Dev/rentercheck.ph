@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { getAdminUsersList, type AdminUser } from "@/lib/actions/admin-credits"
-import { Coins, History, Loader2, Search, User } from "lucide-react"
+import { Coins, History, Loader2, Search, Settings2, User } from "lucide-react"
 import { useEffect, useState } from "react"
+import { ManageUserCreditsDialog } from "./manage-user-credits-dialog"
 import { UserTransactionHistoryDialog } from "./user-transaction-history-dialog"
 
 export function AdminUserCreditTable() {
@@ -17,6 +18,7 @@ export function AdminUserCreditTable() {
     // Dialog state
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
     const [showHistoryDialog, setShowHistoryDialog] = useState(false)
+    const [showManageDialog, setShowManageDialog] = useState(false)
 
     useEffect(() => {
         loadUsers()
@@ -42,6 +44,11 @@ export function AdminUserCreditTable() {
     const handleViewHistory = (user: AdminUser) => {
         setSelectedUser(user)
         setShowHistoryDialog(true)
+    }
+
+    const handleManageCredits = (user: AdminUser) => {
+        setSelectedUser(user)
+        setShowManageDialog(true)
     }
 
     return (
@@ -112,6 +119,16 @@ export function AdminUserCreditTable() {
                                     {user.balance}
                                 </Badge>
 
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleManageCredits(user)}
+                                    className="shrink-0 gap-1.5"
+                                >
+                                    <Settings2 className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Manage</span>
+                                </Button>
+
                                 {/* Action */}
                                 <Button
                                     size="sm"
@@ -129,14 +146,30 @@ export function AdminUserCreditTable() {
             </CardContent>
 
             {/* History Dialog */}
-            {selectedUser && (
-                <UserTransactionHistoryDialog
-                    open={showHistoryDialog}
-                    onOpenChange={setShowHistoryDialog}
-                    userId={selectedUser.id}
-                    userName={selectedUser.full_name || selectedUser.email}
-                />
-            )}
-        </Card>
+            {
+                selectedUser && (
+                    <UserTransactionHistoryDialog
+                        open={showHistoryDialog}
+                        onOpenChange={setShowHistoryDialog}
+                        userId={selectedUser.id}
+                        userName={selectedUser.full_name || selectedUser.email}
+                    />
+                )
+            }
+
+            {/* Manage Credits Dialog */}
+            {
+                selectedUser && (
+                    <ManageUserCreditsDialog
+                        open={showManageDialog}
+                        onOpenChange={setShowManageDialog}
+                        userId={selectedUser.id}
+                        userName={selectedUser.full_name || selectedUser.email}
+                        currentBalance={selectedUser.balance}
+                        onSuccess={loadUsers}
+                    />
+                )
+            }
+        </Card >
     )
 }

@@ -16,6 +16,7 @@ export function CreditConfigTable() {
     const [loading, setLoading] = useState(true)
     const [editingKey, setEditingKey] = useState<string | null>(null)
     const [editValue, setEditValue] = useState<string>("")
+    const [editType, setEditType] = useState<'deduction' | 'addition'>('deduction')
     const [saving, setSaving] = useState(false)
     const { toast } = useToast()
 
@@ -41,6 +42,7 @@ export function CreditConfigTable() {
     const startEdit = (config: CreditActionConfig) => {
         setEditingKey(config.action_key)
         setEditValue(config.cost.toString())
+        setEditType(config.action_type || 'deduction')
     }
 
     const cancelEdit = () => {
@@ -60,21 +62,21 @@ export function CreditConfigTable() {
         }
 
         setSaving(true)
-        const result = await updateActionCost(key, newCost)
+        const result = await updateActionCost(key, newCost, editType)
         if (result.success) {
             toast({
                 title: "Success",
-                description: "Credit cost updated successfully",
+                description: "Credit config updated successfully",
             })
             // Update local state
             setConfigs(prev => prev.map(c =>
-                c.action_key === key ? { ...c, cost: newCost } : c
+                c.action_key === key ? { ...c, cost: newCost, action_type: editType } : c
             ))
             setEditingKey(null)
         } else {
             toast({
                 title: "Error",
-                description: "Failed to update cost",
+                description: "Failed to update config",
                 variant: "destructive"
             })
         }
@@ -131,6 +133,7 @@ export function CreditConfigTable() {
                                     <TableRow>
                                         <TableHead className="w-[200px]">Action Name</TableHead>
                                         <TableHead>Description</TableHead>
+                                        <TableHead className="w-[100px] text-center">Type</TableHead>
                                         <TableHead className="w-[100px] text-center">Active</TableHead>
                                         <TableHead className="w-[150px] text-right">Cost (Credits)</TableHead>
                                         <TableHead className="w-[100px]"></TableHead>
@@ -145,6 +148,22 @@ export function CreditConfigTable() {
                                             </TableCell>
                                             <TableCell className="text-muted-foreground text-sm">
                                                 {config.description || '-'}
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                {editingKey === config.action_key ? (
+                                                    <select
+                                                        value={editType}
+                                                        onChange={(e) => setEditType(e.target.value as 'deduction' | 'addition')}
+                                                        className="h-8 w-24 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                    >
+                                                        <option value="deduction">Deduct</option>
+                                                        <option value="addition">Add</option>
+                                                    </select>
+                                                ) : (
+                                                    <Badge variant="outline" className={config.action_type === 'addition' ? "bg-green-100 text-green-800 border-green-200" : ""}>
+                                                        {config.action_type === 'addition' ? 'Add' : 'Deduct'}
+                                                    </Badge>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <Switch
@@ -229,30 +248,54 @@ export function CreditConfigTable() {
                                     <div className="h-px bg-border/50" />
 
                                     {/* Controls */}
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Switch
-                                                checked={config.is_active}
-                                                onCheckedChange={() => toggleStatus(config.action_key, config.is_active)}
-                                                className="scale-90"
-                                            />
-                                            <span className="text-xs font-medium text-muted-foreground">
-                                                {config.is_active ? 'Active' : 'Inactive'}
-                                            </span>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="flex flex-col gap-1.5">
+                                            <span className="text-xs font-medium text-muted-foreground">Action Type</span>
+                                            {editingKey === config.action_key ? (
+                                                <select
+                                                    value={editType}
+                                                    onChange={(e) => setEditType(e.target.value as 'deduction' | 'addition')}
+                                                    className="h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                >
+                                                    <option value="deduction">Deduct</option>
+                                                    <option value="addition">Add</option>
+                                                </select>
+                                            ) : (
+                                                <Badge
+                                                    variant="outline"
+                                                    className={`w-fit ${config.action_type === 'addition' ? "bg-green-100 text-green-800 border-green-200" : ""}`}
+                                                >
+                                                    {config.action_type === 'addition' ? 'Add' : 'Deduct'}
+                                                </Badge>
+                                            )}
                                         </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-medium text-muted-foreground">Cost:</span>
+                                        <div className="flex flex-col gap-1.5 items-end">
+                                            <span className="text-xs font-medium text-muted-foreground">Status</span>
+                                            <div className="flex items-center gap-2">
+                                                <Switch
+                                                    checked={config.is_active}
+                                                    onCheckedChange={() => toggleStatus(config.action_key, config.is_active)}
+                                                    className="scale-90"
+                                                />
+                                                <span className="text-xs text-muted-foreground">
+                                                    {config.is_active ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1.5 col-span-2">
+                                            <span className="text-xs font-medium text-muted-foreground">Cost (Credits)</span>
                                             {editingKey === config.action_key ? (
                                                 <Input
                                                     type="number"
                                                     value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
-                                                    className="h-8 w-16 text-right px-2"
+                                                    className="h-8"
                                                     min="0"
                                                 />
                                             ) : (
-                                                <Badge variant={config.cost === 0 ? "secondary" : "default"} className="font-mono">
+                                                <Badge variant={config.cost === 0 ? "secondary" : "default"} className="font-mono w-fit">
                                                     {config.cost}
                                                 </Badge>
                                             )}

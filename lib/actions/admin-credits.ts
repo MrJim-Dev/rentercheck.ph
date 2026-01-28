@@ -98,3 +98,28 @@ export async function getUserTransactionHistory(userId: string) {
 
     return { success: true, data: transactions as UserTransaction[] }
 }
+
+/**
+ * Manually adjust a user's credit balance.
+ */
+export async function adjustUserCredits(userId: string, amount: number, reason: string) {
+    const supabase = await createClient()
+
+    // 1. Verify admin (In real app, check role)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Unauthorized' }
+
+    // 2. Call the RPC
+    const { data: newBalance, error } = await supabase.rpc('admin_adjust_credits', {
+        p_user_id: userId,
+        p_amount: amount,
+        p_description: reason || 'Admin Adjustment'
+    })
+
+    if (error) {
+        console.error('Error adjusting credits:', error)
+        return { success: false, error: error.message || 'Failed to adjust credits' }
+    }
+
+    return { success: true, newBalance }
+}
