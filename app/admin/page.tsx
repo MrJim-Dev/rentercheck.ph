@@ -343,14 +343,29 @@ function AdminPageContent() {
 
     // Quick action handlers for table
     const handleQuickApprove = async (report: Report) => {
-        setSelectedReport(report)
-        await handleStatusChange("APPROVED")
+        startTransition(async () => {
+            const result = await updateReportStatus(
+                report.id,
+                "APPROVED"
+            )
+
+            if (result.success) {
+                fetchData()
+            }
+        })
     }
 
     const handleQuickReject = async (report: Report) => {
-        setSelectedReport(report)
-        // Open the report details sheet with reject dialog
-        await loadReportDetails(report)
+        startTransition(async () => {
+            const result = await updateReportStatus(
+                report.id,
+                "REJECTED"
+            )
+
+            if (result.success) {
+                fetchData()
+            }
+        })
     }
 
     const handleQuickTransfer = (report: Report) => {

@@ -248,8 +248,8 @@ export function ReportsTable({
                                                 <>
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
+                                                        onSelect={(e) => {
+                                                            e.preventDefault()
                                                             onApprove?.(report)
                                                         }}
                                                         className="text-emerald-600"
@@ -258,8 +258,8 @@ export function ReportsTable({
                                                         Approve Report
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
+                                                        onSelect={(e) => {
+                                                            e.preventDefault()
                                                             onReject?.(report)
                                                         }}
                                                         className="text-red-600"
