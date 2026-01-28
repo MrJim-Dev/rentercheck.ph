@@ -16,6 +16,7 @@ export type MatchSignalType =
     | 'NAME_EXACT'
     | 'NAME_FUZZY'
     | 'NAME_FIRST_LAST'
+    | 'DATE_OF_BIRTH_NAME_MATCH'
     | 'CITY_MATCH'
     | 'REGION_MATCH'
     | 'PARTIAL_PHONE';
