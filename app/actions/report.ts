@@ -450,8 +450,8 @@ export async function getMyReports(): Promise<ActionResult<Database["public"]["V
             ...report,
             renter_name: (report.renter as { full_name: string | null } | null)?.full_name || null,
             renter_fingerprint: (report.renter as { fingerprint: string | null } | null)?.fingerprint || null,
-            evidence_count: 0, // Will be populated separately if needed
-            pending_requests: 0, // Will be populated separately if needed
+            evidence_count: null, // Will be populated separately if needed
+            pending_requests: null, // Will be populated separately if needed
         }))
 
         return { success: true, data: transformedReports as Database["public"]["Views"]["my_reports"]["Row"][] }
@@ -1036,37 +1036,32 @@ export async function updateIncidentReport(
         const allEmails = [formData.email, ...(formData.additionalEmails || [])].filter(Boolean)
         const allFacebooks = [formData.facebookLink, ...(formData.additionalFacebooks || [])].filter(Boolean)
 
-        // Get existing full arrays for comparison
-        const existingPhones = [existingReport.reported_phone, ...(existingReport.reported_phones as string[] || [])].filter(Boolean)
-        const existingEmails = [existingReport.reported_email, ...(existingReport.reported_emails as string[] || [])].filter(Boolean)
-        const existingFacebooks = [existingReport.reported_facebook, ...(existingReport.reported_facebooks as string[] || [])].filter(Boolean)
-
         // Check phone array
-        if (hasChanged(allPhones, existingPhones)) {
+        if (hasChanged(allPhones, existingReport.reported_phones || [])) {
             updateData.reported_phone = allPhones[0] || null
             updateData.reported_phones = allPhones.slice(1) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_phones"]
             changes.reported_phones = {
-                before: existingPhones,
+                before: [existingReport.reported_phone, ...(existingReport.reported_phones as string[] || [])].filter(Boolean),
                 after: allPhones,
             }
         }
 
         // Check email array
-        if (hasChanged(allEmails, existingEmails)) {
+        if (hasChanged(allEmails, existingReport.reported_emails || [])) {
             updateData.reported_email = allEmails[0] || null
             updateData.reported_emails = allEmails.slice(1) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_emails"]
             changes.reported_emails = {
-                before: existingEmails,
+                before: [existingReport.reported_email, ...(existingReport.reported_emails as string[] || [])].filter(Boolean),
                 after: allEmails,
             }
         }
 
         // Check facebook array
-        if (hasChanged(allFacebooks, existingFacebooks)) {
+        if (hasChanged(allFacebooks, existingReport.reported_facebooks || [])) {
             updateData.reported_facebook = allFacebooks[0] || null
             updateData.reported_facebooks = allFacebooks.slice(1) as unknown as Database["public"]["Tables"]["incident_reports"]["Row"]["reported_facebooks"]
             changes.reported_facebooks = {
-                before: existingFacebooks,
+                before: [existingReport.reported_facebook, ...(existingReport.reported_facebooks as string[] || [])].filter(Boolean),
                 after: allFacebooks,
             }
         }
@@ -1097,17 +1092,17 @@ export async function updateIncidentReport(
         }
 
         // Create edit history record
-        const changeNote = isAdmin 
-            ? "Admin updated report details via admin panel" 
-            : "Reporter updated report details via edit form"
+        const editorType = isAdmin ? "ADMIN" : "REPORTER"
+        const editReason = isAdmin ? "Admin updated report details" : "Reporter updated report details"
         
         const { error: historyError } = await supabase
             .from("report_edits")
             .insert({
                 report_id: reportId,
-                edited_by: user.id,
+                editor_id: user.id,
+                editor_type: editorType,
                 changes,
-                change_note: changeNote,
+                edit_reason: editReason,
             })
 
         if (historyError) {
