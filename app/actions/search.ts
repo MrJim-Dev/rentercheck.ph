@@ -39,6 +39,13 @@ function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | '
     return 'date';
   }
 
+  // Check for month name date formats (e.g., "June 18, 1992", "Jan 15 1990")
+  const monthNames = 'January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec';
+  const monthDatePattern = new RegExp(`^(${monthNames})\\s+\\d{1,2},?\\s*\\d{4}$`, 'i');
+  if (monthDatePattern.test(trimmed)) {
+    return 'date';
+  }
+
   // Check for email pattern
   if (trimmed.includes("@") && trimmed.includes(".")) {
     return 'email';
@@ -77,31 +84,55 @@ function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | '
  * Parse a free-text query to extract multiple identifiers
  * Supports input like: "John Doe, 094554343445, johndoe@example.com, 1990-01-15"
  * Intelligently detects and categorizes each part
+ * Handles dates with commas like "June 18, 1992" by protecting them before splitting
  */
 function parseSearchQuery(query: string): SearchInput {
   const trimmed = query.trim();
 
-  // Split by common delimiters: comma, semicolon, pipe, or newline
-  // But be careful not to split phone numbers with dashes
-  const parts = trimmed
+  // STEP 1: Detect and protect date patterns with commas (e.g., "June 18, 1992")
+  // Pattern: Month name followed by day, comma, year
+  const monthNames = 'January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec';
+  const dateWithCommaPattern = new RegExp(`(${monthNames})\\s+\\d{1,2},\\s*\\d{4}`, 'gi');
+  
+  const protectedDates: string[] = [];
+  let processedQuery = trimmed.replace(dateWithCommaPattern, (match) => {
+    const placeholder = `__DATE_${protectedDates.length}__`;
+    protectedDates.push(match);
+    return placeholder;
+  });
+
+  // STEP 2: Split by common delimiters: comma, semicolon, pipe, or newline
+  const parts = processedQuery
     .split(/[,;|\n]+/)
     .map(p => p.trim())
     .filter(p => p.length > 0);
 
+  // STEP 3: Restore protected dates
+  const restoredParts = parts.map(part => {
+    // Check if this part contains a date placeholder
+    const match = part.match(/__DATE_(\d+)__/);
+    if (match) {
+      const dateIndex = parseInt(match[1], 10);
+      // Replace the placeholder with the actual date
+      return part.replace(`__DATE_${dateIndex}__`, protectedDates[dateIndex]);
+    }
+    return part;
+  });
+
   // If only one part, use simple detection
-  if (parts.length === 1) {
-    const type = detectIdentifierType(parts[0]);
+  if (restoredParts.length === 1) {
+    const type = detectIdentifierType(restoredParts[0]);
     switch (type) {
       case 'email':
-        return { email: parts[0] };
+        return { email: restoredParts[0] };
       case 'phone':
-        return { phone: parts[0] };
+        return { phone: restoredParts[0] };
       case 'facebook':
-        return { facebook: parts[0].replace(/^fb:/i, "") };
+        return { facebook: restoredParts[0].replace(/^fb:/i, "") };
       case 'date':
-        return { dateOfBirth: parts[0] };
+        return { dateOfBirth: restoredParts[0] };
       default:
-        return { name: parts[0] };
+        return { name: restoredParts[0] };
     }
   }
 
@@ -113,7 +144,7 @@ function parseSearchQuery(query: string): SearchInput {
   const facebooks: string[] = [];
   let dateOfBirth: string | null = null;
 
-  for (const part of parts) {
+  for (const part of restoredParts) {
     const type = detectIdentifierType(part);
     switch (type) {
       case 'email':
