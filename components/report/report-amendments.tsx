@@ -164,7 +164,7 @@ export function ReportAmendments({ reportId }: ReportAmendmentsProps) {
                     await uploadAmendmentEvidence(
                         reportId,
                         result.data.amendmentId,
-                        "PHOTO",
+                        "OTHER",
                         file
                     )
                 }
