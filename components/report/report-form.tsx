@@ -1,6 +1,6 @@
 "use client"
 
-import { submitIncidentReport, uploadEvidence, updateIncidentReport, getReportById, getEvidenceUrl, type ReportFormData } from "@/app/actions/report"
+import { getEvidenceUrl, getReportById, submitIncidentReport, updateIncidentReport, uploadEvidence, type ReportFormData } from "@/app/actions/report"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -155,7 +155,7 @@ const reportFormSchema = z.object({
         .min(2, "Full name must be at least 2 characters")
         .max(100, "Full name is too long")
         .regex(/^[a-zA-Z\s\u00C0-\u024F\u1E00-\u1EFF.-]+$/, "Please enter a valid name (letters, spaces, hyphens, and periods only)"),
-    
+
     // Multiple identifiers (at least one required - validated in refine below)
     phones: z.array(z.string()).default([]),
     emails: z.array(z.string()).default([]),
@@ -224,6 +224,7 @@ export function ReportForm({ reportId: initialReportId }: { reportId?: string })
         formState: { errors, isSubmitting: formIsSubmitting },
         setError,
         clearErrors,
+        setValue,
     } = useForm<ReportFormSchema>({
         resolver: zodResolver(reportFormSchema),
         defaultValues: {
@@ -262,9 +263,61 @@ export function ReportForm({ reportId: initialReportId }: { reportId?: string })
     const [isSubmitted, setIsSubmitted] = useState(false)
     const [submitError, setSubmitError] = useState<string | null>(null)
     const [reportId, setReportId] = useState<string | null>(initialReportId || null)
-    
+
+    // OCR State
+    const [isScanning, setIsScanning] = useState(false)
+    const scanInputRef = useRef<HTMLInputElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const formRef = useRef<HTMLFormElement>(null)
+
+    // Handle ID Scan
+    const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        try {
+            setIsScanning(true)
+            // Dynamically import scanner to avoid loading huge libraries if not used
+            const { toast } = await import("sonner")
+            toast.info("Scanning ID...", { description: "Extracting details..." })
+
+            const { scanID } = await import('@/lib/ocr/scanner')
+            const { name, dob, address, city } = await scanID(file);
+
+            // 1. Auto-fill Form Fields
+            if (name) setValue("fullName", name, { shouldValidate: true })
+            if (dob) setValue("renterBirthdate", dob, { shouldValidate: true }) // Ensure format YYYY-MM-DD matches validation? Scanner returns formatted.
+
+            if (address || city) {
+                if (address) setValue("renterAddress", address, { shouldValidate: true })
+                if (city) setValue("renterCity", city, { shouldValidate: true })
+
+                setShowMoreDetails(true) // Expand details section
+            }
+
+            // 2. Auto-attach as Proof
+            const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+            const proofFile: ProofFile = {
+                id,
+                file,
+                type: "renter_id",
+                preview: URL.createObjectURL(file)
+            }
+            setProofFiles(prev => [...prev, proofFile])
+
+            toast.success("ID Scanned Successfully", {
+                description: "Name, DOB, and Address have been filled."
+            })
+
+        } catch (error) {
+            console.error("Scan failed:", error)
+            const { toast } = await import("sonner")
+            toast.error("Scan failed", { description: "Could not extract details. Please enter manually." })
+        } finally {
+            setIsScanning(false)
+            if (scanInputRef.current) scanInputRef.current.value = ""
+        }
+    }
 
     // Load report data in edit mode
     useEffect(() => {
@@ -274,7 +327,7 @@ export function ReportForm({ reportId: initialReportId }: { reportId?: string })
                 .then((result) => {
                     if (result.success && result.data) {
                         const report = result.data.report
-                        
+
                         // Combine primary identifiers with additional ones
                         const allPhones = [report.reported_phone, ...(report.reported_phones as string[] || [])].filter(Boolean) as string[]
                         const allEmails = [report.reported_email, ...(report.reported_emails as string[] || [])].filter(Boolean) as string[]
@@ -590,7 +643,7 @@ export function ReportForm({ reportId: initialReportId }: { reportId?: string })
             }
 
             setIsSubmitted(true)
-            
+
             // In edit mode, redirect back to previous page after a short delay
             if (isEditMode) {
                 setTimeout(() => {
@@ -646,7 +699,7 @@ export function ReportForm({ reportId: initialReportId }: { reportId?: string })
                         {isEditMode ? "Report Updated!" : "Report Submitted!"}
                     </h2>
                     <p className="text-muted-foreground mb-2">
-                        {isEditMode 
+                        {isEditMode
                             ? "Your changes have been saved and are under review."
                             : "Your incident report is now under review."}
                     </p>
@@ -725,908 +778,940 @@ export function ReportForm({ reportId: initialReportId }: { reportId?: string })
             )}
 
             <form ref={formRef} onSubmit={handleSubmit(onSubmit, () => scrollToError())} className="space-y-6 pb-8">
-            {/* Global errors */}
-            {(errors.root || submitError) && (
-                <div data-error="true" className="p-4 rounded-lg bg-rose-500/10 border-2 border-rose-500/30 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                        <p className="font-medium text-rose-400 text-sm mb-1">Unable to Submit Report</p>
-                        <p className="text-sm text-rose-300/90">
-                            {errors.root?.message || submitError}
-                        </p>
+                {/* Global errors */}
+                {(errors.root || submitError) && (
+                    <div data-error="true" className="p-4 rounded-lg bg-rose-500/10 border-2 border-rose-500/30 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                        <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                            <p className="font-medium text-rose-400 text-sm mb-1">Unable to Submit Report</p>
+                            <p className="text-sm text-rose-300/90">
+                                {errors.root?.message || submitError}
+                            </p>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Step 1: Identify the Renter */}
-            <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
-                        1
-                    </div>
-                    <div>
-                        <h2 className="font-semibold text-lg">Identify the Renter</h2>
-                        <p className="text-sm text-muted-foreground">Provide at least one identifier + full name</p>
-                    </div>
-                </div>
-
-                {/* Full Name - Required */}
-                <div className="space-y-2" data-error={errors.fullName ? "true" : undefined}>
-                    <Label htmlFor="fullName" className="text-sm">
-                        Full Name <span className="text-destructive">*</span>
-                    </Label>
-                    <div className="relative group">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 group-focus-within:text-secondary transition-colors w-4 h-4" />
-                        <Controller
-                            name="fullName"
-                            control={control}
-                            render={({ field }) => (
-                                <Input
-                                    {...field}
-                                    id="fullName"
-                                    placeholder="Juan Dela Cruz"
-                                    className={`pl-10 h-11 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 ${errors.fullName ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}`}
-                                />
-                            )}
-                        />
-                    </div>
-                    {errors.fullName && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.fullName.message}
-                        </p>
-                    )}
-                </div>
-
-                {/* Identifier hint */}
-                <div className="bg-muted/30 rounded-lg p-4 border border-dashed">
-                    <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-secondary" />
-                            Provide at least ONE identifier for matching:
-                        </p>
-                        {totalIdentifiersCount > 0 && (
-                            <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
-                                {totalIdentifiersCount} identifier{totalIdentifiersCount !== 1 ? "s" : ""}
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="grid gap-4">
-                        {/* Phone Numbers (multiple) */}
-                        <div className="space-y-2">
-                            <Label className="text-sm flex items-center gap-2">
-                                <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                                Phone Number{phones.length > 1 ? "s" : ""}
-                                <span className="text-xs text-emerald-400 font-normal">(recommended)</span>
-                            </Label>
-                            <Controller
-                                name="phones"
-                                control={control}
-                                render={({ field }) => (
-                                    <MultiInput
-                                        values={field.value}
-                                        onChange={field.onChange}
-                                        placeholder="09171234567 or +63 917 123 4567"
-                                        maxItems={5}
-                                        icon={<Phone className="w-4 h-4" />}
-                                        validateFn={validatePhone}
-                                        normalizeFn={normalizePhone}
-                                        addLabel="Add another phone"
-                                        validationMessage="Enter at least 7 digits"
-                                    />
-                                )}
-                            />
+                {/* Step 1: Identify the Renter */}
+                <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
+                                1
+                            </div>
+                            <div>
+                                <h2 className="font-semibold text-lg">Identify the Renter</h2>
+                                <p className="text-sm text-muted-foreground">Provide at least one identifier + full name</p>
+                            </div>
                         </div>
 
-                        {/* Email Addresses (multiple) */}
-                        <div className="space-y-2">
-                            <Label className="text-sm flex items-center gap-2">
-                                <Mail className="w-3.5 h-3.5 text-blue-400" />
-                                Email Address{emails.length > 1 ? "es" : ""}
-                            </Label>
-                            <Controller
-                                name="emails"
-                                control={control}
-                                render={({ field }) => (
-                                    <MultiInput
-                                        values={field.value}
-                                        onChange={field.onChange}
-                                        placeholder="renter@email.com"
-                                        maxItems={5}
-                                        icon={<Mail className="w-4 h-4" />}
-                                        validateFn={validateEmail}
-                                        normalizeFn={(v) => v.toLowerCase().trim()}
-                                        addLabel="Add another email"
-                                        validationMessage="Enter a valid email address"
-                                    />
-                                )}
+                        <div>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                ref={scanInputRef}
+                                onChange={handleScan}
                             />
-                        </div>
-
-                        {/* Facebook Profiles (multiple) */}
-                        <div className="space-y-2">
-                            <Label className="text-sm flex items-center gap-2">
-                                <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />
-                                Facebook Profile{facebooks.length > 1 ? "s" : ""}
-                            </Label>
-                            <Controller
-                                name="facebooks"
-                                control={control}
-                                render={({ field }) => (
-                                    <MultiInput
-                                        values={field.value}
-                                        onChange={field.onChange}
-                                        placeholder="facebook.com/username or profile link"
-                                        maxItems={5}
-                                        icon={<Facebook className="w-4 h-4" />}
-                                        normalizeFn={normalizeFacebookLink}
-                                        addLabel="Add another Facebook"
-                                    />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isScanning}
+                                onClick={() => scanInputRef.current?.click()}
+                                className="gap-2 text-secondary border-secondary/20 hover:bg-secondary/10 hover:text-secondary"
+                            >
+                                {isScanning ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Scanning ID...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Camera className="w-4 h-4" />
+                                        Scan ID to Auto-fill
+                                    </>
                                 )}
-                            />
+                            </Button>
                         </div>
+                    </div>
 
-                        {/* Date of Birth */}
-                        <div className="space-y-2">
-                            <Label htmlFor="renterBirthdate" className="text-sm flex items-center gap-2">
-                                <Calendar className="w-3.5 h-3.5 text-violet-400" />
-                                Date of Birth
-                                
-                            </Label>
+                    {/* Full Name - Required */}
+                    <div className="space-y-2" data-error={errors.fullName ? "true" : undefined}>
+                        <Label htmlFor="fullName" className="text-sm">
+                            Full Name <span className="text-destructive">*</span>
+                        </Label>
+                        <div className="relative group">
+                            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 group-focus-within:text-secondary transition-colors w-4 h-4" />
                             <Controller
-                                name="renterBirthdate"
+                                name="fullName"
                                 control={control}
                                 render={({ field }) => (
                                     <Input
                                         {...field}
-                                        id="renterBirthdate"
-                                        type="date"
-                                        className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
+                                        id="fullName"
+                                        placeholder="Juan Dela Cruz"
+                                        className={`pl-10 h-11 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 ${errors.fullName ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}`}
                                     />
                                 )}
                             />
-                            <p className="text-xs text-muted-foreground">
-                                Can be used if no phone, email, or Facebook is available
-                            </p>
                         </div>
+                        {errors.fullName && (
+                            <p className="text-sm text-red-500 flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                {errors.fullName.message}
+                            </p>
+                        )}
                     </div>
 
-                    {/* Aliases section (collapsible) */}
-                    <div className="mt-4 pt-4 border-t border-dashed">
-                        <button
-                            type="button"
-                            onClick={() => setShowAliases(!showAliases)}
-                            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            <User className="w-3.5 h-3.5" />
-                            {showAliases ? "Hide" : "Add"} known aliases/nicknames
-                            {aliases.length > 0 && (
-                                <span className="text-xs bg-secondary/20 text-secondary px-1.5 py-0.5 rounded">
-                                    {aliases.length}
+                    {/* Identifier hint */}
+                    <div className="bg-muted/30 rounded-lg p-4 border border-dashed">
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                                <Shield className="w-4 h-4 text-secondary" />
+                                Provide at least ONE identifier for matching:
+                            </p>
+                            {totalIdentifiersCount > 0 && (
+                                <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                                    {totalIdentifiersCount} identifier{totalIdentifiersCount !== 1 ? "s" : ""}
                                 </span>
                             )}
-                            <ChevronDown className={`w-4 h-4 transition-transform ${showAliases ? "rotate-180" : ""}`} />
-                        </button>
+                        </div>
 
-                        {showAliases && (
-                            <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
+                        <div className="grid gap-4">
+                            {/* Phone Numbers (multiple) */}
+                            <div className="space-y-2">
+                                <Label className="text-sm flex items-center gap-2">
+                                    <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                                    Phone Number{phones.length > 1 ? "s" : ""}
+                                    <span className="text-xs text-emerald-400 font-normal">(recommended)</span>
+                                </Label>
                                 <Controller
-                                    name="aliases"
+                                    name="phones"
                                     control={control}
                                     render={({ field }) => (
                                         <MultiInput
                                             values={field.value}
                                             onChange={field.onChange}
-                                            placeholder="Known alias or nickname"
+                                            placeholder="09171234567 or +63 917 123 4567"
                                             maxItems={5}
-                                            icon={<User className="w-4 h-4" />}
-                                            addLabel="Add another alias"
+                                            icon={<Phone className="w-4 h-4" />}
+                                            validateFn={validatePhone}
+                                            normalizeFn={normalizePhone}
+                                            addLabel="Add another phone"
+                                            validationMessage="Enter at least 7 digits"
                                         />
                                     )}
                                 />
-                                <p className="text-xs text-muted-foreground mt-2">
-                                    If the renter uses different names on different platforms
+                            </div>
+
+                            {/* Email Addresses (multiple) */}
+                            <div className="space-y-2">
+                                <Label className="text-sm flex items-center gap-2">
+                                    <Mail className="w-3.5 h-3.5 text-blue-400" />
+                                    Email Address{emails.length > 1 ? "es" : ""}
+                                </Label>
+                                <Controller
+                                    name="emails"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <MultiInput
+                                            values={field.value}
+                                            onChange={field.onChange}
+                                            placeholder="renter@email.com"
+                                            maxItems={5}
+                                            icon={<Mail className="w-4 h-4" />}
+                                            validateFn={validateEmail}
+                                            normalizeFn={(v) => v.toLowerCase().trim()}
+                                            addLabel="Add another email"
+                                            validationMessage="Enter a valid email address"
+                                        />
+                                    )}
+                                />
+                            </div>
+
+                            {/* Facebook Profiles (multiple) */}
+                            <div className="space-y-2">
+                                <Label className="text-sm flex items-center gap-2">
+                                    <Facebook className="w-3.5 h-3.5 text-[#1877F2]" />
+                                    Facebook Profile{facebooks.length > 1 ? "s" : ""}
+                                </Label>
+                                <Controller
+                                    name="facebooks"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <MultiInput
+                                            values={field.value}
+                                            onChange={field.onChange}
+                                            placeholder="facebook.com/username or profile link"
+                                            maxItems={5}
+                                            icon={<Facebook className="w-4 h-4" />}
+                                            normalizeFn={normalizeFacebookLink}
+                                            addLabel="Add another Facebook"
+                                        />
+                                    )}
+                                />
+                            </div>
+
+                            {/* Date of Birth */}
+                            <div className="space-y-2">
+                                <Label htmlFor="renterBirthdate" className="text-sm flex items-center gap-2">
+                                    <Calendar className="w-3.5 h-3.5 text-violet-400" />
+                                    Date of Birth
+
+                                </Label>
+                                <Controller
+                                    name="renterBirthdate"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Input
+                                            {...field}
+                                            id="renterBirthdate"
+                                            type="date"
+                                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
+                                        />
+                                    )}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Can be used if no phone, email, or Facebook is available
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Aliases section (collapsible) */}
+                        <div className="mt-4 pt-4 border-t border-dashed">
+                            <button
+                                type="button"
+                                onClick={() => setShowAliases(!showAliases)}
+                                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                <User className="w-3.5 h-3.5" />
+                                {showAliases ? "Hide" : "Add"} known aliases/nicknames
+                                {aliases.length > 0 && (
+                                    <span className="text-xs bg-secondary/20 text-secondary px-1.5 py-0.5 rounded">
+                                        {aliases.length}
+                                    </span>
+                                )}
+                                <ChevronDown className={`w-4 h-4 transition-transform ${showAliases ? "rotate-180" : ""}`} />
+                            </button>
+
+                            {showAliases && (
+                                <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
+                                    <Controller
+                                        name="aliases"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <MultiInput
+                                                values={field.value}
+                                                onChange={field.onChange}
+                                                placeholder="Known alias or nickname"
+                                                maxItems={5}
+                                                icon={<User className="w-4 h-4" />}
+                                                addLabel="Add another alias"
+                                            />
+                                        )}
+                                    />
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                        If the renter uses different names on different platforms
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Validation message */}
+                    {fullName && !hasIdentifier && (
+                        <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
+                            <AlertTriangle className="w-4 h-4 shrink-0" />
+                            <span>Please add at least one identifier (phone, email, Facebook, or date of birth)</span>
+                        </div>
+                    )}
+
+                    {/* Multiple identifiers tip */}
+                    {hasIdentifier && totalIdentifiersCount === 1 && (
+                        <div className="flex items-center gap-2 text-sm text-blue-400 bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
+                            <Sparkles className="w-4 h-4 shrink-0" />
+                            <span>Tip: Adding multiple identifiers improves matching accuracy</span>
+                        </div>
+                    )}
+
+                    {/* Collapsible: Add More Details (Strong Identifiers) */}
+                    <div className="border border-dashed border-secondary/30 rounded-lg overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setShowMoreDetails(!showMoreDetails)}
+                            className="w-full p-4 flex items-center justify-between hover:bg-muted/20 transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/20 to-accent/10 flex items-center justify-center">
+                                    <Zap className="w-4 h-4 text-secondary" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="font-medium text-sm">Add More Details</p>
+                                    <p className="text-xs text-muted-foreground">Optional but helps verify identity</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {strongIdentifiersCount > 0 && (
+                                    <span className="text-xs bg-secondary/20 text-secondary px-2 py-0.5 rounded-full">
+                                        {strongIdentifiersCount} added
+                                    </span>
+                                )}
+                                <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform ${showMoreDetails ? "rotate-180" : ""}`} />
+                            </div>
+                        </button>
+
+                        {showMoreDetails && (
+                            <div className="p-4 pt-0 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                                <div className="h-px bg-border mb-4" />
+
+                                {/* Renter's Address */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="renterAddress" className="text-sm flex items-center gap-2">
+                                        <Home className="w-3.5 h-3.5 text-amber-400" />
+                                        Renter&apos;s Address
+                                        <span className="text-xs text-muted-foreground font-normal">(if provided)</span>
+                                    </Label>
+                                    <Controller
+                                        name="renterAddress"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Input
+                                                {...field}
+                                                id="renterAddress"
+                                                placeholder="Street, Barangay, etc."
+                                                className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                            />
+                                        )}
+                                    />
+                                </div>
+
+                                {/* Renter's City */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="renterCity" className="text-sm flex items-center gap-2">
+                                        <Building className="w-3.5 h-3.5 text-teal-400" />
+                                        Renter&apos;s City/Municipality
+                                    </Label>
+                                    <Controller
+                                        name="renterCity"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Input
+                                                {...field}
+                                                id="renterCity"
+                                                placeholder="e.g., Makati, Cebu City, Davao"
+                                                className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                            />
+                                        )}
+                                    />
+                                </div>
+
+                                <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-2">
+                                    <Shield className="w-3 h-3" />
+                                    These details strengthen identity matching and report credibility
                                 </p>
                             </div>
                         )}
                     </div>
-                </div>
+                </section>
 
-                {/* Validation message */}
-                {fullName && !hasIdentifier && (
-                    <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
-                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                        <span>Please add at least one identifier (phone, email, Facebook, or date of birth)</span>
-                    </div>
-                )}
-
-                {/* Multiple identifiers tip */}
-                {hasIdentifier && totalIdentifiersCount === 1 && (
-                    <div className="flex items-center gap-2 text-sm text-blue-400 bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
-                        <Sparkles className="w-4 h-4 shrink-0" />
-                        <span>Tip: Adding multiple identifiers improves matching accuracy</span>
-                    </div>
-                )}
-
-                {/* Collapsible: Add More Details (Strong Identifiers) */}
-                <div className="border border-dashed border-secondary/30 rounded-lg overflow-hidden">
-                    <button
-                        type="button"
-                        onClick={() => setShowMoreDetails(!showMoreDetails)}
-                        className="w-full p-4 flex items-center justify-between hover:bg-muted/20 transition-colors"
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/20 to-accent/10 flex items-center justify-center">
-                                <Zap className="w-4 h-4 text-secondary" />
-                            </div>
-                            <div className="text-left">
-                                <p className="font-medium text-sm">Add More Details</p>
-                                <p className="text-xs text-muted-foreground">Optional but helps verify identity</p>
-                            </div>
+                {/* Step 2: What Happened */}
+                <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
+                            2
                         </div>
-                        <div className="flex items-center gap-2">
-                            {strongIdentifiersCount > 0 && (
-                                <span className="text-xs bg-secondary/20 text-secondary px-2 py-0.5 rounded-full">
-                                    {strongIdentifiersCount} added
-                                </span>
-                            )}
-                            <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform ${showMoreDetails ? "rotate-180" : ""}`} />
+                        <div>
+                            <h2 className="font-semibold text-lg">What Happened?</h2>
+                            <p className="text-sm text-muted-foreground">Describe the incident and item rented</p>
                         </div>
-                    </button>
+                    </div>
 
-                    {showMoreDetails && (
-                        <div className="p-4 pt-0 space-y-4 animate-in slide-in-from-top-2 duration-200">
-                            <div className="h-px bg-border mb-4" />
+                    {/* Rental Category & Item */}
+                    <div className="bg-muted/30 rounded-lg p-4 border border-dashed space-y-4">
+                        <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                            <span className="text-lg">🏷️</span>
+                            What was rented?
+                        </p>
 
-                            {/* Renter's Address */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Category */}
                             <div className="space-y-2">
-                                <Label htmlFor="renterAddress" className="text-sm flex items-center gap-2">
-                                    <Home className="w-3.5 h-3.5 text-amber-400" />
-                                    Renter&apos;s Address
-                                    <span className="text-xs text-muted-foreground font-normal">(if provided)</span>
+                                <Label htmlFor="rentalCategory" className="text-sm">
+                                    Rental Category
                                 </Label>
                                 <Controller
-                                    name="renterAddress"
+                                    name="rentalCategory"
                                     control={control}
                                     render={({ field }) => (
-                                        <Input
-                                            {...field}
-                                            id="renterAddress"
-                                            placeholder="Street, Barangay, etc."
-                                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                        />
-                                    )}
-                                />
-                            </div>
-
-                            {/* Renter's City */}
-                            <div className="space-y-2">
-                                <Label htmlFor="renterCity" className="text-sm flex items-center gap-2">
-                                    <Building className="w-3.5 h-3.5 text-teal-400" />
-                                    Renter&apos;s City/Municipality
-                                </Label>
-                                <Controller
-                                    name="renterCity"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Input
-                                            {...field}
-                                            id="renterCity"
-                                            placeholder="e.g., Makati, Cebu City, Davao"
-                                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                        />
-                                    )}
-                                />
-                            </div>
-
-                            <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-2">
-                                <Shield className="w-3 h-3" />
-                                These details strengthen identity matching and report credibility
-                            </p>
-                        </div>
-                    )}
-                </div>
-            </section>
-
-            {/* Step 2: What Happened */}
-            <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
-                        2
-                    </div>
-                    <div>
-                        <h2 className="font-semibold text-lg">What Happened?</h2>
-                        <p className="text-sm text-muted-foreground">Describe the incident and item rented</p>
-                    </div>
-                </div>
-
-                {/* Rental Category & Item */}
-                <div className="bg-muted/30 rounded-lg p-4 border border-dashed space-y-4">
-                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <span className="text-lg">🏷️</span>
-                        What was rented?
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {/* Category */}
-                        <div className="space-y-2">
-                            <Label htmlFor="rentalCategory" className="text-sm">
-                                Rental Category
-                            </Label>
-                            <Controller
-                                name="rentalCategory"
-                                control={control}
-                                render={({ field }) => (
-                                    <Select value={field.value} onValueChange={field.onChange}>
-                                        <SelectTrigger className="h-10 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
-                                            <SelectValue placeholder="Select category..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {RENTAL_CATEGORIES.map((cat) => (
-                                                <SelectItem key={cat.value} value={cat.value}>
-                                                    <span className="flex items-center gap-2">
-                                                        <span>{cat.icon}</span>
-                                                        <span>{cat.label}</span>
-                                                    </span>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                        </div>
-
-                        {/* Specific item */}
-                        <div className="space-y-2">
-                            <Label htmlFor="rentalItemDescription" className="text-sm">
-                                Item Description
-                            </Label>
-                            <Controller
-                                name="rentalItemDescription"
-                                control={control}
-                                render={({ field }) => (
-                                    <Input
-                                        {...field}
-                                        id="rentalItemDescription"
-                                        placeholder="e.g., Canon EOS R5, 2BR Condo, Honda Click"
-                                        className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                    />
-                                )}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Incident Type */}
-                <div className="space-y-2" data-error={errors.incidentType ? "true" : undefined}>
-                    <Label htmlFor="incidentType" className="text-sm">
-                        Incident Type <span className="text-destructive">*</span>
-                    </Label>
-                    <Controller
-                        name="incidentType"
-                        control={control}
-                        render={({ field }) => (
-                            <Select value={field.value} onValueChange={field.onChange}>
-                                <SelectTrigger className={`h-11 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20 ${errors.incidentType ? "border-red-500" : ""}`}>
-                                    <SelectValue placeholder="Select what happened..." />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px]">
-                                    {/* Group by category */}
-                                    {["Transaction", "Property", "Trust", "Behavior", "Other"].map((category) => {
-                                        const categoryItems = INCIDENT_TYPES.filter(t => t.category === category);
-                                        if (categoryItems.length === 0) return null;
-                                        return (
-                                            <div key={category}>
-                                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                    {category} Issues
-                                                </div>
-                                                {categoryItems.map((type) => (
-                                                    <SelectItem key={type.value} value={type.value}>
+                                        <Select value={field.value} onValueChange={field.onChange}>
+                                            <SelectTrigger className="h-10 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
+                                                <SelectValue placeholder="Select category..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {RENTAL_CATEGORIES.map((cat) => (
+                                                    <SelectItem key={cat.value} value={cat.value}>
                                                         <span className="flex items-center gap-2">
-                                                            <span>{type.icon}</span>
-                                                            <span>{type.label}</span>
+                                                            <span>{cat.icon}</span>
+                                                            <span>{cat.label}</span>
                                                         </span>
                                                     </SelectItem>
                                                 ))}
-                                            </div>
-                                        );
-                                    })}
-                                </SelectContent>
-                            </Select>
-                        )}
-                    />
-                    {errors.incidentType && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.incidentType.message}
-                        </p>
-                    )}
-                </div>
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
+                            </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Date */}
-                    <div className="space-y-2" data-error={errors.incidentDate ? "true" : undefined}>
-                        <Label htmlFor="incidentDate" className="text-sm flex items-center gap-2">
-                            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                            When did it happen? <span className="text-destructive">*</span>
+                            {/* Specific item */}
+                            <div className="space-y-2">
+                                <Label htmlFor="rentalItemDescription" className="text-sm">
+                                    Item Description
+                                </Label>
+                                <Controller
+                                    name="rentalItemDescription"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Input
+                                            {...field}
+                                            id="rentalItemDescription"
+                                            placeholder="e.g., Canon EOS R5, 2BR Condo, Honda Click"
+                                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                        />
+                                    )}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Incident Type */}
+                    <div className="space-y-2" data-error={errors.incidentType ? "true" : undefined}>
+                        <Label htmlFor="incidentType" className="text-sm">
+                            Incident Type <span className="text-destructive">*</span>
                         </Label>
                         <Controller
-                            name="incidentDate"
+                            name="incidentType"
                             control={control}
                             render={({ field }) => (
-                                <Input
-                                    {...field}
-                                    id="incidentDate"
-                                    type="date"
-                                    className={`h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert ${errors.incidentDate ? "border-red-500" : ""}`}
-                                />
+                                <Select value={field.value} onValueChange={field.onChange}>
+                                    <SelectTrigger className={`h-11 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20 ${errors.incidentType ? "border-red-500" : ""}`}>
+                                        <SelectValue placeholder="Select what happened..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-[300px]">
+                                        {/* Group by category */}
+                                        {["Transaction", "Property", "Trust", "Behavior", "Other"].map((category) => {
+                                            const categoryItems = INCIDENT_TYPES.filter(t => t.category === category);
+                                            if (categoryItems.length === 0) return null;
+                                            return (
+                                                <div key={category}>
+                                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        {category} Issues
+                                                    </div>
+                                                    {categoryItems.map((type) => (
+                                                        <SelectItem key={type.value} value={type.value}>
+                                                            <span className="flex items-center gap-2">
+                                                                <span>{type.icon}</span>
+                                                                <span>{type.label}</span>
+                                                            </span>
+                                                        </SelectItem>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
                             )}
                         />
-                        {errors.incidentDate && (
+                        {errors.incidentType && (
                             <p className="text-sm text-red-500 flex items-center gap-1.5">
                                 <AlertTriangle className="w-3.5 h-3.5" />
-                                {errors.incidentDate.message}
+                                {errors.incidentType.message}
                             </p>
                         )}
                     </div>
 
-                    {/* Amount */}
-                    <div className="space-y-2">
-                        <Label htmlFor="amount" className="text-sm flex items-center gap-2">
-                            <PiggyBank className="w-3.5 h-3.5 text-muted-foreground" />
-                            Amount Involved <span className="text-xs text-muted-foreground font-normal">(optional)</span>
-                        </Label>
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">₱</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Date */}
+                        <div className="space-y-2" data-error={errors.incidentDate ? "true" : undefined}>
+                            <Label htmlFor="incidentDate" className="text-sm flex items-center gap-2">
+                                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                                When did it happen? <span className="text-destructive">*</span>
+                            </Label>
                             <Controller
-                                name="amountInvolved"
+                                name="incidentDate"
                                 control={control}
                                 render={({ field }) => (
                                     <Input
                                         {...field}
-                                        id="amount"
-                                        type="number"
-                                        placeholder="0.00"
-                                        className="pl-8 h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                        id="incidentDate"
+                                        type="date"
+                                        className={`h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert ${errors.incidentDate ? "border-red-500" : ""}`}
                                     />
                                 )}
                             />
+                            {errors.incidentDate && (
+                                <p className="text-sm text-red-500 flex items-center gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    {errors.incidentDate.message}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Amount */}
+                        <div className="space-y-2">
+                            <Label htmlFor="amount" className="text-sm flex items-center gap-2">
+                                <PiggyBank className="w-3.5 h-3.5 text-muted-foreground" />
+                                Amount Involved <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                            </Label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">₱</span>
+                                <Controller
+                                    name="amountInvolved"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Input
+                                            {...field}
+                                            id="amount"
+                                            type="number"
+                                            placeholder="0.00"
+                                            className="pl-8 h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                        />
+                                    )}
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Location of Incident */}
-                <div className="bg-muted/30 rounded-lg p-4 border border-dashed space-y-4">
-                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-rose-400" />
-                        Where did it happen? <span className="text-xs font-normal">(optional but helpful)</span>
-                    </p>
+                    {/* Location of Incident */}
+                    <div className="bg-muted/30 rounded-lg p-4 border border-dashed space-y-4">
+                        <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-rose-400" />
+                            Where did it happen? <span className="text-xs font-normal">(optional but helpful)</span>
+                        </p>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {/* Region */}
-                        <div className="space-y-2">
-                            <Label htmlFor="incidentRegion" className="text-sm">Region</Label>
-                            <Controller
-                                name="incidentRegion"
-                                control={control}
-                                render={({ field }) => (
-                                    <Select value={field.value} onValueChange={field.onChange}>
-                                        <SelectTrigger className="h-10 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
-                                            <SelectValue placeholder="Select region..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {REGIONS.map((region) => (
-                                                <SelectItem key={region} value={region}>
-                                                    {region}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Region */}
+                            <div className="space-y-2">
+                                <Label htmlFor="incidentRegion" className="text-sm">Region</Label>
+                                <Controller
+                                    name="incidentRegion"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Select value={field.value} onValueChange={field.onChange}>
+                                            <SelectTrigger className="h-10 bg-background/50 border-input/50 focus:border-secondary focus:ring-secondary/20">
+                                                <SelectValue placeholder="Select region..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {REGIONS.map((region) => (
+                                                    <SelectItem key={region} value={region}>
+                                                        {region}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
+                            </div>
+
+                            {/* City */}
+                            <div className="space-y-2">
+                                <Label htmlFor="incidentCity" className="text-sm">City/Municipality</Label>
+                                <Controller
+                                    name="incidentCity"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Input
+                                            {...field}
+                                            id="incidentCity"
+                                            placeholder="e.g., Makati, Cebu City"
+                                            className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
+                                        />
+                                    )}
+                                />
+                            </div>
                         </div>
 
-                        {/* City */}
+                        {/* Specific place */}
                         <div className="space-y-2">
-                            <Label htmlFor="incidentCity" className="text-sm">City/Municipality</Label>
+                            <Label htmlFor="incidentPlace" className="text-sm">Specific Location/Establishment</Label>
                             <Controller
-                                name="incidentCity"
+                                name="incidentPlace"
                                 control={control}
                                 render={({ field }) => (
                                     <Input
                                         {...field}
-                                        id="incidentCity"
-                                        placeholder="e.g., Makati, Cebu City"
+                                        id="incidentPlace"
+                                        placeholder="e.g., Rental shop name, branch, address"
                                         className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
                                     />
                                 )}
                             />
                         </div>
                     </div>
+                </section>
 
-                    {/* Specific place */}
-                    <div className="space-y-2">
-                        <Label htmlFor="incidentPlace" className="text-sm">Specific Location/Establishment</Label>
-                        <Controller
-                            name="incidentPlace"
-                            control={control}
-                            render={({ field }) => (
-                                <Input
-                                    {...field}
-                                    id="incidentPlace"
-                                    placeholder="e.g., Rental shop name, branch, address"
-                                    className="h-10 bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20"
-                                />
-                            )}
-                        />
+                {/* Step 3: Upload Proof */}
+                <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
+                            3
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-lg">Upload Proof</h2>
+                            <p className="text-sm text-muted-foreground">At least 1 required • You can blur sensitive info</p>
+                        </div>
                     </div>
-                </div>
-            </section>
 
-            {/* Step 3: Upload Proof */}
-            <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
-                        3
-                    </div>
+                    {/* Proof type buttons */}
                     <div>
-                        <h2 className="font-semibold text-lg">Upload Proof</h2>
-                        <p className="text-sm text-muted-foreground">At least 1 required • You can blur sensitive info</p>
-                    </div>
-                </div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Incident Evidence</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            {PROOF_TYPES.map((type) => {
+                                const Icon = type.icon
+                                const isActive = activeProofType === type.id
+                                const fileCount = proofFiles.filter(f => f.type === type.id).length
 
-                {/* Proof type buttons */}
-                <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Incident Evidence</p>
-                    <div className="grid grid-cols-2 gap-3">
-                        {PROOF_TYPES.map((type) => {
-                            const Icon = type.icon
-                            const isActive = activeProofType === type.id
-                            const fileCount = proofFiles.filter(f => f.type === type.id).length
-
-                            return (
-                                <button
-                                    key={type.id}
-                                    type="button"
-                                    onClick={() => {
-                                        setActiveProofType(type.id as ProofType)
-                                        fileInputRef.current?.click()
-                                    }}
-                                    className={`
+                                return (
+                                    <button
+                                        key={type.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveProofType(type.id as ProofType)
+                                            fileInputRef.current?.click()
+                                        }}
+                                        className={`
                                         relative p-4 rounded-xl border-2 transition-all duration-200
                                         bg-gradient-to-br ${type.color}
                                         ${isActive ? "ring-2 ring-secondary/50 ring-offset-2 ring-offset-card" : ""}
                                         hover:scale-[1.02] active:scale-[0.98]
                                         text-left group
                                     `}
-                                >
-                                    <Icon className="w-5 h-5 mb-1.5 text-foreground/80 group-hover:text-foreground transition-colors" />
-                                    <p className="font-medium text-sm">{type.label}</p>
-                                    <p className="text-xs text-muted-foreground">{type.description}</p>
-                                    {fileCount > 0 && (
-                                        <div className="absolute top-2 right-2 min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 flex items-center justify-center">
-                                            <span className="text-xs text-white font-medium">{fileCount}</span>
-                                        </div>
-                                    )}
-                                </button>
-                            )
-                        })}
+                                    >
+                                        <Icon className="w-5 h-5 mb-1.5 text-foreground/80 group-hover:text-foreground transition-colors" />
+                                        <p className="font-medium text-sm">{type.label}</p>
+                                        <p className="text-xs text-muted-foreground">{type.description}</p>
+                                        {fileCount > 0 && (
+                                            <div className="absolute top-2 right-2 min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 flex items-center justify-center">
+                                                <span className="text-xs text-white font-medium">{fileCount}</span>
+                                            </div>
+                                        )}
+                                    </button>
+                                )
+                            })}
+                        </div>
                     </div>
-                </div>
 
-                {/* Renter ID uploads - separated section */}
-                <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-                        <Zap className="w-3 h-3" />
-                        Renter Identification <span className="font-normal normal-case">(optional - strong identifier)</span>
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                        {RENTER_ID_TYPES.map((type) => {
-                            const Icon = type.icon
-                            const isActive = activeProofType === type.id
-                            const fileCount = proofFiles.filter(f => f.type === type.id).length
+                    {/* Renter ID uploads - separated section */}
+                    <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <Zap className="w-3 h-3" />
+                            Renter Identification <span className="font-normal normal-case">(optional - strong identifier)</span>
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                            {RENTER_ID_TYPES.map((type) => {
+                                const Icon = type.icon
+                                const isActive = activeProofType === type.id
+                                const fileCount = proofFiles.filter(f => f.type === type.id).length
 
-                            return (
-                                <button
-                                    key={type.id}
-                                    type="button"
-                                    onClick={() => {
-                                        setActiveProofType(type.id as ProofType)
-                                        fileInputRef.current?.click()
-                                    }}
-                                    className={`
+                                return (
+                                    <button
+                                        key={type.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveProofType(type.id as ProofType)
+                                            fileInputRef.current?.click()
+                                        }}
+                                        className={`
                                         relative p-4 rounded-xl border-2 transition-all duration-200
                                         bg-gradient-to-br ${type.color}
                                         ${isActive ? "ring-2 ring-secondary/50 ring-offset-2 ring-offset-card" : ""}
                                         hover:scale-[1.02] active:scale-[0.98]
                                         text-left group
                                     `}
-                                >
-                                    <Icon className="w-5 h-5 mb-1.5 text-foreground/80 group-hover:text-foreground transition-colors" />
-                                    <p className="font-medium text-sm">{type.label}</p>
-                                    <p className="text-xs text-muted-foreground">{type.description}</p>
-                                    {fileCount > 0 && (
-                                        <div className="absolute top-2 right-2 min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 flex items-center justify-center">
-                                            <span className="text-xs text-white font-medium">{fileCount}</span>
-                                        </div>
-                                    )}
-                                </button>
-                            )
-                        })}
+                                    >
+                                        <Icon className="w-5 h-5 mb-1.5 text-foreground/80 group-hover:text-foreground transition-colors" />
+                                        <p className="font-medium text-sm">{type.label}</p>
+                                        <p className="text-xs text-muted-foreground">{type.description}</p>
+                                        {fileCount > 0 && (
+                                            <div className="absolute top-2 right-2 min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 flex items-center justify-center">
+                                                <span className="text-xs text-white font-medium">{fileCount}</span>
+                                            </div>
+                                        )}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
+                            <Shield className="w-3 h-3" />
+                            If you have a copy of the renter&apos;s ID or photo taken during pickup
+                        </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
-                        <Shield className="w-3 h-3" />
-                        If you have a copy of the renter&apos;s ID or photo taken during pickup
-                    </p>
-                </div>
 
-                {/* Hidden file input */}
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,.pdf"
-                    multiple
-                    onChange={(e) => handleFileSelect(e.target.files, activeProofType)}
-                    className="hidden"
-                />
+                    {/* Hidden file input */}
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,.pdf"
+                        multiple
+                        onChange={(e) => handleFileSelect(e.target.files, activeProofType)}
+                        className="hidden"
+                    />
 
-                {/* Drop zone */}
-                <div
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`
+                    {/* Drop zone */}
+                    <div
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`
                         border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200
                         ${isDragging
-                            ? "border-secondary bg-secondary/10 scale-[1.02]"
-                            : "border-input/50 hover:border-secondary/50 hover:bg-muted/20"
-                        }
+                                ? "border-secondary bg-secondary/10 scale-[1.02]"
+                                : "border-input/50 hover:border-secondary/50 hover:bg-muted/20"
+                            }
                     `}
-                >
-                    <Upload className={`w-10 h-10 mx-auto mb-3 transition-colors ${isDragging ? "text-secondary" : "text-muted-foreground"}`} />
-                    <p className="font-medium">
-                        {isDragging ? "Drop files here!" : "Drag & drop files or click to browse"}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Supports images & PDFs • Mobile: tap to use camera
-                    </p>
-                </div>
-
-                {/* Uploaded files preview */}
-                {proofFiles.length > 0 && (
-                    <div className="space-y-3">
-                        <p className="text-sm font-medium text-muted-foreground">
-                            Uploaded ({proofFiles.length} file{proofFiles.length !== 1 ? "s" : ""})
+                    >
+                        <Upload className={`w-10 h-10 mx-auto mb-3 transition-colors ${isDragging ? "text-secondary" : "text-muted-foreground"}`} />
+                        <p className="font-medium">
+                            {isDragging ? "Drop files here!" : "Drag & drop files or click to browse"}
                         </p>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {proofFiles.map((pf) => (
-                                <div
-                                    key={pf.id}
-                                    className="relative group rounded-lg overflow-hidden border bg-muted/20 aspect-square"
-                                >
-                                    {pf.preview ? (
-                                        <img
-                                            src={pf.preview}
-                                            alt="Proof"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <FileText className="w-8 h-8 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Supports images & PDFs • Mobile: tap to use camera
+                        </p>
+                    </div>
+
+                    {/* Uploaded files preview */}
+                    {proofFiles.length > 0 && (
+                        <div className="space-y-3">
+                            <p className="text-sm font-medium text-muted-foreground">
+                                Uploaded ({proofFiles.length} file{proofFiles.length !== 1 ? "s" : ""})
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {proofFiles.map((pf) => (
+                                    <div
+                                        key={pf.id}
+                                        className="relative group rounded-lg overflow-hidden border bg-muted/20 aspect-square"
+                                    >
+                                        {pf.preview ? (
+                                            <img
+                                                src={pf.preview}
+                                                alt="Proof"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <FileText className="w-8 h-8 text-muted-foreground" />
+                                            </div>
+                                        )}
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => removeFile(pf.id)}
+                                                className="p-2 rounded-full bg-destructive text-white hover:bg-destructive/90 transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
                                         </div>
-                                    )}
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <button
-                                            type="button"
-                                            onClick={() => removeFile(pf.id)}
-                                            className="p-2 rounded-full bg-destructive text-white hover:bg-destructive/90 transition-colors"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
-                                        <p className="text-xs text-white truncate capitalize">{pf.type.replace("_", " ")}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Existing evidence from database */}
-                {isEditMode && existingEvidence.length > 0 && (
-                    <div className="space-y-3">
-                        <p className="text-sm font-medium text-muted-foreground">
-                            Existing Evidence ({existingEvidence.length} file{existingEvidence.length !== 1 ? "s" : ""})
-                        </p>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {existingEvidence.map((ev) => (
-                                <div
-                                    key={ev.id}
-                                    className="relative group rounded-lg overflow-hidden border bg-muted/20 aspect-square"
-                                >
-                                    {ev.url && ev.evidence_type.includes("PHOTO") ? (
-                                        <img
-                                            src={ev.url}
-                                            alt="Evidence"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <FileText className="w-8 h-8 text-muted-foreground" />
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                                            <p className="text-xs text-white truncate capitalize">{pf.type.replace("_", " ")}</p>
                                         </div>
-                                    )}
-                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
-                                        <p className="text-xs text-white truncate capitalize">{ev.evidence_type.toLowerCase().replace("_", " ")}</p>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                )}
-
-                {/* No proof warning */}
-                {proofFiles.length === 0 && !isEditMode && (
-                    <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
-                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                        <span>At least one proof file is required to submit</span>
-                    </div>
-                )}
-                {proofFiles.length === 0 && isEditMode && existingEvidence.length === 0 && (
-                    <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
-                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                        <span>No evidence files attached to this report</span>
-                    </div>
-                )}
-            </section>
-
-            {/* Step 4: Summary */}
-            <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
-                        4
-                    </div>
-                    <div>
-                        <h2 className="font-semibold text-lg">Brief Summary</h2>
-                        <p className="text-sm text-muted-foreground">1-2 sentences about what happened (facts only)</p>
-                    </div>
-                </div>
-
-                <div className="space-y-2" data-error={errors.summary ? "true" : undefined}>
-                    <Controller
-                        name="summary"
-                        control={control}
-                        render={({ field }) => (
-                            <Textarea
-                                {...field}
-                                placeholder="Example: 'Unit due Jan 5, not returned. Renter stopped replying after Jan 7.'"
-                                className={`min-h-[100px] bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 resize-none ${errors.summary ? "border-red-500" : ""}`}
-                                maxLength={500}
-                            />
-                        )}
-                    />
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <p className="flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            Write only facts—avoid opinions or speculation
-                        </p>
-                        <span>{summary?.length || 0}/500</span>
-                    </div>
-                    {errors.summary && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.summary.message}
-                        </p>
-                    )}
-                </div>
-            </section>
-
-            {/* Step 5: Confirmation & Submit */}
-            <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
-                        5
-                    </div>
-                    <div>
-                        <h2 className="font-semibold text-lg">Confirm & Submit</h2>
-                        <p className="text-sm text-muted-foreground">Review and agree to submit</p>
-                    </div>
-                </div>
-
-                {/* Confirmation checkboxes */}
-                <div className="space-y-4" data-error={(errors.confirmTruth || errors.confirmBan) ? "true" : undefined}>
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                        <Controller
-                            name="confirmTruth"
-                            control={control}
-                            render={({ field }) => (
-                                <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                    className="mt-0.5"
-                                />
-                            )}
-                        />
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium group-hover:text-foreground transition-colors flex items-center gap-2">
-                                <FileCheck className="w-4 h-4 text-secondary" />
-                                I confirm this report is true
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                                I can provide more information if asked for verification
-                            </p>
-                        </div>
-                    </label>
-                    {errors.confirmTruth && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5 -mt-2">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.confirmTruth.message}
-                        </p>
                     )}
 
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                        <Controller
-                            name="confirmBan"
-                            control={control}
-                            render={({ field }) => (
-                                <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                    className="mt-0.5"
-                                />
-                            )}
-                        />
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium group-hover:text-foreground transition-colors flex items-center gap-2">
-                                <Ban className="w-4 h-4 text-destructive" />
-                                I understand the consequences
+                    {/* Existing evidence from database */}
+                    {isEditMode && existingEvidence.length > 0 && (
+                        <div className="space-y-3">
+                            <p className="text-sm font-medium text-muted-foreground">
+                                Existing Evidence ({existingEvidence.length} file{existingEvidence.length !== 1 ? "s" : ""})
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                                False reports can result in my account being permanently banned
-                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {existingEvidence.map((ev) => (
+                                    <div
+                                        key={ev.id}
+                                        className="relative group rounded-lg overflow-hidden border bg-muted/20 aspect-square"
+                                    >
+                                        {ev.url && ev.evidence_type.includes("PHOTO") ? (
+                                            <img
+                                                src={ev.url}
+                                                alt="Evidence"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <FileText className="w-8 h-8 text-muted-foreground" />
+                                            </div>
+                                        )}
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                                            <p className="text-xs text-white truncate capitalize">{ev.evidence_type.toLowerCase().replace("_", " ")}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </label>
-                    {errors.confirmBan && (
-                        <p className="text-sm text-red-500 flex items-center gap-1.5 -mt-2">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {errors.confirmBan.message}
-                        </p>
                     )}
-                </div>
 
-                {/* Error message */}
-                {submitError && (
-                    <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
-                        <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    {/* No proof warning */}
+                    {proofFiles.length === 0 && !isEditMode && (
+                        <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
+                            <AlertTriangle className="w-4 h-4 shrink-0" />
+                            <span>At least one proof file is required to submit</span>
+                        </div>
+                    )}
+                    {proofFiles.length === 0 && isEditMode && existingEvidence.length === 0 && (
+                        <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
+                            <AlertTriangle className="w-4 h-4 shrink-0" />
+                            <span>No evidence files attached to this report</span>
+                        </div>
+                    )}
+                </section>
+
+                {/* Step 4: Summary */}
+                <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
+                            4
+                        </div>
                         <div>
-                            <p className="font-medium text-rose-400 text-sm">Submission Failed</p>
-                            <p className="text-sm text-rose-300/90">{submitError}</p>
+                            <h2 className="font-semibold text-lg">Brief Summary</h2>
+                            <p className="text-sm text-muted-foreground">1-2 sentences about what happened (facts only)</p>
                         </div>
                     </div>
-                )}
 
-                {/* Submit button */}
-                <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full h-12 bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity font-bold text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {isSubmitting ? (
-                        <>
-                            <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                            {isEditMode ? "Updating Report..." : "Submitting Report..."}
-                        </>
-                    ) : (
-                        <>
-                            {isEditMode ? "Update Report" : "Submit Incident Report"}
-                            <ArrowRight className="w-5 h-5 ml-2" />
-                        </>
+                    <div className="space-y-2" data-error={errors.summary ? "true" : undefined}>
+                        <Controller
+                            name="summary"
+                            control={control}
+                            render={({ field }) => (
+                                <Textarea
+                                    {...field}
+                                    placeholder="Example: 'Unit due Jan 5, not returned. Renter stopped replying after Jan 7.'"
+                                    className={`min-h-[100px] bg-background/50 border-input/50 focus-visible:border-secondary focus-visible:ring-secondary/20 resize-none ${errors.summary ? "border-red-500" : ""}`}
+                                    maxLength={500}
+                                />
+                            )}
+                        />
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <p className="flex items-center gap-1">
+                                <Sparkles className="w-3 h-3" />
+                                Write only facts—avoid opinions or speculation
+                            </p>
+                            <span>{summary?.length || 0}/500</span>
+                        </div>
+                        {errors.summary && (
+                            <p className="text-sm text-red-500 flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                {errors.summary.message}
+                            </p>
+                        )}
+                    </div>
+                </section>
+
+                {/* Step 5: Confirmation & Submit */}
+                <section className="bg-card border rounded-xl p-6 shadow-sm space-y-5">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-secondary/30 to-accent/20 flex items-center justify-center text-sm font-bold text-secondary">
+                            5
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-lg">Confirm & Submit</h2>
+                            <p className="text-sm text-muted-foreground">Review and agree to submit</p>
+                        </div>
+                    </div>
+
+                    {/* Confirmation checkboxes */}
+                    <div className="space-y-4" data-error={(errors.confirmTruth || errors.confirmBan) ? "true" : undefined}>
+                        <label className="flex items-start gap-3 cursor-pointer group">
+                            <Controller
+                                name="confirmTruth"
+                                control={control}
+                                render={({ field }) => (
+                                    <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        className="mt-0.5"
+                                    />
+                                )}
+                            />
+                            <div className="space-y-1">
+                                <p className="text-sm font-medium group-hover:text-foreground transition-colors flex items-center gap-2">
+                                    <FileCheck className="w-4 h-4 text-secondary" />
+                                    I confirm this report is true
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    I can provide more information if asked for verification
+                                </p>
+                            </div>
+                        </label>
+                        {errors.confirmTruth && (
+                            <p className="text-sm text-red-500 flex items-center gap-1.5 -mt-2">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                {errors.confirmTruth.message}
+                            </p>
+                        )}
+
+                        <label className="flex items-start gap-3 cursor-pointer group">
+                            <Controller
+                                name="confirmBan"
+                                control={control}
+                                render={({ field }) => (
+                                    <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        className="mt-0.5"
+                                    />
+                                )}
+                            />
+                            <div className="space-y-1">
+                                <p className="text-sm font-medium group-hover:text-foreground transition-colors flex items-center gap-2">
+                                    <Ban className="w-4 h-4 text-destructive" />
+                                    I understand the consequences
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    False reports can result in my account being permanently banned
+                                </p>
+                            </div>
+                        </label>
+                        {errors.confirmBan && (
+                            <p className="text-sm text-red-500 flex items-center gap-1.5 -mt-2">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                {errors.confirmBan.message}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Error message */}
+                    {submitError && (
+                        <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="font-medium text-rose-400 text-sm">Submission Failed</p>
+                                <p className="text-sm text-rose-300/90">{submitError}</p>
+                            </div>
+                        </div>
                     )}
-                </Button>
-            </section>
-        </form>
+
+                    {/* Submit button */}
+                    <Button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full h-12 bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity font-bold text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isSubmitting ? (
+                            <>
+                                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                                {isEditMode ? "Updating Report..." : "Submitting Report..."}
+                            </>
+                        ) : (
+                            <>
+                                {isEditMode ? "Update Report" : "Submit Incident Report"}
+                                <ArrowRight className="w-5 h-5 ml-2" />
+                            </>
+                        )}
+                    </Button>
+                </section>
+            </form>
         </div>
     )
 }

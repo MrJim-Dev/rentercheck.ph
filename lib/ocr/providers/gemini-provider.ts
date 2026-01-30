@@ -23,6 +23,7 @@ export async function scanWithGemini(file: File): Promise<ExtractedData> {
     return {
         name: data.name || null,
         address: data.address || null,
+        city: data.city || null,
         dob: data.dob || null
     };
 }

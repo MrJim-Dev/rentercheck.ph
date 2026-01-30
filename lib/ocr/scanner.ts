@@ -4,6 +4,7 @@ import { scanWithTesseract } from './providers/tesseract-provider';
 export type ExtractedData = {
     name: string | null;
     address: string | null;
+    city: string | null;
     dob: string | null;
 };
 

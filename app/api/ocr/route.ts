@@ -29,10 +29,11 @@ export async function POST(req: NextRequest) {
         const prompt = `
             Extract the following details from this ID card image:
             1. Name (Full Name, converted to Title Case e.g. "Juan Dela Cruz")
-            2. Date of Birth (Format: YYYY-MM-DD or DD Mon YYYY)
+            2. Date of Birth (Strictly in YYYY-MM-DD format e.g. "1990-12-31")
             3. Address (Full Address, converted to Title Case e.g. "123 Main St, Cebu City")
+            4. City/Municipality (Extract just the city e.g. "Cebu City" or "Makati")
 
-            Return the result ONLY as a JSON object with keys: "name", "dob", "address".
+            Return the result ONLY as a JSON object with keys: "name", "dob", "address", "city".
             If a field is not found or unclear, use null. 
             Do not include markdown code blocks.
         `;
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             name: parsedData.name || null,
             address: parsedData.address || null,
+            city: parsedData.city || null,
             dob: parsedData.dob || null
         });
 
