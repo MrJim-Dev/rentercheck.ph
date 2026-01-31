@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Clock, User, Loader2, FileEdit } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Clock, FileEdit, Loader2, User } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 
 interface ReportEdit {
     id: string
@@ -11,6 +11,7 @@ interface ReportEdit {
     edited_by_email: string | null
     changes: Record<string, { old: unknown; new: unknown }>
     change_note: string
+    type?: 'EDIT' | 'ACTION'
 }
 
 interface ReportHistoryDialogProps {
@@ -29,17 +30,17 @@ const FIELD_LABELS: Record<string, string> = {
     reported_address: "Address",
     reported_city: "City",
     reported_date_of_birth: "Date of Birth",
-    
+
     // Multiple Identifiers (arrays)
     reported_phones: "Phone Numbers",
     reported_emails: "Email Addresses",
     reported_facebooks: "Facebook Profiles",
     reported_aliases: "Aliases / Alternative Names",
-    
+
     // Rental Details
     rental_category: "Rental Business Type",
     rental_item_description: "Rental Item Description",
-    
+
     // Incident Details
     incident_type: "Incident Type",
     incident_date: "Incident Date",
@@ -49,12 +50,12 @@ const FIELD_LABELS: Record<string, string> = {
     incident_region: "Incident Region",
     amount_involved: "Amount Involved",
     summary: "Incident Summary",
-    
+
     // Admin Fields
     admin_notes: "Admin Notes",
     status: "Status",
     rejection_reason: "Rejection Reason",
-    
+
     // Review Status
     credibility_score: "Credibility Score",
 }
@@ -157,30 +158,38 @@ export function ReportHistoryDialog({
 
                                     {/* Changes */}
                                     <div className="space-y-3">
-                                        {Object.entries(edit.changes).map(([field, change]) => (
-                                            <div key={field} className="grid grid-cols-2 gap-3 text-sm">
-                                                <div>
-                                                    <p className="text-xs text-muted-foreground mb-1">
-                                                        {FIELD_LABELS[field] || field}
-                                                    </p>
-                                                    <div className="bg-red-500/10 border border-red-500/30 rounded p-2">
-                                                        <p className="text-red-300 font-mono text-xs break-all">
-                                                            {formatValue(change.old)}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-muted-foreground mb-1">
-                                                        Changed to
-                                                    </p>
-                                                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded p-2">
-                                                        <p className="text-emerald-300 font-mono text-xs break-all">
-                                                            {formatValue(change.new)}
-                                                        </p>
-                                                    </div>
-                                                </div>
+                                        {edit.type === 'ACTION' ? (
+                                            <div className="bg-blue-500/10 border border-blue-500/30 rounded p-3">
+                                                <p className="text-sm text-blue-500 dark:text-blue-400 flex items-center gap-2">
+                                                    <span className="font-semibold">{edit.changes["Action"]?.new as string}</span>
+                                                </p>
                                             </div>
-                                        ))}
+                                        ) : (
+                                            Object.entries(edit.changes).map(([field, change]) => (
+                                                <div key={field} className="grid grid-cols-2 gap-3 text-sm">
+                                                    <div>
+                                                        <p className="text-xs text-muted-foreground mb-1">
+                                                            {FIELD_LABELS[field] || field}
+                                                        </p>
+                                                        <div className="bg-red-500/10 border border-red-500/30 rounded p-2">
+                                                            <p className="text-red-300 font-mono text-xs break-all">
+                                                                {formatValue(change.old)}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-muted-foreground mb-1">
+                                                            Changed to
+                                                        </p>
+                                                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded p-2">
+                                                            <p className="text-emerald-300 font-mono text-xs break-all">
+                                                                {formatValue(change.new)}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 </div>
                             ))}

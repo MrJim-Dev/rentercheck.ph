@@ -1,6 +1,5 @@
 "use client"
 
-import React, { Suspense, useEffect, useState, useTransition } from "react"
 import {
     checkIsAdmin,
     getAdminEvidenceUrl,
@@ -11,12 +10,14 @@ import {
     hardDeleteReport,
     transferReport,
     updateReportDetails,
-    updateReportStatus,
+    updateReportStatus
 } from "@/app/actions/admin"
 import { logout } from "@/app/actions/auth"
+import { removeReportFromGroup } from "@/app/actions/report-merge"
 import { AdminUserCreditTable } from "@/components/admin/admin-user-credit-table"
 import { CreditConfigTable } from "@/components/admin/credit-config-table"
 import { DisputesTable } from "@/components/admin/disputes-table"
+import { MergeReportsDialog } from "@/components/admin/merge-reports-dialog"
 import { ReportDetailsSheet } from "@/components/admin/report-details-sheet"
 import { ReportEditorDialog } from "@/components/admin/report-editor-dialog"
 import { ReportHistoryDialog } from "@/components/admin/report-history-dialog"
@@ -44,6 +45,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/components/ui/use-toast"
 import { signOutClient, useAuth } from "@/lib/auth/auth-provider"
 import type { Database, Enums } from "@/lib/database.types"
 import {
@@ -59,19 +61,23 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useState, useTransition } from "react"
 
-type Report = Database["public"]["Tables"]["incident_reports"]["Row"]
+type Report = Database["public"]["Tables"]["incident_reports"]["Row"] & {
+    report_group_members?: { group_id: string }[] | { group_id: string } | null | any
+}
 type Evidence = Database["public"]["Tables"]["report_evidence"]["Row"]
 
 function AdminPageContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
+    const { toast } = useToast()
     const tabParam = searchParams.get('tab')
     const [view, setView] = useState<"REPORTS" | "CONFIG" | "USERS" | "DISPUTES">(
         tabParam?.toUpperCase() === 'CONFIG' ? 'CONFIG' :
-        tabParam?.toUpperCase() === 'USERS' ? 'USERS' :
-        tabParam?.toUpperCase() === 'DISPUTES' ? 'DISPUTES' :
-        'REPORTS'
+            tabParam?.toUpperCase() === 'USERS' ? 'USERS' :
+                tabParam?.toUpperCase() === 'DISPUTES' ? 'DISPUTES' :
+                    'REPORTS'
     )
     const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
     const [adminRole, setAdminRole] = useState<string | null>(null)
@@ -116,6 +122,17 @@ function AdminPageContent() {
     // Transfer dialog state
     const [showTransferDialog, setShowTransferDialog] = useState(false)
     const [reportToTransfer, setReportToTransfer] = useState<Report | null>(null)
+
+    // Merge dialog state
+    const [showMergeDialog, setShowMergeDialog] = useState(false)
+    const [reportToMerge, setReportToMerge] = useState<Report | null>(null)
+
+    // Unmerge dialog state
+    const [showUnmergeDialog, setShowUnmergeDialog] = useState(false)
+    const [reportToUnmerge, setReportToUnmerge] = useState<Report | null>(null)
+
+    // Group reports state for details view
+    const [selectedGroupReports, setSelectedGroupReports] = useState<any[] | undefined>(undefined)
 
     const { user, loading: authLoading } = useAuth()
 
@@ -226,23 +243,33 @@ function AdminPageContent() {
         setSelectedReport(report)
         setIsLoadingDetails(true)
         setSelectedEvidence([])
+        setSelectedGroupReports(undefined)
 
         const result = await getReportDetails(report.id)
         if (result.success && result.data) {
             setSelectedEvidence(result.data.evidence)
+            if (result.data.groupReports) {
+                setSelectedGroupReports(result.data.groupReports)
+            }
         }
         setIsLoadingDetails(false)
     }
 
     // Handle status change
-    const handleStatusChange = async (newStatus: Enums<"report_status">, reason?: string) => {
-        if (!selectedReport) return
+    const handleDetailStatusChange = async (report: Report, newStatus: Enums<"report_status">, reason?: string) => {
+        const reportId = report.id
 
-        const reportId = selectedReport.id
-        
         // Optimistically update local state
-        setSelectedReport(prev => prev ? { ...prev, status: newStatus } : null)
-        setReports(prev => prev.map(r => 
+        if (selectedReport && selectedReport.id === reportId) {
+            setSelectedReport({ ...selectedReport, status: newStatus })
+        } else if (selectedGroupReports) {
+            // Check if it's in group reports
+            setSelectedGroupReports(prev => prev?.map(g =>
+                g.report.id === reportId ? { ...g, report: { ...g.report, status: newStatus } } : g
+            ))
+        }
+
+        setReports(prev => prev.map(r =>
             r.id === reportId ? { ...r, status: newStatus } : r
         ))
 
@@ -264,8 +291,10 @@ function AdminPageContent() {
                 })
                 if (reportsResult.success && reportsResult.data) {
                     setReports(reportsResult.data.reports)
-                    const report = reportsResult.data.reports.find(r => r.id === reportId)
-                    if (report) setSelectedReport(report)
+                    // Reload details if this report is viewing
+                    if (selectedReport && (selectedReport.id === reportId || selectedGroupReports?.some(g => g.report.id === reportId))) {
+                        loadReportDetails(selectedReport)
+                    }
                 }
             }
         })
@@ -283,7 +312,7 @@ function AdminPageContent() {
         // Optimistically remove from UI immediately
         setReports(prevReports => prevReports.filter(r => r.id !== reportIdToDelete))
         setTotalReports(prev => Math.max(0, prev - 1))
-        
+
         // Close dialog and reset state
         setShowHardDeleteDialog(false)
         setHardDeleteReason("")
@@ -329,16 +358,16 @@ function AdminPageContent() {
         if (!reportToEdit) return
 
         const reportId = reportToEdit.id
-        
+
         // Optimistically update local state
         const updatedReport = { ...reportToEdit, ...updates }
-        setReports(prev => prev.map(r => 
+        setReports(prev => prev.map(r =>
             r.id === reportId ? updatedReport : r
         ))
         if (selectedReport?.id === reportId) {
             setSelectedReport(updatedReport)
         }
-        
+
         setShowEditDialog(false)
         setReportToEdit(null)
 
@@ -381,15 +410,15 @@ function AdminPageContent() {
         if (!reportToTransfer) return
 
         const reportId = reportToTransfer.id
-        
+
         // Optimistically update local state
-        setReports(prev => prev.map(r => 
+        setReports(prev => prev.map(r =>
             r.id === reportId ? { ...r, user_id: newUserId } : r
         ))
         if (selectedReport?.id === reportId) {
             setSelectedReport(prev => prev ? { ...prev, user_id: newUserId } : null)
         }
-        
+
         setShowTransferDialog(false)
         setReportToTransfer(null)
 
@@ -419,9 +448,9 @@ function AdminPageContent() {
     // Quick action handlers for table
     const handleQuickApprove = async (report: Report) => {
         const reportId = report.id
-        
+
         // Optimistically update local state
-        setReports(prev => prev.map(r => 
+        setReports(prev => prev.map(r =>
             r.id === reportId ? { ...r, status: "APPROVED" } : r
         ))
         if (selectedReport?.id === reportId) {
@@ -455,9 +484,9 @@ function AdminPageContent() {
 
     const handleQuickReject = async (report: Report) => {
         const reportId = report.id
-        
+
         // Optimistically update local state
-        setReports(prev => prev.map(r => 
+        setReports(prev => prev.map(r =>
             r.id === reportId ? { ...r, status: "REJECTED" } : r
         ))
         if (selectedReport?.id === reportId) {
@@ -506,6 +535,69 @@ function AdminPageContent() {
     const handleQuickHardDelete = (report: Report) => {
         setReportToDelete(report)
         setShowHardDeleteDialog(true)
+    }
+
+    const handleQuickMerge = (report: Report) => {
+        setReportToMerge(report)
+        setShowMergeDialog(true)
+    }
+
+    const handleQuickUnmerge = (report: Report) => {
+        setReportToUnmerge(report)
+        setShowUnmergeDialog(true)
+    }
+
+    const handleUnmergeConfirm = async () => {
+        if (!reportToUnmerge) return
+
+        const reportId = reportToUnmerge.id
+
+        // Close dialog immediately
+        setShowUnmergeDialog(false)
+        setReportToUnmerge(null)
+
+        try {
+            const result = await removeReportFromGroup(reportId)
+
+            if (result.success) {
+                toast({
+                    title: "Success",
+                    description: "Report unmerged successfully"
+                })
+                // Delay refresh slightly to allow toast to render
+                setTimeout(() => {
+                    fetchData()
+                    router.refresh()
+
+                    // If we are looking at this report details, reload them
+                    if (selectedReport?.id === reportId) {
+                        // We need to fetch fresh details
+                        getReportDetails(reportId).then((updated) => {
+                            if (updated.success && updated.data) {
+                                setSelectedReport(updated.data.report)
+                                setSelectedEvidence(updated.data.evidence)
+                                setSelectedGroupReports(updated.data.groupReports)
+                            }
+                        })
+                    }
+                }, 500)
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: result.error || "Failed to unmerge report"
+                })
+                // Revert
+                fetchData() // Simple revert by fetching fresh data
+            }
+        } catch (error) {
+            console.error("Error unmerging:", error)
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "An unexpected error occurred"
+            })
+        }
     }
 
     if (authLoading || isAdmin === null) {
@@ -746,6 +838,8 @@ function AdminPageContent() {
                                 onEdit={handleQuickEdit}
                                 onViewHistory={handleQuickViewHistory}
                                 onHardDelete={handleQuickHardDelete}
+                                onMerge={handleQuickMerge}
+                                onUnmerge={handleQuickUnmerge}
                             />
                         </>
                     )}
@@ -755,21 +849,22 @@ function AdminPageContent() {
                         <ReportDetailsSheet
                             report={selectedReport}
                             evidence={selectedEvidence}
+                            groupReports={selectedGroupReports}
                             isOpen={!!selectedReport && !showTransferDialog}
                             isLoadingDetails={isLoadingDetails}
                             isPending={isPending}
                             onClose={() => setSelectedReport(null)}
-                            onStatusChange={handleStatusChange}
+                            onStatusChange={handleDetailStatusChange}
                             onViewEvidence={handleViewEvidence}
-                            onEdit={() => {
-                                router.push(`/report?id=${selectedReport.id}`)
+                            onEdit={(report) => {
+                                router.push(`/report?id=${report.id}`)
                             }}
-                            onViewHistory={() => {
-                                setReportForHistory(selectedReport)
+                            onViewHistory={(report) => {
+                                setReportForHistory(report)
                                 setShowHistoryDialog(true)
                             }}
-                            onHardDelete={() => {
-                                setReportToDelete(selectedReport)
+                            onHardDelete={(report) => {
+                                setReportToDelete(report)
                                 setShowHardDeleteDialog(true)
                             }}
                         />
@@ -784,7 +879,23 @@ function AdminPageContent() {
                         fileType={fileViewer.type}
                     />
 
-                    {/* Edit Dialog - Independent */}
+                    {/* Unmerge Confirmation Dialog */}
+                    <AlertDialog open={showUnmergeDialog} onOpenChange={setShowUnmergeDialog}>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Unmerge Report?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Are you sure you want to remove this report from its group? It will appear as a standalone report again.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleUnmergeConfirm} className="bg-orange-600 hover:bg-orange-700">
+                                    Unmerge Report
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                     {reportToEdit && (
                         <ReportEditorDialog
                             open={showEditDialog}
@@ -812,8 +923,8 @@ function AdminPageContent() {
 
                     {/* Hard Delete Dialog - Independent */}
                     {reportToDelete && (
-                        <AlertDialog 
-                            open={showHardDeleteDialog} 
+                        <AlertDialog
+                            open={showHardDeleteDialog}
                             onOpenChange={(open) => {
                                 setShowHardDeleteDialog(open)
                                 if (!open) {
@@ -892,6 +1003,25 @@ function AdminPageContent() {
                         }}
                         onConfirm={handleTransferReport}
                     />
+
+                    {/* Merge Reports Dialog - Independent */}
+                    {reportToMerge && (
+                        <MergeReportsDialog
+                            open={showMergeDialog}
+                            onOpenChange={(open) => {
+                                setShowMergeDialog(open)
+                                if (!open) setReportToMerge(null)
+                            }}
+                            preSelectedReport={reportToMerge}
+                            availableReports={reports.filter(r => r.status === "APPROVED")}
+                            onSuccess={() => {
+                                setTimeout(() => {
+                                    fetchData()
+                                    router.refresh()
+                                }, 500)
+                            }}
+                        />
+                    )}
                 </main>
             </div>
         </div>

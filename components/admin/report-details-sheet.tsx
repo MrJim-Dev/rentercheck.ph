@@ -10,6 +10,7 @@ import {
     SheetHeader,
     SheetTitle,
 } from "@/components/ui/sheet"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import type { Database, Enums } from "@/lib/database.types"
 import {
@@ -34,9 +35,10 @@ import {
     Phone,
     Trash2,
     User,
-    XCircle,
+    XCircle
 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+// ... imports
 
 type Report = Database["public"]["Tables"]["incident_reports"]["Row"]
 type Evidence = Database["public"]["Tables"]["report_evidence"]["Row"]
@@ -64,20 +66,22 @@ const INCIDENT_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
 interface ReportDetailsSheetProps {
     report: Report | null
     evidence: Evidence[]
+    groupReports?: { report: Report; evidence: Evidence[] }[]
     isOpen: boolean
     isLoadingDetails: boolean
     isPending: boolean
     onClose: () => void
-    onStatusChange: (status: Enums<"report_status">, reason?: string) => void
+    onStatusChange: (report: Report, status: Enums<"report_status">, reason?: string) => void
     onViewEvidence: (evidence: Evidence) => void
-    onEdit: () => void
-    onViewHistory: () => void
-    onHardDelete: () => void
+    onEdit: (report: Report) => void
+    onViewHistory: (report: Report) => void
+    onHardDelete: (report: Report) => void
 }
 
 export function ReportDetailsSheet({
     report,
     evidence,
+    groupReports,
     isOpen,
     isLoadingDetails,
     isPending,
@@ -92,11 +96,34 @@ export function ReportDetailsSheet({
     const [rejectionReason, setRejectionReason] = useState("")
     const [actionError, setActionError] = useState<string | null>(null)
 
+    // State to track which report in the group is being viewed
+    // Default to the main report passed
+    const [activeReportId, setActiveReportId] = useState<string>("")
+
+    useEffect(() => {
+        if (report) {
+            setActiveReportId(report.id)
+        }
+    }, [report])
+
     if (!report) return null
 
-    const status = report.status || "PENDING"
+    // Determine which report to show
+    let currentReport = report
+    let currentEvidence = evidence
+
+    // If we have group reports, look up the selected one
+    if (groupReports && groupReports.length > 0) {
+        const found = groupReports.find(g => g.report.id === activeReportId)
+        if (found) {
+            currentReport = found.report
+            currentEvidence = found.evidence
+        }
+    }
+
+    const status = currentReport.status || "PENDING"
     const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.PENDING
-    const incidentInfo = INCIDENT_TYPE_LABELS[report.incident_type] || { label: report.incident_type, icon: "📋" }
+    const incidentInfo = INCIDENT_TYPE_LABELS[currentReport.incident_type] || { label: currentReport.incident_type, icon: "📋" }
     const StatusIcon = config.icon
 
     const copyToClipboard = (text: string) => {
@@ -109,7 +136,7 @@ export function ReportDetailsSheet({
             return
         }
         setActionError(null)
-        onStatusChange("REJECTED", rejectionReason)
+        onStatusChange(currentReport, "REJECTED", rejectionReason)
         setShowRejectDialog(false)
         setRejectionReason("")
     }
@@ -124,7 +151,7 @@ export function ReportDetailsSheet({
                         </div>
                         <div className="flex-1 min-w-0">
                             <SheetTitle className="text-xl font-semibold mb-1">
-                                {report.reported_full_name}
+                                {currentReport.reported_full_name}
                             </SheetTitle>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <Badge className={`${config.color} border text-xs px-2 py-1 flex items-center gap-1.5`}>
@@ -138,6 +165,19 @@ export function ReportDetailsSheet({
                 </SheetHeader>
 
                 <ScrollArea className="flex-1 px-6">
+                    {groupReports && groupReports.length > 0 && (
+                        <div className="pt-6 pb-2">
+                            <Tabs value={activeReportId} onValueChange={setActiveReportId} className="w-full">
+                                <TabsList className="w-full justify-start overflow-x-auto">
+                                    {groupReports.map((item, idx) => (
+                                        <TabsTrigger key={item.report.id} value={item.report.id}>
+                                            Report {idx + 1} ({new Date(item.report.incident_date).toLocaleDateString()})
+                                        </TabsTrigger>
+                                    ))}
+                                </TabsList>
+                            </Tabs>
+                        </div>
+                    )}
                     <div className="space-y-6 py-6">
                         {/* Quick Info */}
                         <div className="grid grid-cols-2 gap-4">
@@ -145,19 +185,19 @@ export function ReportDetailsSheet({
                                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Incident Date</p>
                                 <div className="flex items-center gap-2 text-sm">
                                     <Calendar className="w-4 h-4 text-muted-foreground" />
-                                    {new Date(report.incident_date).toLocaleDateString('en-US', {
+                                    {new Date(currentReport.incident_date).toLocaleDateString('en-US', {
                                         month: 'long',
                                         day: 'numeric',
                                         year: 'numeric',
                                     })}
                                 </div>
                             </div>
-                            {report.amount_involved && (
+                            {currentReport.amount_involved && (
                                 <div className="space-y-1">
                                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Amount Involved</p>
                                     <div className="flex items-center gap-2 text-sm font-medium">
                                         <DollarSign className="w-4 h-4 text-muted-foreground" />
-                                        ₱{report.amount_involved.toLocaleString()}
+                                        ₱{currentReport.amount_involved.toLocaleString()}
                                     </div>
                                 </div>
                             )}
@@ -167,12 +207,12 @@ export function ReportDetailsSheet({
                         <div className="space-y-1">
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Report ID</p>
                             <div className="flex items-center gap-2">
-                                <code className="text-xs font-mono bg-muted px-2 py-1 rounded">{report.id}</code>
+                                <code className="text-xs font-mono bg-muted px-2 py-1 rounded">{currentReport.id}</code>
                                 <Button
                                     size="sm"
                                     variant="ghost"
                                     className="h-7 w-7 p-0"
-                                    onClick={() => copyToClipboard(report.id)}
+                                    onClick={() => copyToClipboard(currentReport.id)}
                                 >
                                     <Copy className="w-3 h-3" />
                                 </Button>
@@ -189,7 +229,7 @@ export function ReportDetailsSheet({
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        onClick={onEdit}
+                                        onClick={() => onEdit(currentReport)}
                                         className="h-8 px-2 gap-1.5"
                                     >
                                         <Edit className="w-3.5 h-3.5" />
@@ -198,7 +238,7 @@ export function ReportDetailsSheet({
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        onClick={onViewHistory}
+                                        onClick={() => onViewHistory(currentReport)}
                                         className="h-8 px-2 gap-1.5"
                                     >
                                         <History className="w-3.5 h-3.5" />
@@ -209,11 +249,11 @@ export function ReportDetailsSheet({
 
                             {/* Status Actions */}
                             <div className="flex flex-wrap gap-2">
-                                {report.status === "PENDING" && (
+                                {currentReport.status === "PENDING" && (
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => onStatusChange("UNDER_REVIEW")}
+                                        onClick={() => onStatusChange(currentReport, "UNDER_REVIEW")}
                                         disabled={isPending}
                                         className="h-9"
                                     >
@@ -221,11 +261,11 @@ export function ReportDetailsSheet({
                                         Mark for Review
                                     </Button>
                                 )}
-                                {(report.status === "PENDING" || report.status === "UNDER_REVIEW") && (
+                                {(currentReport.status === "PENDING" || currentReport.status === "UNDER_REVIEW") && (
                                     <>
                                         <Button
                                             size="sm"
-                                            onClick={() => onStatusChange("APPROVED")}
+                                            onClick={() => onStatusChange(currentReport, "APPROVED")}
                                             disabled={isPending}
                                             className="h-9 bg-emerald-600 hover:bg-emerald-700"
                                         >
@@ -247,7 +287,7 @@ export function ReportDetailsSheet({
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={onHardDelete}
+                                    onClick={() => onHardDelete(currentReport)}
                                     disabled={isPending}
                                     className="h-9 border-red-500/50 text-red-500 hover:bg-red-500/10 hover:text-red-500"
                                 >
@@ -317,15 +357,15 @@ export function ReportDetailsSheet({
                                     <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                     <div>
                                         <p className="text-xs text-muted-foreground">Full Name</p>
-                                        <p className="text-sm font-medium">{report.reported_full_name}</p>
+                                        <p className="text-sm font-medium">{currentReport.reported_full_name}</p>
                                     </div>
                                 </div>
-                                {report.reported_date_of_birth && (
+                                {currentReport.reported_date_of_birth && (
                                     <div className="flex items-center gap-3">
                                         <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Date of Birth</p>
-                                            <p className="text-sm font-medium">{new Date(report.reported_date_of_birth).toLocaleDateString('en-US', {
+                                            <p className="text-sm font-medium">{new Date(currentReport.reported_date_of_birth).toLocaleDateString('en-US', {
                                                 month: 'long',
                                                 day: 'numeric',
                                                 year: 'numeric',
@@ -333,30 +373,30 @@ export function ReportDetailsSheet({
                                         </div>
                                     </div>
                                 )}
-                                {report.reported_phone && (
+                                {currentReport.reported_phone && (
                                     <div className="flex items-center gap-3">
                                         <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                         <div className="flex-1">
                                             <p className="text-xs text-muted-foreground">Phone</p>
-                                            <p className="text-sm font-mono">{report.reported_phone}</p>
+                                            <p className="text-sm font-mono">{currentReport.reported_phone}</p>
                                         </div>
                                         <Button
                                             size="sm"
                                             variant="ghost"
                                             className="h-7 w-7 p-0"
-                                            onClick={() => copyToClipboard(report.reported_phone!)}
+                                            onClick={() => copyToClipboard(currentReport.reported_phone!)}
                                         >
                                             <Copy className="w-3 h-3" />
                                         </Button>
                                     </div>
                                 )}
-                                {report.reported_phones && Array.isArray(report.reported_phones) && (report.reported_phones as string[]).length > 0 && (
+                                {currentReport.reported_phones && Array.isArray(currentReport.reported_phones) && (currentReport.reported_phones as string[]).length > 0 && (
                                     <div className="flex items-start gap-3">
                                         <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div className="flex-1">
                                             <p className="text-xs text-muted-foreground">Additional Phones</p>
                                             <div className="space-y-1">
-                                                {(report.reported_phones as string[]).map((phone, idx) => (
+                                                {(currentReport.reported_phones as string[]).map((phone, idx) => (
                                                     <div key={idx} className="flex items-center gap-2">
                                                         <p className="text-sm font-mono">{phone}</p>
                                                         <Button
@@ -373,35 +413,35 @@ export function ReportDetailsSheet({
                                         </div>
                                     </div>
                                 )}
-                                {report.reported_email && (
+                                {currentReport.reported_email && (
                                     <div className="flex items-center gap-3">
                                         <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Email</p>
-                                            <p className="text-sm">{report.reported_email}</p>
+                                            <p className="text-sm">{currentReport.reported_email}</p>
                                         </div>
                                     </div>
                                 )}
-                                {report.reported_emails && Array.isArray(report.reported_emails) && (report.reported_emails as string[]).length > 0 && (
+                                {currentReport.reported_emails && Array.isArray(currentReport.reported_emails) && (currentReport.reported_emails as string[]).length > 0 && (
                                     <div className="flex items-start gap-3">
                                         <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Additional Emails</p>
                                             <div className="space-y-1">
-                                                {(report.reported_emails as string[]).map((email, idx) => (
+                                                {(currentReport.reported_emails as string[]).map((email, idx) => (
                                                     <p key={idx} className="text-sm">{email}</p>
                                                 ))}
                                             </div>
                                         </div>
                                     </div>
                                 )}
-                                {report.reported_facebook && (
+                                {currentReport.reported_facebook && (
                                     <div className="flex items-center gap-3">
                                         <Facebook className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                         <div className="flex-1">
                                             <p className="text-xs text-muted-foreground">Facebook</p>
                                             <a
-                                                href={report.reported_facebook}
+                                                href={currentReport.reported_facebook}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-sm text-secondary hover:underline flex items-center gap-1"
@@ -412,13 +452,13 @@ export function ReportDetailsSheet({
                                         </div>
                                     </div>
                                 )}
-                                {report.reported_facebooks && Array.isArray(report.reported_facebooks) && (report.reported_facebooks as string[]).length > 0 && (
+                                {currentReport.reported_facebooks && Array.isArray(currentReport.reported_facebooks) && (currentReport.reported_facebooks as string[]).length > 0 && (
                                     <div className="flex items-start gap-3">
                                         <Facebook className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Additional Facebook Profiles</p>
                                             <div className="space-y-1">
-                                                {(report.reported_facebooks as string[]).map((fb, idx) => (
+                                                {(currentReport.reported_facebooks as string[]).map((fb, idx) => (
                                                     <a
                                                         key={idx}
                                                         href={fb}
@@ -434,13 +474,13 @@ export function ReportDetailsSheet({
                                         </div>
                                     </div>
                                 )}
-                                {report.reported_aliases && Array.isArray(report.reported_aliases) && (report.reported_aliases as string[]).length > 0 && (
+                                {currentReport.reported_aliases && Array.isArray(currentReport.reported_aliases) && (currentReport.reported_aliases as string[]).length > 0 && (
                                     <div className="flex items-start gap-3">
                                         <User className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Known Aliases</p>
                                             <div className="flex flex-wrap gap-1.5 mt-1">
-                                                {(report.reported_aliases as string[]).map((alias, idx) => (
+                                                {(currentReport.reported_aliases as string[]).map((alias, idx) => (
                                                     <Badge key={idx} variant="secondary" className="text-xs">
                                                         {alias}
                                                     </Badge>
@@ -449,22 +489,22 @@ export function ReportDetailsSheet({
                                         </div>
                                     </div>
                                 )}
-                                {report.reported_address && (
+                                {currentReport.reported_address && (
                                     <div className="flex items-start gap-3">
                                         <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Address</p>
-                                            <p className="text-sm">{report.reported_address}</p>
+                                            <p className="text-sm">{currentReport.reported_address}</p>
                                         </div>
                                     </div>
                                 )}
-                                {(report.reported_city || report.incident_region) && (
+                                {(currentReport.reported_city || currentReport.incident_region) && (
                                     <div className="flex items-start gap-3">
                                         <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">City/Region</p>
                                             <p className="text-sm">
-                                                {[report.reported_city, report.incident_region].filter(Boolean).join(", ")}
+                                                {[currentReport.reported_city, currentReport.incident_region].filter(Boolean).join(", ")}
                                             </p>
                                         </div>
                                     </div>
@@ -478,54 +518,54 @@ export function ReportDetailsSheet({
                         <div className="space-y-3">
                             <h3 className="text-sm font-medium uppercase tracking-wide">Rental Information</h3>
                             <div className="space-y-3 bg-muted/30 rounded-lg p-4">
-                                {report.rental_category && (
+                                {currentReport.rental_category && (
                                     <div className="flex items-start gap-3">
                                         <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Rental Category</p>
                                             <p className="text-sm font-medium">
-                                                {report.rental_category.split('_').map(word => 
+                                                {currentReport.rental_category.split('_').map(word =>
                                                     word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
                                                 ).join(' ')}
                                             </p>
                                         </div>
                                     </div>
                                 )}
-                                {report.rental_item_description && (
+                                {currentReport.rental_item_description && (
                                     <div className="flex items-start gap-3">
                                         <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Item Description</p>
-                                            <p className="text-sm">{report.rental_item_description}</p>
+                                            <p className="text-sm">{currentReport.rental_item_description}</p>
                                         </div>
                                     </div>
                                 )}
-                                {(report.incident_city || report.incident_region) && (
+                                {(currentReport.incident_city || currentReport.incident_region) && (
                                     <div className="flex items-start gap-3">
                                         <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Incident Location</p>
                                             <p className="text-sm">
-                                                {[report.incident_city, report.incident_region].filter(Boolean).join(", ")}
+                                                {[currentReport.incident_city, currentReport.incident_region].filter(Boolean).join(", ")}
                                             </p>
                                         </div>
                                     </div>
                                 )}
-                                {report.incident_place && (
+                                {currentReport.incident_place && (
                                     <div className="flex items-start gap-3">
                                         <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Specific Place</p>
-                                            <p className="text-sm">{report.incident_place}</p>
+                                            <p className="text-sm">{currentReport.incident_place}</p>
                                         </div>
                                     </div>
                                 )}
-                                {report.incident_end_date && (
+                                {currentReport.incident_end_date && (
                                     <div className="flex items-center gap-3">
                                         <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                         <div>
                                             <p className="text-xs text-muted-foreground">Incident End Date</p>
-                                            <p className="text-sm">{new Date(report.incident_end_date).toLocaleDateString('en-US', {
+                                            <p className="text-sm">{new Date(currentReport.incident_end_date).toLocaleDateString('en-US', {
                                                 month: 'long',
                                                 day: 'numeric',
                                                 year: 'numeric',
@@ -539,11 +579,11 @@ export function ReportDetailsSheet({
                         <Separator />
 
                         {/* Incident Summary */}
-                        {report.summary && (
+                        {currentReport.summary && (
                             <div className="space-y-3">
                                 <h3 className="text-sm font-medium uppercase tracking-wide">Incident Summary</h3>
                                 <div className="bg-muted/30 rounded-lg p-4 text-sm leading-relaxed">
-                                    {report.summary}
+                                    {currentReport.summary}
                                 </div>
                             </div>
                         )}
@@ -554,24 +594,24 @@ export function ReportDetailsSheet({
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-sm font-medium uppercase tracking-wide">Evidence</h3>
-                                {evidence.length > 0 && (
+                                {currentEvidence.length > 0 && (
                                     <Badge variant="secondary" className="px-2 h-6 text-xs">
-                                        {evidence.length} {evidence.length === 1 ? "file" : "files"}
+                                        {currentEvidence.length} {currentEvidence.length === 1 ? "file" : "files"}
                                     </Badge>
                                 )}
                             </div>
 
-                            {isLoadingDetails && evidence.length === 0 ? (
+                            {isLoadingDetails && currentEvidence.length === 0 ? (
                                 <div className="flex items-center justify-center p-8 bg-muted/30 rounded-lg border-dashed border">
                                     <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                                 </div>
-                            ) : evidence.length === 0 ? (
+                            ) : currentEvidence.length === 0 ? (
                                 <div className="text-sm text-muted-foreground italic bg-muted/30 rounded-lg p-6 text-center border-dashed border">
                                     No evidence attached to this report
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 gap-2">
-                                    {evidence.map((ev) => (
+                                    {currentEvidence.map((ev) => (
                                         <div
                                             key={ev.id}
                                             className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors group border"
@@ -597,19 +637,19 @@ export function ReportDetailsSheet({
                         <div className="space-y-2 text-xs text-muted-foreground">
                             <div className="flex justify-between">
                                 <span>Submitted by:</span>
-                                <span className="font-medium text-foreground">{report.reporter_email}</span>
+                                <span className="font-medium text-foreground">{currentReport.reporter_email}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span>Created:</span>
                                 <span className="font-medium text-foreground">
-                                    {new Date(report.created_at || "").toLocaleString()}
+                                    {new Date(currentReport.created_at || "").toLocaleString()}
                                 </span>
                             </div>
-                            {report.updated_at && (
+                            {currentReport.updated_at && (
                                 <div className="flex justify-between">
                                     <span>Last Updated:</span>
                                     <span className="font-medium text-foreground">
-                                        {new Date(report.updated_at).toLocaleString()}
+                                        {new Date(currentReport.updated_at).toLocaleString()}
                                     </span>
                                 </div>
                             )}

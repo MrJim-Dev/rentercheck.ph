@@ -5,14 +5,14 @@ import {
   enforceMatchPolicy,
   extractFacebookId,
   getPhoneVariations,
+  nameSimilarity,
+  normalizeDateOfBirth,
   normalizeEmail,
   normalizeEmailStrict,
   normalizeFacebookUrl,
   normalizeName,
-  normalizeDateOfBirth,
   normalizePhone,
   scoreAndRankCandidates,
-  nameSimilarity,
   type CandidateData,
   type SearchFilters,
   type SearchInput,
@@ -34,8 +34,8 @@ function detectIdentifierType(value: string): 'email' | 'phone' | 'facebook' | '
 
   // Check for date pattern (various formats)
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||  // YYYY-MM-DD
-      /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed) ||  // MM/DD/YYYY
-      /^\d{1,2}-\d{1,2}-\d{4}$/.test(trimmed)) {  // DD-MM-YYYY
+    /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed) ||  // MM/DD/YYYY
+    /^\d{1,2}-\d{1,2}-\d{4}$/.test(trimmed)) {  // DD-MM-YYYY
     return 'date';
   }
 
@@ -93,7 +93,7 @@ function parseSearchQuery(query: string): SearchInput {
   // Pattern: Month name followed by day, comma, year
   const monthNames = 'January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec';
   const dateWithCommaPattern = new RegExp(`(${monthNames})\\s+\\d{1,2},\\s*\\d{4}`, 'gi');
-  
+
   const protectedDates: string[] = [];
   let processedQuery = trimmed.replace(dateWithCommaPattern, (match) => {
     const placeholder = `__DATE_${protectedDates.length}__`;
@@ -711,7 +711,7 @@ export async function searchRenters(
       if (dobNorm) {
         // Split search name into parts for matching
         const searchNameParts = nameNorm.split(' ').filter(p => p.length >= 2);
-        
+
         const { data: dobReports } = await supabase
           .from("incident_reports")
           .select("id, reported_full_name, reported_aliases, reported_date_of_birth")
@@ -728,9 +728,9 @@ export async function searchRenters(
 
             if (reportNameNorm) {
               const similarity = nameSimilarity(nameNorm, reportNameNorm);
-              if (similarity >= 0.85 || 
-                  reportNameNorm.includes(nameNorm) || 
-                  nameNorm.includes(reportNameNorm)) {
+              if (similarity >= 0.85 ||
+                reportNameNorm.includes(nameNorm) ||
+                nameNorm.includes(reportNameNorm)) {
                 nameMatches = true;
               }
 
@@ -752,10 +752,10 @@ export async function searchRenters(
                   const aliasNorm = normalizeName(alias);
                   if (!aliasNorm) return false;
                   const similarity = nameSimilarity(nameNorm, aliasNorm);
-                  return similarity >= 0.85 || 
-                         aliasNorm.includes(nameNorm) || 
-                         nameNorm.includes(aliasNorm) ||
-                         searchNameParts.every((part: string) => aliasNorm.includes(part));
+                  return similarity >= 0.85 ||
+                    aliasNorm.includes(nameNorm) ||
+                    nameNorm.includes(aliasNorm) ||
+                    searchNameParts.every((part: string) => aliasNorm.includes(part));
                 });
               }
             }
@@ -910,10 +910,66 @@ export async function searchRenters(
     // CREATE CANDIDATES FROM UNLINKED INCIDENT REPORTS
     // Includes all identifiers from JSONB arrays AND approved amendments
     // ============================================
+    // Maps for grouping logic (must be higher scope to be used in results building)
+    const reportGroupMap = new Map<string, { groupId: string, primaryReportId: string, groupName: string | null }>();
+    const groupCounts = new Map<string, number>();
+
     if (unlinkedReportIds.size > 0) {
       const reportIdArray = Array.from(unlinkedReportIds);
 
-      // Fetch reports
+      /*
+      * GROUPING LOGIC START
+      * Check if any of these reports belong to a group.
+      * If they do, we want to consolidate them under the PRIMARY report of the group.
+      */
+
+      // 1. Check for group membership
+      const { data: groupMembers } = await supabase
+        .from("report_group_members")
+        .select("group_id, report_id, report_groups!inner(primary_report_id, group_name)")
+        .in("report_id", reportIdArray);
+
+      const uniqueGroupIds = new Set<string>();
+
+      // 2. Map reports to their groups and collect needed primary IDs
+      if (groupMembers) {
+        for (const m of groupMembers) {
+          // Safe cast/access since interact types are sometimes tricky
+          const rg = m.report_groups as unknown as { primary_report_id: string, group_name: string | null };
+          if (rg && rg.primary_report_id) {
+            reportGroupMap.set(m.report_id, {
+              groupId: m.group_id,
+              primaryReportId: rg.primary_report_id,
+              groupName: rg.group_name
+            });
+            uniqueGroupIds.add(m.group_id);
+
+            // Ensure primary report is in our fetch list
+            if (!unlinkedReportIds.has(rg.primary_report_id)) {
+              unlinkedReportIds.add(rg.primary_report_id);
+            }
+          }
+        }
+      }
+
+      // 3. Get group counts (how many reports in each group)
+      if (uniqueGroupIds.size > 0) {
+        const { data: counts } = await supabase
+          .from("report_group_members")
+          .select("group_id")
+          .in("group_id", Array.from(uniqueGroupIds));
+
+        if (counts) {
+          for (const c of counts) {
+            groupCounts.set(c.group_id, (groupCounts.get(c.group_id) || 0) + 1);
+          }
+        }
+      }
+
+      // Refresh the array since we might have added primary IDs
+      const finalReportIdArray = Array.from(unlinkedReportIds);
+
+      // Fetch reports (now including any missing primaries)
       const { data: unlinkedReports } = await supabase
         .from("incident_reports")
         .select(`
@@ -934,7 +990,7 @@ export async function searchRenters(
           amount_involved,
           status
         `)
-        .in("id", reportIdArray);
+        .in("id", finalReportIdArray);
 
       // Also fetch approved amendments for these reports to get additional identifiers
       const { data: reportAmendments } = await supabase
@@ -974,6 +1030,14 @@ export async function searchRenters(
 
       if (unlinkedReports) {
         for (const report of unlinkedReports) {
+          // GROUPING LOGIC CHECK:
+          // If this report is in a group but is NOT the primary report, skip it.
+          // The primary report will represent the group.
+          const groupInfo = reportGroupMap.get(report.id);
+          if (groupInfo && groupInfo.primaryReportId !== report.id) {
+            continue;
+          }
+
           // Build identifiers from the report (including JSONB arrays)
           const identifiers: Array<{
             type: 'PHONE' | 'EMAIL' | 'FACEBOOK' | 'GOVT_ID';
@@ -1201,15 +1265,26 @@ export async function searchRenters(
             amountInvolved: r.amount_involved ? Number(r.amount_involved) : null,
           };
 
+          // Group metadata
+          const groupInfo = reportGroupMap.get(r.id);
+          const reportCount = groupInfo ? (groupCounts.get(groupInfo.groupId) || 1) : 1;
+
           renterDetails[`report:${r.id}`] = {
-            totalIncidents: 1, // This IS the incident
-            verifiedIncidents: r.status === "APPROVED" ? 1 : 0,
+            totalIncidents: reportCount, // Show count of reports in group
+            verifiedIncidents: r.status === "APPROVED" ? reportCount : 0,
             lastIncidentDate: r.incident_date,
             verificationStatus: r.status === "APPROVED" ? "reported" : "pending",
             identifierCount: identCount,
             fingerprint: generateReportFingerprint(r.id),
             aliases: (r.reported_aliases as string[] | null) || undefined,
             incidentSummaries: [incidentSummary],
+            // Add custom property for UI to detect group
+            // @ts-ignore - Adding dynamic property for UI
+            isGrouped: !!groupInfo,
+            // @ts-ignore
+            groupId: groupInfo?.groupId,
+            // @ts-ignore
+            groupName: groupInfo?.groupName
           };
         }
       }

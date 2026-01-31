@@ -5,7 +5,7 @@ import { IncidentRejectedEmail } from "@/components/emails/incident-rejected"
 import { IncidentUnderReviewEmail } from "@/components/emails/incident-under-review"
 import type { Database, Enums } from "@/lib/database.types"
 import { sendEmail } from "@/lib/email"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient, createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
 // Response types
@@ -143,13 +143,24 @@ export async function getAllReports(options?: {
     limit?: number
     offset?: number
     search?: string
-}): Promise<ActionResult<{ reports: Database["public"]["Tables"]["incident_reports"]["Row"][]; total: number }>> {
+}): Promise<ActionResult<{ reports: (Database["public"]["Tables"]["incident_reports"]["Row"] & { report_group_members: { group_id: string }[] | { group_id: string } | null | any })[]; total: number }>> {
     try {
         const supabase = await createClient()
 
+        // Update query to fetch group details
         let query = supabase
             .from("incident_reports")
-            .select("*", { count: "exact" })
+            .select(`
+                *,
+                report_group_members (
+                    group_id,
+                    report_groups (
+                        id,
+                        primary_report_id,
+                        report_group_members (id)
+                    )
+                )
+            `, { count: "exact" })
             .order("created_at", { ascending: false })
 
         if (options?.status) {
@@ -164,13 +175,13 @@ export async function getAllReports(options?: {
             query = query.or(`reported_full_name.ilike.%${options.search}%,reported_phone.ilike.%${options.search}%,reported_email.ilike.%${options.search}%`)
         }
 
-        if (options?.limit) {
-            query = query.limit(options.limit)
-        }
+        // Handle pagination - fetch extra to allow for filtering
+        const limit = options?.limit || 50
+        const offset = options?.offset || 0
 
-        if (options?.offset) {
-            query = query.range(options.offset, options.offset + (options.limit || 50) - 1)
-        }
+        // We fetch 3x the limit to have a buffer for filtered items
+        // This is a trade-off: true DB filtering is complex without Views/RPC
+        query = query.range(offset, offset + (limit * 3) - 1)
 
         const { data, error, count } = await query
 
@@ -179,7 +190,46 @@ export async function getAllReports(options?: {
             return { success: false, error: "Failed to fetch reports" }
         }
 
-        return { success: true, data: { reports: data || [], total: count || 0 } }
+        // Filter out secondary reports
+        let filteredReports = (data || []).filter((report: any) => {
+            const members = report.report_group_members
+            if (!members) return true
+
+            const memberList = Array.isArray(members) ? members : [members]
+            if (memberList.length === 0) return true
+
+            const groupInfo = memberList[0]?.report_groups
+            if (!groupInfo) return true
+
+            // Should be visible if it is the primary report
+            return groupInfo.primary_report_id === report.id
+        })
+
+        // Slice to actual limit
+        filteredReports = filteredReports.slice(0, limit)
+
+        // Process reports to attach easy-to-use group metadata
+        const processedReports = filteredReports.map((report: any) => {
+            const members = report.report_group_members
+            const memberList = Array.isArray(members) ? members : (members ? [members] : [])
+
+            if (memberList.length > 0 && memberList[0].report_groups) {
+                const group = memberList[0].report_groups
+                // The count comes from the nested report_group_members inside report_groups
+                const memberCount = group.report_group_members?.length || 0
+
+                return {
+                    ...report,
+                    is_group_primary: true,
+                    group_id: group.id,
+                    group_member_count: memberCount
+                }
+            }
+
+            return report
+        })
+
+        return { success: true, data: { reports: processedReports as any, total: count || 0 } }
     } catch (error) {
         console.error("Unexpected error in getAllReports:", error)
         return { success: false, error: "An unexpected error occurred" }
@@ -193,26 +243,82 @@ export async function getReportDetails(reportId: string): Promise<ActionResult<{
     report: Database["public"]["Tables"]["incident_reports"]["Row"]
     evidence: Database["public"]["Tables"]["report_evidence"]["Row"][]
     identifiers: Database["public"]["Tables"]["report_identifiers"]["Row"][]
+    groupReports?: {
+        report: Database["public"]["Tables"]["incident_reports"]["Row"]
+        evidence: Database["public"]["Tables"]["report_evidence"]["Row"][]
+    }[]
 }>> {
     try {
         const supabase = await createClient()
 
-        const [reportResult, evidenceResult, identifiersResult] = await Promise.all([
-            supabase.from("incident_reports").select("*").eq("id", reportId).single(),
+        // 1. Get the main report properly
+        const { data: report, error: reportError } = await supabase
+            .from("incident_reports")
+            .select(`
+                *,
+                report_group_members (
+                    group_id
+                )
+            `)
+            .eq("id", reportId)
+            .single()
+
+        if (reportError || !report) {
+            console.error("Error fetching report details:", reportError)
+            return { success: false, error: "Report not found" }
+        }
+
+        const [evidenceResult, identifiersResult] = await Promise.all([
             supabase.from("report_evidence").select("*").eq("report_id", reportId).order("display_order"),
             supabase.from("report_identifiers").select("*").eq("report_id", reportId),
         ])
 
-        if (reportResult.error || !reportResult.data) {
-            return { success: false, error: "Report not found" }
+        // 2. Check if it's in a group
+        const groups = report.report_group_members
+        const groupId = Array.isArray(groups) ? groups[0]?.group_id : (groups as any)?.group_id
+
+        let groupReportsData: any[] = []
+
+        if (groupId) {
+            // Fetch all reports in the group
+            const { data: groupMembers, error: groupError } = await supabase
+                .from("report_group_members")
+                .select(`
+                    incident_reports (
+                        *
+                    )
+                `)
+                .eq("group_id", groupId)
+                // Order by date to show history chronologically
+                .order("added_at", { ascending: true })
+
+            if (!groupError && groupMembers) {
+                // For each member, we need their evidence. 
+                const memberReports = groupMembers
+                    .map(m => m.incident_reports)
+                    .filter(Boolean) as any[]
+
+                // Fetch evidence for all these reports
+                const { data: allEvidence } = await supabase
+                    .from("report_evidence")
+                    .select("*")
+                    .in("report_id", memberReports.map(r => r.id))
+
+                // Combine them
+                groupReportsData = memberReports.map(r => ({
+                    report: r,
+                    evidence: allEvidence?.filter(e => e.report_id === r.id) || []
+                }))
+            }
         }
 
         return {
             success: true,
             data: {
-                report: reportResult.data,
+                report,
                 evidence: evidenceResult.data || [],
                 identifiers: identifiersResult.data || [],
+                groupReports: groupReportsData.length > 0 ? groupReportsData : undefined
             }
         }
     } catch (error) {
@@ -504,6 +610,7 @@ export async function getReportEditHistory(reportId: string): Promise<ActionResu
     edited_by_email: string | null
     changes: Record<string, { old: any; new: any }>
     change_note: string
+    type: 'EDIT' | 'ACTION'
 }>>> {
     try {
         const supabase = await createClient()
@@ -514,30 +621,81 @@ export async function getReportEditHistory(reportId: string): Promise<ActionResu
             return { success: false, error: "Admin access required" }
         }
 
-        const { data, error } = await supabase
-            .from("report_edits")
-            .select(`
-                id,
-                edited_at,
-                change_note,
-                changes,
-                edited_by_email:admin_users!report_edits_edited_by_fkey(email)
-            `)
-            .eq("report_id", reportId)
-            .order("edited_at", { ascending: false })
+        const adminClient = await createAdminClient() // Bypass RLS for actions history
+        const [editsResult, actionsResult] = await Promise.all([
+            // Edits might need regular client or admin client? 
+            // Regular client is fine for edits if policy allows, but let's stick to regular for now unless issues.
+            supabase
+                .from("report_edits")
+                .select(`
+                    id,
+                    edited_at,
+                    change_note,
+                    changes,
+                    edited_by_email:admin_users!report_edits_edited_by_fkey(email)
+                `)
+                .eq("report_id", reportId)
+                .order("edited_at", { ascending: false }),
+            adminClient
+                .from("report_admin_actions")
+                .select(`
+                    id,
+                    created_at,
+                    action_type,
+                    notes,
+                    admin_id,
+                    admin_users (
+                        email
+                    )
+                `)
+                .eq("report_id", reportId)
+                .in("action_type", ["MERGED", "UNMERGED", "GROUP_DISSOLVED", "STATUS_CHANGE", "TRANSFERRED", "NOTE_ADDED"])
+                .order("created_at", { ascending: false })
+        ])
 
-        if (error) {
-            console.error("Error fetching edit history:", error)
+        if (editsResult.error) {
+            console.error("Error fetching edit history:", editsResult.error)
             return { success: false, error: "Failed to fetch edit history" }
         }
 
-        const formattedData = (data || []).map(item => ({
+        if (actionsResult.error) {
+            console.error("Error fetching action history:", actionsResult.error)
+            // We don't return failure here, just log it and show edits only?
+            // Or we should potentially fail? If we want to debug, failing might be better visibility if toast shows error.
+            // But for UX, showing edits is better than nothing.
+            // I will log it heavily.
+        }
+
+        const edits = (editsResult.data || []).map((item: any) => ({
             id: item.id,
             edited_at: item.edited_at,
             edited_by_email: (item.edited_by_email as any)?.email || null,
             changes: item.changes as Record<string, { old: any; new: any }>,
             change_note: item.change_note || "",
+            type: 'EDIT' as const
         }))
+
+        const actions = (actionsResult.data || []).map((item: any) => ({
+            id: item.id,
+            edited_at: item.created_at,
+            edited_by_email: (item.admin_users as any)?.email || "System",
+            changes: {
+                "Action": {
+                    old: null,
+                    new: item.action_type === "MERGED" ? "Merged Reports" :
+                        item.action_type === "UNMERGED" ? "Unmerged Report" :
+                            item.action_type === "GROUP_DISSOLVED" ? "Group Dissolved" :
+                                item.action_type
+                }
+            } as Record<string, { old: any; new: any }>,
+            change_note: item.notes || "",
+            type: 'ACTION' as const
+        }))
+
+        // Combine and sort by date descending
+        const formattedData = [...edits, ...actions].sort((a, b) =>
+            new Date(b.edited_at).getTime() - new Date(a.edited_at).getTime()
+        )
 
         return { success: true, data: formattedData }
     } catch (error) {

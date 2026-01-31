@@ -113,6 +113,12 @@ export interface SearchResultRenter {
     identifierCount: number;
     /** Summary of incidents (only shown for confirmed matches) */
     incidentSummaries?: IncidentSummary[];
+    /** If true, this result represents a group of merged reports */
+    isGrouped?: boolean;
+    /** The ID of the report group */
+    groupId?: string;
+    /** The name of the report group */
+    groupName?: string;
 }
 
 /** Match details for a search result */

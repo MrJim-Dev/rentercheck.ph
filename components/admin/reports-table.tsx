@@ -31,15 +31,22 @@ import {
     Eye,
     FileText,
     History,
+    Link2,
     MapPin,
     MoreVertical,
     Repeat,
     Trash2,
+    Unlink,
     User,
     XCircle,
 } from "lucide-react"
 
-type Report = Database["public"]["Tables"]["incident_reports"]["Row"]
+type Report = Database["public"]["Tables"]["incident_reports"]["Row"] & {
+    report_group_members?: { group_id: string }[] | { group_id: string } | null | any
+    is_group_primary?: boolean
+    group_id?: string
+    group_member_count?: number
+}
 
 const STATUS_CONFIG = {
     DRAFT: { label: "Draft", color: "bg-slate-500/20 text-slate-300 border-slate-500/30", icon: FileText },
@@ -71,11 +78,13 @@ interface ReportsTableProps {
     onEdit?: (report: Report) => void
     onViewHistory?: (report: Report) => void
     onHardDelete?: (report: Report) => void
+    onMerge?: (report: Report) => void
+    onUnmerge?: (report: Report) => void
 }
 
-export function ReportsTable({ 
-    reports, 
-    isLoading, 
+export function ReportsTable({
+    reports,
+    isLoading,
     onViewDetails,
     onApprove,
     onReject,
@@ -83,6 +92,8 @@ export function ReportsTable({
     onEdit,
     onViewHistory,
     onHardDelete,
+    onMerge,
+    onUnmerge,
 }: ReportsTableProps) {
     if (isLoading) {
         return (
@@ -164,6 +175,15 @@ export function ReportsTable({
                         const incidentInfo = INCIDENT_TYPE_LABELS[report.incident_type] || { label: report.incident_type, icon: "📋" }
                         const StatusIcon = config.icon
 
+                        // report_group_members can be an array (1:N) or object (1:1) depending on Supabase inference
+                        const members = report.report_group_members
+                        const isMerged = Array.isArray(members)
+                            ? members.length > 0
+                            : !!members
+
+                        const isGroupPrimary = report.is_group_primary
+                        const groupCount = report.group_member_count || 0
+
                         return (
                             <TableRow
                                 key={report.id}
@@ -171,10 +191,24 @@ export function ReportsTable({
                                 onClick={() => onViewDetails(report)}
                             >
                                 <TableCell>
-                                    <Badge className={`${config.color} border text-xs px-2 py-1 flex items-center gap-1.5 w-fit`}>
-                                        <StatusIcon className="w-3 h-3" />
-                                        {config.label}
-                                    </Badge>
+                                    <div className="flex flex-col gap-1.5">
+                                        <Badge className={`${config.color} border text-xs px-2 py-1 flex items-center gap-1.5 w-fit`}>
+                                            <StatusIcon className="w-3 h-3" />
+                                            {config.label}
+                                        </Badge>
+                                        {isGroupPrimary && (
+                                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 w-fit bg-purple-500/10 text-purple-500 border-purple-500/20">
+                                                <Link2 className="w-3 h-3 mr-1" />
+                                                Group of {groupCount}
+                                            </Badge>
+                                        )}
+                                        {isMerged && !isGroupPrimary && (
+                                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 w-fit bg-purple-500/10 text-purple-500 border-purple-500/20">
+                                                <Link2 className="w-3 h-3 mr-1" />
+                                                Merged
+                                            </Badge>
+                                        )}
+                                    </div>
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-2">
@@ -270,6 +304,35 @@ export function ReportsTable({
                                                 </>
                                             )}
                                             <DropdownMenuSeparator />
+                                            {report.status === "APPROVED" && (
+                                                isMerged ? (
+                                                    onUnmerge && (
+                                                        <DropdownMenuItem
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                onUnmerge(report)
+                                                            }}
+                                                            className="text-orange-600"
+                                                        >
+                                                            <Unlink className="w-4 h-4 mr-2" />
+                                                            Unmerge Report
+                                                        </DropdownMenuItem>
+                                                    )
+                                                ) : (
+                                                    onMerge && (
+                                                        <DropdownMenuItem
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                onMerge(report)
+                                                            }}
+                                                            className="text-blue-400"
+                                                        >
+                                                            <Link2 className="w-4 h-4 mr-2" />
+                                                            Merge Report
+                                                        </DropdownMenuItem>
+                                                    )
+                                                )
+                                            )}
                                             <DropdownMenuItem
                                                 onClick={(e) => {
                                                     e.stopPropagation()

@@ -1,5 +1,6 @@
 "use client";
 
+import { GroupedReportsExpansion } from "@/components/search/grouped-reports-expansion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -129,6 +130,14 @@ export function ResultCard({ match }: ResultCardProps) {
                             )}>
                                 {showDetails ? renter.nameMasked : "Hidden Name"}
                             </h3>
+
+                            {/* Grouped Report Badge */}
+                            {renter.isGrouped && showDetails && (
+                                <Badge variant="secondary" className="text-[10px] sm:text-xs h-4 sm:h-5 px-1 sm:px-1.5 bg-blue-50 text-blue-700 border-blue-200" title="Consolidated Group">
+                                    <Package className="h-3 w-3 mr-0.5" />
+                                    Group
+                                </Badge>
+                            )}
 
                             {/* Found as Alias Badge */}
                             {foundViaAlias && matchedAlias && showDetails && (
@@ -356,6 +365,14 @@ export function ResultCard({ match }: ResultCardProps) {
                                         <p className="text-xs text-muted-foreground text-center py-1">
                                             +{renter.incidentSummaries.length - 2} more incidents
                                         </p>
+                                    )}
+
+                                    {/* Grouped Reports Expansion */}
+                                    {renter.isGrouped && renter.groupId && (
+                                        <GroupedReportsExpansion
+                                            groupId={renter.groupId}
+                                            primaryReportId={renter.id}
+                                        />
                                     )}
                                 </div>
                             </div>
