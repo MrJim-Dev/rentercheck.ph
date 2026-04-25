@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input"
 import { signOutClient, useAuth } from "@/lib/auth/auth-provider"
 import { getLoginUrl } from "@/lib/utils"
 import {
+    Building2,
     ChevronDown,
     FileText,
     FileWarning,
+    History,
     LogOut,
     Menu,
     Search,
@@ -227,6 +229,18 @@ export function AppHeader({
                                                                     My Reports
                                                                 </Button>
                                                             </Link>
+                                                            <Link href="/search-history" onClick={() => setUserMenuOpen(false)}>
+                                                                <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
+                                                                    <History className="w-4 h-4" />
+                                                                    Search History
+                                                                </Button>
+                                                            </Link>
+                                                            <Link href="/profile" onClick={() => setUserMenuOpen(false)}>
+                                                                <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
+                                                                    <Building2 className="w-4 h-4" />
+                                                                    Business Profile
+                                                                </Button>
+                                                            </Link>
                                                             {isAdmin && (
                                                                 <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
                                                                     <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
@@ -313,9 +327,21 @@ export function AppHeader({
                                                 </div>
                                                 <p className="text-sm text-muted-foreground truncate flex-1">{user.email}</p>
                                             </div>
+                                            <Link href="/search-history" onClick={() => setMobileMenuOpen(false)}>
+                                                <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
+                                                    <History className="w-4 h-4" />
+                                                    Search History
+                                                </Button>
+                                            </Link>
+                                            <Link href="/profile" onClick={() => setMobileMenuOpen(false)}>
+                                                <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
+                                                    <Building2 className="w-4 h-4" />
+                                                    Business Profile
+                                                </Button>
+                                            </Link>
                                             {isAdmin && (
                                                 <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
-                                                    <Button variant="ghost" className="w-full justify-start gap-3">
+                                                    <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
                                                         <Shield className="w-4 h-4" />
                                                         Admin Dashboard
                                                     </Button>
