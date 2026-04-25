@@ -11,6 +11,7 @@ import {
     ChevronDown,
     FileText,
     FileWarning,
+    History,
     LogOut,
     Menu,
     Search,
@@ -109,6 +110,7 @@ export function AppHeader({
     const navLinks = [
         { href: "/report", label: "Report an Incident", icon: FileWarning, key: "report", highlight: "red" },
         { href: "/my-reports", label: "My Reports", icon: FileText, key: "my-reports", requireAuth: true, highlight: "blue" },
+        { href: "/search-history", label: "Search History", icon: History, key: "search-history", requireAuth: true, highlight: "none" },
     ]
 
     return (
@@ -221,12 +223,18 @@ export function AppHeader({
                                                         </div>
 
                                                         <div className="p-2 text-foreground">
-                                                            <Link href="/my-reports" onClick={() => setUserMenuOpen(false)}>
-                                                                <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
-                                                                    <FileText className="w-4 h-4" />
-                                                                    My Reports
-                                                                </Button>
-                                                            </Link>
+                                            <Link href="/my-reports" onClick={() => setUserMenuOpen(false)}>
+                                                <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
+                                                    <FileText className="w-4 h-4" />
+                                                    My Reports
+                                                </Button>
+                                            </Link>
+                                            <Link href="/search-history" onClick={() => setUserMenuOpen(false)}>
+                                                <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
+                                                    <History className="w-4 h-4" />
+                                                    Search History
+                                                </Button>
+                                            </Link>
                                                             {isAdmin && (
                                                                 <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
                                                                     <Button variant="ghost" size="sm" className="w-full justify-start gap-3 cursor-pointer">
