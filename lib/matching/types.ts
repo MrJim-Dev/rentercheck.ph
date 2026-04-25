@@ -48,6 +48,14 @@ export interface SearchFilters {
   requireStrongMatch?: boolean;
   /** Include unverified renters */
   includeUnverified?: boolean;
+  /** Filter by rental category (e.g. VEHICLE_CAR, REAL_ESTATE_CONDO) */
+  rentalCategory?: string;
+  /** Filter by incident type (e.g. UNPAID_BALANCE, PROPERTY_DAMAGE) */
+  incidentType?: string;
+  /** Filter incidents from this date (ISO string YYYY-MM-DD) */
+  dateFrom?: string;
+  /** Filter incidents up to this date (ISO string YYYY-MM-DD) */
+  dateTo?: string;
 }
 
 // ============================================
