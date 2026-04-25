@@ -1271,6 +1271,9 @@ export async function searchRenters(
       tips.push("Some matches need confirmation - add more identifiers");
     }
 
+    // Flag for name-only searches (no strong identifiers like phone/email/facebook)
+    const isNameOnly = !!nameNorm && !hasStrongInput && !searchInput.dateOfBirth;
+
     // If not authenticated, return only count and metadata, no actual results
     if (!isAuthenticated && results.length > 0) {
       return {
@@ -1281,6 +1284,7 @@ export async function searchRenters(
         meta: {
           searchTime: Date.now() - startTime,
           hasStrongInput,
+          isNameOnly,
           tips: tips.length > 0 ? tips : undefined,
           requiresAuth: true,
         },
@@ -1295,6 +1299,7 @@ export async function searchRenters(
       meta: {
         searchTime: Date.now() - startTime,
         hasStrongInput,
+        isNameOnly,
         tips: tips.length > 0 ? tips : undefined,
       },
     };

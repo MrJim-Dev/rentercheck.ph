@@ -145,6 +145,8 @@ export interface SearchResponse {
     searchTime: number;
     /** Whether any strong identifiers were in the query */
     hasStrongInput: boolean;
+    /** Whether the search was name-only (no phone/email/facebook/dob) */
+    isNameOnly?: boolean;
     /** Tips for improving search */
     tips?: string[];
     /** Whether authentication is required to see results */
