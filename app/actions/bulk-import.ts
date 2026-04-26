@@ -42,7 +42,7 @@ const VALID_RENTAL_CATEGORIES = [
  * Parse CSV text into rows of BulkImportRow
  * Expected columns: full_name, phone, email, rental_category, incident_type, incident_date, summary, amount_involved
  */
-export function parseCsvText(csvText: string): { rows: BulkImportRow[]; parseErrors: string[] } {
+export async function parseCsvText(csvText: string): Promise<{ rows: BulkImportRow[]; parseErrors: string[] }> {
     const lines = csvText.trim().split(/\r?\n/)
     if (lines.length < 2) {
         return { rows: [], parseErrors: ["CSV must have a header row and at least one data row."] }

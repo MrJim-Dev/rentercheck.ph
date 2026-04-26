@@ -48,10 +48,10 @@ function BulkImportContent() {
         }
         setFileName(file.name)
         const reader = new FileReader()
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             const text = e.target?.result as string
             setCsvText(text)
-            const { rows, parseErrors: errs } = parseCsvText(text)
+            const { rows, parseErrors: errs } = await parseCsvText(text)
             setParsedRows(rows)
             setParseErrors(errs)
             setSubmitResult(null)
