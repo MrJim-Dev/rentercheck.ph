@@ -65,25 +65,25 @@ const RENTAL_CATEGORIES = [
 const STATUS_CONFIG = {
     UNVERIFIED: {
         label: "Not Verified",
-        color: "bg-slate-100 text-slate-700 border-slate-200",
+        color: "bg-slate-800 text-slate-200 border-slate-600",
         icon: AlertTriangle,
         desc: "Submit your business details to get verified.",
     },
     PENDING: {
         label: "Pending Review",
-        color: "bg-amber-100 text-amber-700 border-amber-200",
+        color: "bg-amber-900/60 text-amber-300 border-amber-700",
         icon: Clock,
         desc: "Your verification is under review. We'll notify you within 2-3 business days.",
     },
     VERIFIED: {
         label: "Verified Business",
-        color: "bg-green-100 text-green-700 border-green-200",
+        color: "bg-green-900/60 text-green-300 border-green-700",
         icon: CheckCircle2,
         desc: "Your business has been verified. You have full access to all platform features.",
     },
     REJECTED: {
         label: "Verification Rejected",
-        color: "bg-red-100 text-red-700 border-red-200",
+        color: "bg-red-900/60 text-red-300 border-red-700",
         icon: XCircle,
         desc: "Your verification was rejected. Please review the notes and resubmit.",
     },
@@ -230,18 +230,18 @@ export default function BusinessProfilePage() {
                         {/* Verification Status Banner */}
                         {statusConfig && (
                             <div className={`border rounded-xl p-5 flex items-start gap-4 ${
-                                isVerified ? "bg-green-50 border-green-200"
-                                : isPending ? "bg-amber-50 border-amber-200"
-                                : profile?.verification_status === "REJECTED" ? "bg-red-50 border-red-200"
-                                : "bg-slate-50 border-slate-200"
+                                isVerified ? "bg-green-950/40 border-green-800"
+                                : isPending ? "bg-amber-950/40 border-amber-800"
+                                : profile?.verification_status === "REJECTED" ? "bg-red-950/40 border-red-800"
+                                : "bg-slate-800/50 border-slate-700"
                             }`}>
                                 <div className={`rounded-full p-2 shrink-0 ${
-                                    isVerified ? "bg-green-100" : isPending ? "bg-amber-100"
-                                    : profile?.verification_status === "REJECTED" ? "bg-red-100" : "bg-slate-100"
+                                    isVerified ? "bg-green-900/60" : isPending ? "bg-amber-900/60"
+                                    : profile?.verification_status === "REJECTED" ? "bg-red-900/60" : "bg-slate-700/60"
                                 }`}>
                                     <statusConfig.icon className={`h-5 w-5 ${
-                                        isVerified ? "text-green-600" : isPending ? "text-amber-600"
-                                        : profile?.verification_status === "REJECTED" ? "text-red-600" : "text-slate-600"
+                                        isVerified ? "text-green-400" : isPending ? "text-amber-400"
+                                        : profile?.verification_status === "REJECTED" ? "text-red-400" : "text-slate-300"
                                     }`} />
                                 </div>
                                 <div className="flex-1">
@@ -253,9 +253,9 @@ export default function BusinessProfilePage() {
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-sm">{statusConfig.desc}</p>
+                                    <p className="text-sm text-foreground">{statusConfig.desc}</p>
                                     {profile?.verification_notes && (
-                                        <div className="mt-2 p-3 bg-white/60 rounded-lg border text-sm">
+                                        <div className="mt-2 p-3 bg-white/5 rounded-lg border border-white/10 text-sm text-foreground">
                                             <strong>Admin Notes:</strong> {profile.verification_notes}
                                         </div>
                                     )}
@@ -265,10 +265,10 @@ export default function BusinessProfilePage() {
 
                         {/* Why Verify Banner */}
                         {!isVerified && !isPending && (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
-                                <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-                                <div className="text-sm text-blue-800">
-                                    <p className="font-medium mb-1">Why verify your business?</p>
+                            <div className="bg-blue-950/40 border border-blue-800 rounded-lg p-4 flex gap-3">
+                                <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+                                <div className="text-sm text-blue-200">
+                                    <p className="font-medium mb-1 text-blue-100">Why verify your business?</p>
                                     <ul className="space-y-1 list-disc list-inside">
                                         <li>Verified badge on your reports — increases credibility</li>
                                         <li>Access to bulk import and advanced search features</li>
