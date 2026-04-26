@@ -139,7 +139,7 @@ export default function PrivacyPage() {
                     <section className="mb-10">
                         <h2 className="text-2xl font-semibold mb-4">6) Matching, Masking, and What Users Can See</h2>
                         <p className="mb-4">
-                            We store raw phone numbers and emails to support matching and reduce duplicate reports. We do not display phone numbers or emails in search results.
+                            We store raw phone numbers and emails to support accurate fuzzy matching and reduce duplicate reports. This data is securely stored with database-level protections and row-level security (RLS). We <strong>never</strong> display raw phone numbers or emails in search results—they are always masked (e.g., +63917***1234) or used purely as backend match indicators.
                         </p>
                         <p className="mb-2">Search results may display limited information, such as:</p>
                         <ul className="list-disc pl-6 space-y-2 mb-4">
