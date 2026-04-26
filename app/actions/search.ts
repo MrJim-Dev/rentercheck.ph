@@ -1258,16 +1258,36 @@ export async function searchRenters(
       };
     });
 
+    // Apply optional post-scoring filters (rental category, incident type, date range)
+    let filteredResults = results;
+    if (filters.rentalCategory || filters.incidentType || filters.dateFrom || filters.dateTo) {
+      filteredResults = results.filter((r) => {
+        const summaries = r.renter.incidentSummaries;
+        if (!summaries || summaries.length === 0) {
+          // For renters without incident summaries in results, we can't filter by category/type/date
+          // Keep them unless we have strict filters — they may have matching incidents not in the summary
+          return true;
+        }
+        return summaries.some((s) => {
+          if (filters.rentalCategory && s.category !== filters.rentalCategory) return false;
+          if (filters.incidentType && s.type !== filters.incidentType) return false;
+          if (filters.dateFrom && s.date < filters.dateFrom) return false;
+          if (filters.dateTo && s.date > filters.dateTo) return false;
+          return true;
+        });
+      });
+    }
+
     // Generate tips based on search
     const tips: string[] = [];
-    if (!hasStrongInput && results.length > 0) {
+    if (!hasStrongInput && filteredResults.length > 0) {
       tips.push("Add phone number or email for more accurate matching");
     }
-    if (results.length === 0 && nameNorm) {
+    if (filteredResults.length === 0 && nameNorm) {
       tips.push("Try searching with the exact phone number or email");
       tips.push("Check the spelling of the name");
     }
-    if (results.some((r) => r.requiresConfirmation)) {
+    if (filteredResults.some((r) => r.requiresConfirmation)) {
       tips.push("Some matches need confirmation - add more identifiers");
     }
 
@@ -1275,11 +1295,11 @@ export async function searchRenters(
     const isNameOnly = !!nameNorm && !hasStrongInput && !searchInput.dateOfBirth;
 
     // If not authenticated, return only count and metadata, no actual results
-    if (!isAuthenticated && results.length > 0) {
+    if (!isAuthenticated && filteredResults.length > 0) {
       return {
         success: true,
         results: [],
-        totalCount: results.length,
+        totalCount: filteredResults.length,
         query: originalQuery,
         meta: {
           searchTime: Date.now() - startTime,
@@ -1293,8 +1313,8 @@ export async function searchRenters(
 
     return {
       success: true,
-      results,
-      totalCount: results.length,
+      results: filteredResults,
+      totalCount: filteredResults.length,
       query: originalQuery,
       meta: {
         searchTime: Date.now() - startTime,

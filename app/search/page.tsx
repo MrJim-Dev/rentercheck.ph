@@ -3,12 +3,13 @@
 import { searchRenters } from "@/app/actions/search";
 import { ImproveAccuracyCard } from "@/components/search-results/improve-accuracy-card";
 import { ResultCard } from "@/components/search-results/result-card";
+import { SearchFiltersPanel, type SearchFilterValues } from "@/components/search-results/search-filters-panel";
 import { AppHeader } from "@/components/shared/app-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SearchResultMatch } from "@/lib/types";
-import { AlertTriangle, FileWarning, Info, Lightbulb, Loader2, Lock, LogIn, SearchX, Shield } from "lucide-react";
+import { AlertTriangle, FileWarning, Info, Lightbulb, Loader2, Lock, LogIn, Shield } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, useTransition } from "react";
@@ -30,6 +31,7 @@ function SearchResultsContent() {
     } | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
+    const [filters, setFilters] = useState<SearchFilterValues>({});
 
     const handleSearch = (newQuery: string) => {
         router.push(`/search?q=${encodeURIComponent(newQuery)}`);
@@ -47,7 +49,12 @@ function SearchResultsContent() {
 
         startTransition(async () => {
             try {
-                const response = await searchRenters(query);
+                const response = await searchRenters(query, {
+                    rentalCategory: filters.rentalCategory,
+                    incidentType: filters.incidentType,
+                    dateFrom: filters.dateFrom,
+                    dateTo: filters.dateTo,
+                });
 
                 if (response.success) {
                     setResults(response.results);
@@ -65,7 +72,7 @@ function SearchResultsContent() {
                 setSearchCount(prev => prev + 1);
             }
         });
-    }, [query]);
+    }, [query, filters]);
 
     // Group results by confidence level
     const confirmedMatches = results.filter(r => r.confidence === 'CONFIRMED' || r.confidence === 'HIGH');
@@ -105,6 +112,11 @@ function SearchResultsContent() {
 
                         <Separator />
 
+                        {/* Filters Panel - shown when there's a query */}
+                        {query && (
+                            <SearchFiltersPanel filters={filters} onChange={setFilters} />
+                        )}
+
                         {/* Multi-input Search Tip - shown when no query */}
                         {!query && (
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
@@ -123,7 +135,7 @@ function SearchResultsContent() {
                         )}
 
                         {/* Search Tips Banner */}
-                        {searchMeta && !searchMeta.hasStrongInput && results.length > 0 && (
+                        {searchMeta?.isNameOnly && results.length > 0 && (
                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3">
                                 <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                                 <div className="space-y-1">
@@ -157,7 +169,6 @@ function SearchResultsContent() {
                             </div>
                         ) : searchMeta?.requiresAuth ? (
                             // Non-authenticated user - backend returned requiresAuth flag
-                            // Show clean sign-in prompt without any data
                             <div className="flex flex-col items-center justify-center">
                                 <div className=" w-full">
                                     <div className="bg-card border-2 border-primary/20 rounded-xl p-8 md:p-10 shadow-xl text-center space-y-6">
@@ -277,7 +288,7 @@ function SearchResultsContent() {
                                     <li>• Searching with phone number or email instead</li>
                                     <li>• Using the Facebook profile URL</li>
                                 </ul>
-                                
+
                                 {/* Call to Action */}
                                 <div className="mt-6 p-4 md:p-6 bg-background border rounded-lg max-w-md w-full mx-4">
                                     <div className="flex items-start gap-3 mb-3">
