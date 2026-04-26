@@ -23,6 +23,7 @@ function SearchResultsContent() {
     const [searchMeta, setSearchMeta] = useState<{
         searchTime: number;
         hasStrongInput: boolean;
+        isNameOnly?: boolean;
         tips?: string[];
         requiresAuth?: boolean;
         totalCount?: number;
