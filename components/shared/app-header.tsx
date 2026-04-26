@@ -111,6 +111,7 @@ export function AppHeader({
     const navLinks = [
         { href: "/report", label: "Report an Incident", icon: FileWarning, key: "report", highlight: "red" },
         { href: "/my-reports", label: "My Reports", icon: FileText, key: "my-reports", requireAuth: true, highlight: "blue" },
+        { href: "/search-history", label: "Search History", icon: History, key: "search-history", requireAuth: true, highlight: "none" },
     ]
 
     return (

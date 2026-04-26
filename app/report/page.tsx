@@ -1,7 +1,7 @@
 "use client"
 
 import { ReportForm } from "@/components/report/report-form"
-import { Shield, FileWarning, Clock, CheckCircle, Lock, LogIn } from "lucide-react"
+import { Shield, FileWarning, Clock, CheckCircle, Lock, LogIn, Zap } from "lucide-react"
 import Link from "next/link"
 import { AppHeader } from "@/components/shared/app-header"
 import { useAuth } from "@/lib/auth/auth-provider"
@@ -39,6 +39,25 @@ function ReportPageContent() {
                             }
                         </p>
                     </div>
+
+                    {/* Quick Report Banner - only shown in create mode */}
+                    {!isEditMode && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+                            <div className="flex items-start gap-3">
+                                <Zap className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="font-medium text-amber-900 text-sm">In a hurry? Use Quick Report</p>
+                                    <p className="text-xs text-amber-700 mt-0.5">Submit with just name, phone/email, category, and a brief description. Add evidence later.</p>
+                                </div>
+                            </div>
+                            <Button asChild size="sm" variant="outline" className="border-amber-300 text-amber-800 hover:bg-amber-100 shrink-0">
+                                <Link href="/report/quick">
+                                    <Zap className="h-3.5 w-3.5 mr-1.5" />
+                                    Quick Report
+                                </Link>
+                            </Button>
+                        </div>
+                    )}
 
                     {/* Trust indicators */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
