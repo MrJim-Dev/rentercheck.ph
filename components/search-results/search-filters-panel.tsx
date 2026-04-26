@@ -90,14 +90,14 @@ export function SearchFiltersPanel({ filters, onChange }: SearchFiltersPanelProp
                         <div className="space-y-1.5">
                             <Label className="text-xs text-muted-foreground uppercase tracking-wider">Rental Category</Label>
                             <Select
-                                value={filters.rentalCategory || ""}
-                                onValueChange={(v) => onChange({ ...filters, rentalCategory: v || undefined })}
+                                value={filters.rentalCategory || "all"}
+                                onValueChange={(v) => onChange({ ...filters, rentalCategory: v === "all" ? undefined : v })}
                             >
                                 <SelectTrigger className="h-9 text-sm">
                                     <SelectValue placeholder="All categories" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">All categories</SelectItem>
+                                    <SelectItem value="all">All categories</SelectItem>
                                     {RENTAL_CATEGORIES.map((cat) => (
                                         <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
                                     ))}
@@ -109,14 +109,14 @@ export function SearchFiltersPanel({ filters, onChange }: SearchFiltersPanelProp
                         <div className="space-y-1.5">
                             <Label className="text-xs text-muted-foreground uppercase tracking-wider">Incident Type</Label>
                             <Select
-                                value={filters.incidentType || ""}
-                                onValueChange={(v) => onChange({ ...filters, incidentType: v || undefined })}
+                                value={filters.incidentType || "all"}
+                                onValueChange={(v) => onChange({ ...filters, incidentType: v === "all" ? undefined : v })}
                             >
                                 <SelectTrigger className="h-9 text-sm">
                                     <SelectValue placeholder="All incident types" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">All incident types</SelectItem>
+                                    <SelectItem value="all">All incident types</SelectItem>
                                     {INCIDENT_TYPES.map((type) => (
                                         <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
                                     ))}
