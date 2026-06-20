@@ -8,8 +8,14 @@ Disallow: /admin
 Disallow: /admin/*
 Disallow: /my-reports
 Disallow: /my-reports/*
+Disallow: /profile
+Disallow: /profile/*
+Disallow: /search-history
+Disallow: /search-history/*
 Disallow: /renter/
 Disallow: /api/
+Disallow: /login
+Disallow: /signup
 
 # Sitemap location
-Sitemap: https://rentercheck.ph/sitemap.xml
+Sitemap: https://www.rentercheck.ph/sitemap.xml

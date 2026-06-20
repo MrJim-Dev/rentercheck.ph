@@ -1,0 +1,19 @@
+# RenterCheck
+
+RenterCheck is a renter screening and incident-reporting web application for rental businesses in the Philippines.
+
+Website: https://www.rentercheck.ph
+
+Primary public pages:
+- https://www.rentercheck.ph/ - product overview and renter search entry
+- https://www.rentercheck.ph/report - submit a renter incident report for review
+- https://www.rentercheck.ph/clearance - run a tenant clearance check
+- https://www.rentercheck.ph/transparency - platform statistics, review process, and dispute commitments
+- https://www.rentercheck.ph/legal/privacy - privacy policy, data subject requests, and dispute contact
+- https://www.rentercheck.ph/legal/terms - terms of use and acceptable reporting rules
+
+Important notes:
+- RenterCheck is not a government agency, court, law enforcement body, or credit bureau.
+- Reports are intended as risk signals for rental decision support, not automatic approval or denial decisions.
+- Reported individuals may request review, correction, or removal by contacting privacy@rentercheck.ph.
+- Search results are designed to protect privacy through masked data and stronger matching when multiple identifiers are provided.

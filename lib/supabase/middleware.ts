@@ -15,7 +15,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({
             request,
           })
@@ -39,21 +39,16 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 
                      request.nextUrl.pathname.startsWith('/signup')
   
-  // Public pages - accessible without login
-  const isPublicPage = request.nextUrl.pathname === '/' ||
-                       request.nextUrl.pathname.startsWith('/search') ||
-                       request.nextUrl.pathname.startsWith('/renter') ||
-                       request.nextUrl.pathname.startsWith('/legal')
+  const pathname = request.nextUrl.pathname
+
+  const isProtectedAppPage = pathname.startsWith('/profile') ||
+                             pathname.startsWith('/search-history')
   
-  // Pages that handle their own auth (redirect to login if not authenticated)
-  const isSelfAuthPage = request.nextUrl.pathname.startsWith('/report') ||
-                         request.nextUrl.pathname.startsWith('/my-reports') ||
-                         request.nextUrl.pathname.startsWith('/admin')
-  
-  if (!user && !isAuthPage && !isPublicPage && !isSelfAuthPage) {
-    // If not logged in and trying to access protected route, redirect to home
+  if (!user && isProtectedAppPage) {
+    // If not logged in and trying to access protected route, redirect to sign in.
     const url = request.nextUrl.clone()
-    url.pathname = '/'
+    url.pathname = '/login'
+    url.searchParams.set('returnTo', pathname)
     return NextResponse.redirect(url)
   }
 
