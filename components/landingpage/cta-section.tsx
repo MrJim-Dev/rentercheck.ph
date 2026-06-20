@@ -2,10 +2,28 @@
 
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, FileCheck2, Scale, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 
 export function CTASection() {
+    const safeguards = [
+        {
+            icon: FileCheck2,
+            title: "Evidence-based reports",
+            description: "Incident submissions are reviewed before they become searchable risk signals.",
+        },
+        {
+            icon: Scale,
+            title: "Dispute and correction path",
+            description: "Reported individuals can request review, correction, or removal through the privacy channel.",
+        },
+        {
+            icon: ShieldCheck,
+            title: "Privacy-first matching",
+            description: "Search results are masked and strongest when multiple identifiers match.",
+        },
+    ]
+
     return (
         <section id="cta" className="min-h-[90vh] w-full flex items-center justify-center px-4 sm:px-6 lg:px-8 py-24 sm:py-32 bg-background relative overflow-hidden">
             {/* Animated Background */}
@@ -61,10 +79,32 @@ export function CTASection() {
                     <Button
                         size="lg"
                         variant="outline"
+                        asChild
                         className="border-white/10 text-white cursor-pointer hover:bg-white/10 hover:border-white/30 h-10 px-6 text-sm sm:h-12 sm:px-8 sm:text-base rounded-xl bg-transparent transition-all duration-300 backdrop-blur-sm"
                     >
-                        Learn More
+                        <Link href="/transparency">View Transparency</Link>
                     </Button>
+                </motion.div>
+
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.7, delay: 0.3 }}
+                    className="mt-12 grid grid-cols-1 gap-3 text-left sm:grid-cols-3"
+                >
+                    {safeguards.map((item) => {
+                        const Icon = item.icon
+                        return (
+                            <div key={item.title} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-secondary/10">
+                                    <Icon className="h-4 w-4 text-secondary" />
+                                </div>
+                                <h3 className="mb-1 text-sm font-semibold text-foreground">{item.title}</h3>
+                                <p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
+                            </div>
+                        )
+                    })}
                 </motion.div>
 
                 <motion.p
@@ -74,7 +114,7 @@ export function CTASection() {
                     transition={{ duration: 0.7, delay: 0.4 }}
                     className="mt-12 text-xs sm:text-sm text-muted-foreground/60"
                 >
-                    Help build a transparent rental community. Your reports help protect fellow property owners.
+                    Help build a transparent rental community. Privacy and dispute requests go to privacy@rentercheck.ph.
                 </motion.p>
             </div>
         </section>

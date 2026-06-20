@@ -1,5 +1,4 @@
 "use client"
-import NextImage from "next/image"
 import { motion } from "framer-motion"
 
 export function Footer() {
@@ -104,23 +103,36 @@ export function Footer() {
                     </p>
 
                     {/* Social links */}
-                    <div className="flex gap-6">
-                        
+                    <div className="flex flex-wrap gap-4 md:gap-6">
+                        <a
+                            key="transparency"
+                            href="/transparency"
+                            className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs"
+                        >
+                            Transparency
+                        </a>
+                        <a
+                            key="clearance"
+                            href="/clearance"
+                            className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs"
+                        >
+                            Clearance Check
+                        </a>
 
                         <a
-                                key="privacy"
-                                href="/legal/privacy"
-                                className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs"
-                            >
-                                Privacy Policy
-                            </a>
-                            <a
-                                key="terms"
-                                href="/legal/terms"
-                                className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs"
-                            >
-                                Terms of Use
-                            </a>
+                            key="privacy"
+                            href="/legal/privacy"
+                            className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs"
+                        >
+                            Privacy Policy
+                        </a>
+                        <a
+                            key="terms"
+                            href="/legal/terms"
+                            className="text-muted-foreground hover:text-accent transition-colors duration-300 text-[10px] md:text-xs"
+                        >
+                            Terms of Use
+                        </a>
                     </div>
                 </div>
             </motion.div>

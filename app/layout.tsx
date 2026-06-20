@@ -3,18 +3,15 @@ import { FloatingReportButton } from "@/components/shared/floating-report-button
 import { AuthProvider } from "@/lib/auth/auth-provider"
 import { Analytics } from "@vercel/analytics/next"
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Geist } from "next/font/google"
 import type React from "react"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
     themeColor: [
         { media: "(prefers-color-scheme: light)", color: "#ffffff" },
         { media: "(prefers-color-scheme: dark)", color: "#09090b" },
@@ -48,12 +45,15 @@ export const metadata: Metadata = {
     authors: [{ name: "RenterCheck" }],
     creator: "RenterCheck",
     publisher: "RenterCheck",
-    metadataBase: new URL("https://rentercheck.ph"),
+    metadataBase: new URL("https://www.rentercheck.ph"),
+    alternates: {
+        canonical: "/",
+    },
     openGraph: {
         title: "RenterCheck - Background-check renters and approve with confidence",
         description:
             "Instant tenant verification for rental properties in the Philippines. Search renter history, verify backgrounds, and protect your rental business from problematic tenants.",
-        url: "https://rentercheck.ph",
+        url: "https://www.rentercheck.ph",
         siteName: "RenterCheck",
         locale: "en_PH",
         type: "website",
@@ -101,18 +101,13 @@ export default function RootLayout({
         '@type': 'WebApplication',
         name: 'RenterCheck',
         description: 'Background-check renters and approve with confidence. Instant tenant verification for rental properties in the Philippines.',
-        url: 'https://rentercheck.ph',
+        url: 'https://www.rentercheck.ph',
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Web',
         offers: {
             '@type': 'Offer',
             price: '0',
             priceCurrency: 'PHP',
-        },
-        aggregateRating: {
-            '@type': 'AggregateRating',
-            ratingValue: '4.8',
-            ratingCount: '150',
         },
     }
 

@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://rentercheck.ph'
+  const baseUrl = 'https://www.rentercheck.ph'
   
   return [
     {
@@ -17,16 +17,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/login`,
+      url: `${baseUrl}/transparency`,
       lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.5,
+      changeFrequency: 'weekly',
+      priority: 0.7,
     },
     {
-      url: `${baseUrl}/signup`,
+      url: `${baseUrl}/clearance`,
       lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.5,
+      changeFrequency: 'weekly',
+      priority: 0.6,
     },
     {
       url: `${baseUrl}/legal/terms`,

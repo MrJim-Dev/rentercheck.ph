@@ -83,7 +83,7 @@ export function HeroSection() {
                         transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
                         className="text-sm sm:text-base text-muted-foreground max-w-lg mx-auto leading-relaxed"
                     >
-                        Search by name, birthdate, email, or phone number to check tenant history and identify potential issues before they come problems.
+                        Search by name, birthdate, email, or phone number to check tenant history and identify potential issues before they become problems.
                     </motion.p>
                 </div>
 
@@ -128,7 +128,7 @@ export function HeroSection() {
                     className="text-xs text-muted-foreground/80 text-center mb-8 sm:mb-12 max-w-lg mx-auto flex flex-col sm:block gap-1"
                 >
                     <span className="opacity-70">Try Searching: </span>
-                    <span className="font-medium opacity-90 break-words">"Juan Dela Cruz, July 28, 1991, 09171234567, juan@example.com"</span>
+                    <span className="font-medium opacity-90 break-words">Juan Dela Cruz, July 28, 1991, 09171234567, juan@example.com</span>
                 </motion.p>
 
                 <motion.div
@@ -158,8 +158,4 @@ export function HeroSection() {
             </div>
         </section>
     )
-}
-
-function clamp(min: number, value: string, max: number): string {
-    return `clamp(${min}px, ${value}, ${max}px)`
 }
