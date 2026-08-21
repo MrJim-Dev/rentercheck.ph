@@ -20,7 +20,7 @@ import {
   type SearchResponse,
   type SearchResultMatch,
 } from "@/lib/matching";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/aws/client/request-client";
 
 // ============================================
 // SEARCH FUNCTIONS
@@ -273,10 +273,10 @@ export async function searchRenters(
   filters: SearchFilters = {}
 ): Promise<SearchResponse> {
   const startTime = Date.now();
-  const supabase = await createClient();
+  const dbClient = await createClient();
 
   // Check authentication
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await dbClient.auth.getUser();
   const isAuthenticated = !!user;
 
   try {
@@ -408,7 +408,7 @@ export async function searchRenters(
       if (emailNorm) identifierConditions.push(`identifier_normalized.eq.${emailNorm}`);
       if (facebookNorm) identifierConditions.push(`identifier_normalized.eq.${facebookNorm}`);
 
-      const { data: identifierMatches, error: identifierError } = await supabase
+      const { data: identifierMatches, error: identifierError } = await dbClient
         .from("renter_identifiers")
         .select("renter_id, identifier_type, identifier_normalized, identifier_value")
         .or(identifierConditions.map(c => c.replace('identifier_normalized.eq.', 'identifier_normalized.eq.')).join(','));
@@ -426,7 +426,7 @@ export async function searchRenters(
     // Search by name if provided (using full-text search or ILIKE)
     if (nameNorm) {
       // Use PostgreSQL full-text search if available, or ILIKE fallback
-      const { data: nameMatches, error: nameError } = await supabase
+      const { data: nameMatches, error: nameError } = await dbClient
         .from("renters")
         .select("id")
         .or(`full_name_normalized.ilike.%${nameNorm}%,full_name.ilike.%${nameNorm}%`)
@@ -447,7 +447,7 @@ export async function searchRenters(
         const firstName = nameParts[0];
         const lastName = nameParts[nameParts.length - 1];
 
-        const { data: partialMatches } = await supabase
+        const { data: partialMatches } = await dbClient
           .from("renters")
           .select("id")
           .or(`full_name_normalized.ilike.%${firstName}%,full_name_normalized.ilike.%${lastName}%`)
@@ -474,7 +474,7 @@ export async function searchRenters(
       const searchTerms = nameNorm.split(' ').filter(t => t.length >= 2);
       if (searchTerms.length > 0) {
         const tsQuery = searchTerms.join(' & ');
-        const { data: ftsMatches } = await supabase
+        const { data: ftsMatches } = await dbClient
           .from("incident_reports")
           .select("id")
           .in("status", ["APPROVED", "UNDER_REVIEW"])
@@ -490,7 +490,7 @@ export async function searchRenters(
       }
 
       // Strategy 2: ILIKE search on name field (catches what FTS might miss)
-      const { data: reportMatches } = await supabase
+      const { data: reportMatches } = await dbClient
         .from("incident_reports")
         .select("id")
         .or(`reported_full_name.ilike.%${nameNorm}%`)
@@ -511,7 +511,7 @@ export async function searchRenters(
         const lastName = nameParts[nameParts.length - 1];
 
         // Search for reports matching first AND last name separately
-        const { data: partialMatches } = await supabase
+        const { data: partialMatches } = await dbClient
           .from("incident_reports")
           .select("id, reported_full_name")
           .in("status", ["APPROVED", "UNDER_REVIEW"])
@@ -531,7 +531,7 @@ export async function searchRenters(
       }
 
       // Strategy 4: Search in aliases JSONB array
-      const { data: aliasReports } = await supabase
+      const { data: aliasReports } = await dbClient
         .from("incident_reports")
         .select("id, reported_aliases")
         .in("status", ["APPROVED", "UNDER_REVIEW"])
@@ -611,7 +611,7 @@ export async function searchRenters(
       }
 
       if (orConditions.length > 0) {
-        const { data: identifierReportMatches } = await supabase
+        const { data: identifierReportMatches } = await dbClient
           .from("incident_reports")
           .select("id, reported_full_name, reported_phone, reported_email, reported_facebook, reported_phones, reported_emails, reported_facebooks, reported_aliases, reported_city, incident_region, renter_id, status")
           .in("status", ["APPROVED", "UNDER_REVIEW"])
@@ -626,7 +626,7 @@ export async function searchRenters(
       }
 
       // Search in JSONB arrays with improved phone matching
-      const { data: jsonbReports } = await supabase
+      const { data: jsonbReports } = await dbClient
         .from("incident_reports")
         .select("id, reported_phones, reported_emails, reported_facebooks")
         .in("status", ["APPROVED", "UNDER_REVIEW"])
@@ -712,7 +712,7 @@ export async function searchRenters(
         // Split search name into parts for matching
         const searchNameParts = nameNorm.split(' ').filter(p => p.length >= 2);
         
-        const { data: dobReports } = await supabase
+        const { data: dobReports } = await dbClient
           .from("incident_reports")
           .select("id, reported_full_name, reported_aliases, reported_date_of_birth")
           .in("status", ["APPROVED", "UNDER_REVIEW"])
@@ -775,7 +775,7 @@ export async function searchRenters(
     // Uses ALL provided identifiers for comprehensive search
     // ============================================
     if (allPhonesNorm.length > 0 || allEmailsNorm.length > 0 || allFacebooksNorm.length > 0) {
-      const { data: amendments } = await supabase
+      const { data: amendments } = await dbClient
         .from("report_amendments")
         .select("report_id, changes_json")
         .eq("amendment_type", "NEW_IDENTIFIER")
@@ -859,7 +859,7 @@ export async function searchRenters(
 
     // Fetch full candidate data for scoring from renters table
     if (candidateIds.size > 0) {
-      const { data: renters, error: rentersError } = await supabase
+      const { data: renters, error: rentersError } = await dbClient
         .from("renters")
         .select(`
           id,
@@ -914,7 +914,7 @@ export async function searchRenters(
       const reportIdArray = Array.from(unlinkedReportIds);
 
       // Fetch reports
-      const { data: unlinkedReports } = await supabase
+      const { data: unlinkedReports } = await dbClient
         .from("incident_reports")
         .select(`
           id,
@@ -937,7 +937,7 @@ export async function searchRenters(
         .in("id", reportIdArray);
 
       // Also fetch approved amendments for these reports to get additional identifiers
-      const { data: reportAmendments } = await supabase
+      const { data: reportAmendments } = await dbClient
         .from("report_amendments")
         .select("report_id, changes_json")
         .in("report_id", reportIdArray)
@@ -1118,7 +1118,7 @@ export async function searchRenters(
 
     // Fetch details for linked renters
     if (renterIds.length > 0) {
-      const { data: details } = await supabase
+      const { data: details } = await dbClient
         .from("renters")
         .select(`
           id,
@@ -1131,7 +1131,7 @@ export async function searchRenters(
         .in("id", renterIds);
 
       // Get identifier counts
-      const { data: identCounts } = await supabase
+      const { data: identCounts } = await dbClient
         .from("renter_identifiers")
         .select("renter_id")
         .in("renter_id", renterIds);
@@ -1161,7 +1161,7 @@ export async function searchRenters(
 
     // Fetch details for unlinked reports (including incident summary info)
     if (reportIds.length > 0) {
-      const { data: reportDetails } = await supabase
+      const { data: reportDetails } = await dbClient
         .from("incident_reports")
         .select(`
           id,
@@ -1374,7 +1374,7 @@ export async function getRenterByFingerprint(fingerprint: string): Promise<{
   };
 }> {
   try {
-    const supabase = await createClient();
+    const dbClient = await createClient();
 
     // Check if this is an unlinked report fingerprint
     if (fingerprint.startsWith("report-")) {
@@ -1382,7 +1382,7 @@ export async function getRenterByFingerprint(fingerprint: string): Promise<{
       const reportIdPrefix = fingerprint.replace("report-", "");
 
       // Find the report by ID prefix
-      const { data: reports } = await supabase
+      const { data: reports } = await dbClient
         .from("incident_reports")
         .select(`
           id,
@@ -1419,7 +1419,7 @@ export async function getRenterByFingerprint(fingerprint: string): Promise<{
       if (report.reported_facebook) identifierCount++;
 
       // Get evidence count
-      const { count: evidenceCount } = await supabase
+      const { count: evidenceCount } = await dbClient
         .from("report_evidence")
         .select("id", { count: "exact", head: true })
         .eq("report_id", report.id);
@@ -1456,7 +1456,7 @@ export async function getRenterByFingerprint(fingerprint: string): Promise<{
     }
 
     // Standard flow: Get renter by fingerprint from renters table
-    const { data: renter, error: renterError } = await supabase
+    const { data: renter, error: renterError } = await dbClient
       .from("renters")
       .select(`
         id,
@@ -1480,14 +1480,14 @@ export async function getRenterByFingerprint(fingerprint: string): Promise<{
     }
 
     // Get public incident summaries
-    const { data: incidents } = await supabase
+    const { data: incidents } = await dbClient
       .from("public_incident_summaries")
       .select("*")
       .eq("renter_id", renter.id)
       .order("incident_date", { ascending: false });
 
     // Get identifier count
-    const { count: identifierCount } = await supabase
+    const { count: identifierCount } = await dbClient
       .from("renter_identifiers")
       .select("id", { count: "exact", head: true })
       .eq("renter_id", renter.id);

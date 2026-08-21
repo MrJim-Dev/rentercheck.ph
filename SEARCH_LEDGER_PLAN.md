@@ -38,4 +38,4 @@ Create a new table `search_access_logs` to track what a user has "paid for".
 - (Optional) Cron job or manual cleanup for expired rows, but for now we can just filter by `expires_at > now()`.
 
 ## 4. Migration File
-`supabase/migrations/20260115_search_ledger.sql`
+Historical source migration `20260115_search_ledger.sql`

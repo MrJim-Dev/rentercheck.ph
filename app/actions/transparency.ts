@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 
 export interface TransparencyStats {
     // Report stats
@@ -67,7 +67,7 @@ const INCIDENT_TYPE_LABELS: Record<string, string> = {
 
 export async function getTransparencyStats(): Promise<{ success: boolean; stats?: TransparencyStats; error?: string }> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         const now = new Date()
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
@@ -75,7 +75,7 @@ export async function getTransparencyStats(): Promise<{ success: boolean; stats?
         const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString()
 
         // Fetch all approved/rejected/pending counts
-        const { data: statusCounts } = await supabase
+        const { data: statusCounts } = await dbClient
             .from("incident_reports")
             .select("status")
 
@@ -84,14 +84,14 @@ export async function getTransparencyStats(): Promise<{ success: boolean; stats?
             return acc
         }, {} as Record<string, number>)
 
-        const totalReports = Object.values(counts).reduce((a, b) => a + b, 0)
+        const totalReports = Object.values(counts as Record<string, number>).reduce((a: number, b: number) => a + b, 0)
         const approvedReports = counts["APPROVED"] || 0
         const pendingReports = (counts["PENDING"] || 0) + (counts["UNDER_REVIEW"] || 0)
         const rejectedReports = counts["REJECTED"] || 0
         const approvalRate = totalReports > 0 ? Math.round((approvedReports / (approvedReports + rejectedReports)) * 100) : 0
 
         // Disputes
-        const { data: disputeData } = await supabase
+        const { data: disputeData } = await dbClient
             .from("disputes")
             .select("status")
 
@@ -100,12 +100,12 @@ export async function getTransparencyStats(): Promise<{ success: boolean; stats?
             return acc
         }, {} as Record<string, number>)
 
-        const totalDisputes = Object.values(disputeCounts).reduce((a, b) => a + b, 0)
+        const totalDisputes = Object.values(disputeCounts as Record<string, number>).reduce((a: number, b: number) => a + b, 0)
         const resolvedDisputes = (disputeCounts["APPROVED"] || 0) + (disputeCounts["REJECTED"] || 0)
         const disputeResolutionRate = totalDisputes > 0 ? Math.round((resolvedDisputes / totalDisputes) * 100) : 0
 
         // Category breakdown (approved reports only)
-        const { data: categoryData } = await supabase
+        const { data: categoryData } = await dbClient
             .from("incident_reports")
             .select("rental_category")
             .eq("status", "APPROVED")
@@ -119,16 +119,16 @@ export async function getTransparencyStats(): Promise<{ success: boolean; stats?
         }, {} as Record<string, number>)
 
         const topCategories = Object.entries(categoryCounts)
-            .sort((a, b) => b[1] - a[1])
+            .sort((a, b) => Number(b[1]) - Number(a[1]))
             .slice(0, 5)
             .map(([category, count]) => ({
                 category,
                 label: CATEGORY_LABELS[category] || category,
-                count,
+                count: Number(count),
             }))
 
         // Incident type breakdown (approved reports only)
-        const { data: typeData } = await supabase
+        const { data: typeData } = await dbClient
             .from("incident_reports")
             .select("incident_type")
             .eq("status", "APPROVED")
@@ -142,26 +142,26 @@ export async function getTransparencyStats(): Promise<{ success: boolean; stats?
         }, {} as Record<string, number>)
 
         const topIncidentTypes = Object.entries(typeCounts)
-            .sort((a, b) => b[1] - a[1])
+            .sort((a, b) => Number(b[1]) - Number(a[1]))
             .slice(0, 5)
             .map(([type, count]) => ({
                 type,
                 label: INCIDENT_TYPE_LABELS[type] || type,
-                count,
+                count: Number(count),
             }))
 
         // Total unique renters
-        const { count: totalRenters } = await supabase
+        const { count: totalRenters } = await dbClient
             .from("renters")
             .select("*", { count: "exact", head: true })
 
         // Reports this month vs last month
-        const { count: reportsThisMonth } = await supabase
+        const { count: reportsThisMonth } = await dbClient
             .from("incident_reports")
             .select("*", { count: "exact", head: true })
             .gte("submitted_at", startOfMonth)
 
-        const { count: reportsLastMonth } = await supabase
+        const { count: reportsLastMonth } = await dbClient
             .from("incident_reports")
             .select("*", { count: "exact", head: true })
             .gte("submitted_at", startOfLastMonth)
@@ -184,9 +184,9 @@ export async function getTransparencyStats(): Promise<{ success: boolean; stats?
                 disputeResolutionRate,
                 topCategories,
                 topIncidentTypes,
-                totalRenters: totalRenters || 0,
-                reportsThisMonth: reportsThisMonth || 0,
-                reportsLastMonth: reportsLastMonth || 0,
+                totalRenters: Number(totalRenters || 0),
+                reportsThisMonth: Number(reportsThisMonth || 0),
+                reportsLastMonth: Number(reportsLastMonth || 0),
                 growthRate,
                 generatedAt: new Date().toISOString(),
             }

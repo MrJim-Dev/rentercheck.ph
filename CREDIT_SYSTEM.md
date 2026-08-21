@@ -124,8 +124,8 @@ The current implementation supports (but doesn't yet implement):
 ## Migration & Backfill
 
 ### Initial Setup
-- **Migration**: [`20240115_init_users_and_credits.sql`](file:///c:/Users/JARED/Documents/SideProjects/rentercheck.ph/supabase/migrations/20240115_init_users_and_credits.sql)
-- **Backfill**: [`20240115_backfill_existing_users.sql`](file:///c:/Users/JARED/Documents/SideProjects/rentercheck.ph/supabase/migrations/20240115_backfill_existing_users.sql)
+- **Migration**: historical source migration `20240115_init_users_and_credits.sql`
+- **Backfill**: historical source migration `20240115_backfill_existing_users.sql`
 
 ### Existing Users
 All existing users were retroactively granted:

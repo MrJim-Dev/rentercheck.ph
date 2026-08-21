@@ -15,7 +15,7 @@ export enum CreditAction {
 ```
 
 ## Step 2: Configure the Database
-You need to add a row to the `credit_action_costs` table. You can do this via a SQL query in your Supabase SQL Editor.
+You need to add a row to the `credit_action_costs` table. Apply the change through the MrJim AWS PostgreSQL migration workflow.
 
 ```sql
 INSERT INTO credit_action_costs (action_key, action_name, cost, description, is_active)

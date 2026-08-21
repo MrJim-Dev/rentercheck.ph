@@ -51,7 +51,7 @@ export function ReportEditorDialog({
 
         setIsSaving(true)
         try {
-            const updates: Partial<Report> = {}
+            const updates: Record<string, any> = {}
             
             // Only include changed fields
             Object.keys(formData).forEach((key) => {
@@ -70,7 +70,7 @@ export function ReportEditorDialog({
                 return
             }
 
-            await onSave(updates, changeNote)
+            await onSave(updates as Partial<Report>, changeNote)
             setChangeNote("")
             onOpenChange(false)
         } catch (error) {

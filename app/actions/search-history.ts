@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 
 export interface SearchHistoryEntry {
     id: string
@@ -24,15 +24,15 @@ export interface SearchHistoryResult {
  */
 export async function getSearchHistory(limit = 50): Promise<SearchHistoryResult> {
     try {
-        const supabase = await createClient()
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const dbClient = await createClient()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "Not authenticated" }
         }
 
         // Fetch recent search access logs for this user
-        const { data: logs, error: logsError } = await supabase
+        const { data: logs, error: logsError } = await dbClient
             .from("search_access_logs")
             .select("id, parameter_type, parameter_value, expires_at, created_at")
             .eq("user_id", user.id)
@@ -133,8 +133,8 @@ export async function getSearchStats(): Promise<{
     error?: string
 }> {
     try {
-        const supabase = await createClient()
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const dbClient = await createClient()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "Not authenticated" }
@@ -144,7 +144,7 @@ export async function getSearchStats(): Promise<{
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
         // Get all logs this month
-        const { data: monthLogs } = await supabase
+        const { data: monthLogs } = await dbClient
             .from("search_access_logs")
             .select("parameter_type, expires_at, created_at")
             .eq("user_id", user.id)
@@ -163,7 +163,7 @@ export async function getSearchStats(): Promise<{
             return acc
         }, {} as Record<string, number>)
 
-        const mostSearchedType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+        const mostSearchedType = Object.entries(typeCounts).sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] || null
 
         // Estimate total unique searches (group by 5-second windows)
         const totalSearches = Math.ceil(monthLogs.length / 1.5) // Rough estimate

@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 import { revalidatePath } from "next/cache"
 
 export interface CreditActionConfig {
@@ -14,9 +14,9 @@ export interface CreditActionConfig {
 }
 
 export async function getCreditConfigs() {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await dbClient
         .from('credit_action_costs')
         .select('*')
         .order('action_name')
@@ -36,10 +36,10 @@ export async function getCreditConfigs() {
 }
 
 export async function updateActionCost(key: string, cost: number, type?: 'deduction' | 'addition') {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
     // Verify admin access
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await dbClient.auth.getUser()
     if (!user) return { success: false, error: 'Unauthorized' }
 
     // In real app: check for super_admin role
@@ -55,7 +55,7 @@ export async function updateActionCost(key: string, cost: number, type?: 'deduct
         updates.action_type = type
     }
 
-    const { error } = await supabase
+    const { error } = await dbClient
         .from('credit_action_costs')
         .update(updates)
         .eq('action_key', key)
@@ -70,9 +70,9 @@ export async function updateActionCost(key: string, cost: number, type?: 'deduct
 }
 
 export async function toggleActionStatus(key: string, isActive: boolean) {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
-    const { error } = await supabase
+    const { error } = await dbClient
         .from('credit_action_costs')
         .update({ is_active: isActive, updated_at: new Date().toISOString() })
         .eq('action_key', key)

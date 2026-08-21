@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/aws/client/request-client'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -8,12 +8,12 @@ import { revalidatePath } from 'next/cache'
  * Returns 0 if no user or no wallet found.
  */
 export async function getCreditsBalance() {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await dbClient.auth.getUser()
     if (!user) return 0
 
-    const { data, error } = await supabase
+    const { data, error } = await dbClient
         .from('credit_wallets')
         .select('balance')
         .eq('user_id', user.id)
@@ -39,10 +39,10 @@ export async function consumeCredits(
     referenceId?: string,
     amount: number = 1
 ) {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
     // Call the atomic RPC function
-    const { data: newBalance, error } = await supabase.rpc('consume_credits', {
+    const { data: newBalance, error } = await dbClient.rpc('consume_credits', {
         p_amount: amount,
         p_description: description,
         p_reference_id: referenceId,
@@ -65,14 +65,14 @@ export async function consumeCredits(
  * Requires 'refill_credits' RPC to be created in DB.
  */
 export async function betaRefillCredits() {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
     // We reuse the database logic for safety
     // If we haven't created a 'refill_credits' RPC yet, we can't do this securely from client
     // But for now, we will try to call an RPC we expect to exist, or fail.
     // actually, let's assume we will add the RPC.
 
-    const { data: newBalance, error } = await supabase.rpc('refill_credits', {
+    const { data: newBalance, error } = await dbClient.rpc('refill_credits', {
         p_amount: 10,
         p_description: 'Beta Tester Refill'
     })

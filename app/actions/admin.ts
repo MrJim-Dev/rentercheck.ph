@@ -5,7 +5,7 @@ import { IncidentRejectedEmail } from "@/components/emails/incident-rejected"
 import { IncidentUnderReviewEmail } from "@/components/emails/incident-under-review"
 import type { Database, Enums } from "@/lib/database.types"
 import { sendEmail } from "@/lib/email"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 import { revalidatePath } from "next/cache"
 
 // Response types
@@ -20,15 +20,15 @@ interface ActionResult<T = void> {
  */
 export async function checkIsAdmin(): Promise<ActionResult<{ isAdmin: boolean; role: string | null }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: true, data: { isAdmin: false, role: null } }
         }
 
-        const { data: adminUser } = await supabase
+        const { data: adminUser } = await dbClient
             .from("admin_users")
             .select("role, is_active")
             .eq("id", user.id)
@@ -59,9 +59,9 @@ export async function getAdminStats(): Promise<ActionResult<{
     verified_renters: number
 }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data, error } = await supabase
+        const { data, error } = await dbClient
             .from("admin_stats")
             .select("*")
             .single()
@@ -99,9 +99,9 @@ export async function getPendingReports(options?: {
     offset?: number
 }): Promise<ActionResult<Database["public"]["Tables"]["incident_reports"]["Row"][]>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        let query = supabase
+        let query = dbClient
             .from("incident_reports")
             .select("*")
             .order("created_at", { ascending: true })
@@ -145,9 +145,9 @@ export async function getAllReports(options?: {
     search?: string
 }): Promise<ActionResult<{ reports: Database["public"]["Tables"]["incident_reports"]["Row"][]; total: number }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        let query = supabase
+        let query = dbClient
             .from("incident_reports")
             .select("*", { count: "exact" })
             .order("created_at", { ascending: false })
@@ -195,12 +195,12 @@ export async function getReportDetails(reportId: string): Promise<ActionResult<{
     identifiers: Database["public"]["Tables"]["report_identifiers"]["Row"][]
 }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         const [reportResult, evidenceResult, identifiersResult] = await Promise.all([
-            supabase.from("incident_reports").select("*").eq("id", reportId).single(),
-            supabase.from("report_evidence").select("*").eq("report_id", reportId).order("display_order"),
-            supabase.from("report_identifiers").select("*").eq("report_id", reportId),
+            dbClient.from("incident_reports").select("*").eq("id", reportId).single(),
+            dbClient.from("report_evidence").select("*").eq("report_id", reportId).order("display_order"),
+            dbClient.from("report_identifiers").select("*").eq("report_id", reportId),
         ])
 
         if (reportResult.error || !reportResult.data) {
@@ -231,15 +231,15 @@ export async function updateReportStatus(
     rejectionReason?: string
 ): Promise<ActionResult> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "Not authenticated" }
         }
 
-        const { data: report, error: reportError } = await supabase
+        const { data: report, error: reportError } = await dbClient
             .from("incident_reports")
             .select("status, reporter_email, reported_full_name")
             .eq("id", reportId)
@@ -266,7 +266,7 @@ export async function updateReportStatus(
             updateData.rejection_reason = rejectionReason
         }
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await dbClient
             .from("incident_reports")
             .update(updateData)
             .eq("id", reportId)
@@ -277,7 +277,7 @@ export async function updateReportStatus(
         }
 
         // Log the action
-        await supabase.from("report_admin_actions").insert({
+        await dbClient.from("report_admin_actions").insert({
             report_id: reportId,
             admin_id: user.id,
             action_type: "STATUS_CHANGE",
@@ -332,16 +332,16 @@ export async function updateReportStatus(
  */
 export async function addAdminNote(reportId: string, note: string): Promise<ActionResult> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "Not authenticated" }
         }
 
         // Get current notes
-        const { data: report } = await supabase
+        const { data: report } = await dbClient
             .from("incident_reports")
             .select("admin_notes")
             .eq("id", reportId)
@@ -353,7 +353,7 @@ export async function addAdminNote(reportId: string, note: string): Promise<Acti
             ? `${report.admin_notes}\n\n${newNote}`
             : newNote
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await dbClient
             .from("incident_reports")
             .update({ admin_notes: updatedNotes })
             .eq("id", reportId)
@@ -363,7 +363,7 @@ export async function addAdminNote(reportId: string, note: string): Promise<Acti
         }
 
         // Log the action
-        await supabase.from("report_admin_actions").insert({
+        await dbClient.from("report_admin_actions").insert({
             report_id: reportId,
             admin_id: user.id,
             action_type: "NOTE_ADDED",
@@ -384,9 +384,19 @@ export async function addAdminNote(reportId: string, note: string): Promise<Acti
  */
 export async function getAdminEvidenceUrl(storagePath: string): Promise<ActionResult<{ url: string }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data, error } = await supabase.storage
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
+        if (authError || !user) {
+            return { success: false, error: "Not authenticated" }
+        }
+
+        const adminCheck = await checkIsAdmin()
+        if (!adminCheck.success || !adminCheck.data?.isAdmin) {
+            return { success: false, error: "Admin access required" }
+        }
+
+        const { data, error } = await dbClient.storage
             .from("evidence")
             .createSignedUrl(storagePath, 3600) // 1 hour
 
@@ -410,9 +420,9 @@ export async function updateReportDetails(
     changeNote: string
 ): Promise<ActionResult> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "Not authenticated" }
@@ -425,7 +435,7 @@ export async function updateReportDetails(
         }
 
         // Get current report state
-        const { data: currentReport, error: fetchError } = await supabase
+        const { data: currentReport, error: fetchError } = await dbClient
             .from("incident_reports")
             .select("*")
             .eq("id", reportId)
@@ -449,7 +459,7 @@ export async function updateReportDetails(
         }
 
         // Update the report
-        const { error: updateError } = await supabase
+        const { error: updateError } = await dbClient
             .from("incident_reports")
             .update({
                 ...updates,
@@ -463,7 +473,7 @@ export async function updateReportDetails(
         }
 
         // Log the edit in report_edits table
-        const { error: logError } = await supabase
+        const { error: logError } = await dbClient
             .from("report_edits")
             .insert({
                 report_id: reportId,
@@ -478,7 +488,7 @@ export async function updateReportDetails(
         }
 
         // Also log in admin actions
-        await supabase.from("report_admin_actions").insert({
+        await dbClient.from("report_admin_actions").insert({
             report_id: reportId,
             admin_id: user.id,
             action_type: "REPORT_EDITED",
@@ -506,7 +516,7 @@ export async function getReportEditHistory(reportId: string): Promise<ActionResu
     change_note: string
 }>>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         // Check admin status
         const adminCheck = await checkIsAdmin()
@@ -514,7 +524,7 @@ export async function getReportEditHistory(reportId: string): Promise<ActionResu
             return { success: false, error: "Admin access required" }
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await dbClient
             .from("report_edits")
             .select(`
                 id,
@@ -551,7 +561,7 @@ export async function getReportEditHistory(reportId: string): Promise<ActionResu
  */
 export async function transferReport(reportId: string, newUserId: string, reason?: string): Promise<ActionResult> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         // Check admin status
         const adminCheck = await checkIsAdmin()
@@ -559,13 +569,13 @@ export async function transferReport(reportId: string, newUserId: string, reason
             return { success: false, error: "Admin access required" }
         }
 
-        const { data: { user } } = await supabase.auth.getUser()
+        const { data: { user } } = await dbClient.auth.getUser()
         if (!user) {
             return { success: false, error: "User not authenticated" }
         }
 
         // Verify the report exists
-        const { data: report } = await supabase
+        const { data: report } = await dbClient
             .from("incident_reports")
             .select("reporter_id")
             .eq("id", reportId)
@@ -576,7 +586,7 @@ export async function transferReport(reportId: string, newUserId: string, reason
         }
 
         // Verify the new user exists
-        const { data: newUser } = await supabase
+        const { data: newUser } = await dbClient
             .from("users")
             .select("id, email, full_name")
             .eq("id", newUserId)
@@ -587,7 +597,7 @@ export async function transferReport(reportId: string, newUserId: string, reason
         }
 
         // Update the report's reporter_id
-        const { error: updateError } = await supabase
+        const { error: updateError } = await dbClient
             .from("incident_reports")
             .update({ reporter_id: newUserId })
             .eq("id", reportId)
@@ -598,7 +608,7 @@ export async function transferReport(reportId: string, newUserId: string, reason
         }
 
         // Log the transfer action
-        await supabase.from("report_admin_actions").insert({
+        await dbClient.from("report_admin_actions").insert({
             report_id: reportId,
             admin_id: user.id,
             action_type: "TRANSFERRED",
@@ -620,7 +630,7 @@ export async function transferReport(reportId: string, newUserId: string, reason
  */
 export async function getAllUsers(search?: string, excludeUserId?: string): Promise<ActionResult<Array<{ id: string; email: string; full_name: string | null }>>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         // Check admin status
         const adminCheck = await checkIsAdmin()
@@ -628,7 +638,7 @@ export async function getAllUsers(search?: string, excludeUserId?: string): Prom
             return { success: false, error: "Admin access required" }
         }
 
-        let query = supabase
+        let query = dbClient
             .from("users")
             .select("id, email, full_name")
             .order("full_name", { ascending: true })
@@ -663,7 +673,7 @@ export async function getAllUsers(search?: string, excludeUserId?: string): Prom
  */
 export async function hardDeleteReport(reportId: string, reason?: string): Promise<ActionResult> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         // Check admin status
         const adminCheck = await checkIsAdmin()
@@ -671,13 +681,13 @@ export async function hardDeleteReport(reportId: string, reason?: string): Promi
             return { success: false, error: "Admin access required" }
         }
 
-        const { data: { user } } = await supabase.auth.getUser()
+        const { data: { user } } = await dbClient.auth.getUser()
         if (!user) {
             return { success: false, error: "User not authenticated" }
         }
 
         // Get report details before deletion for logging
-        const { data: report } = await supabase
+        const { data: report } = await dbClient
             .from("incident_reports")
             .select("*")
             .eq("id", reportId)
@@ -688,7 +698,7 @@ export async function hardDeleteReport(reportId: string, reason?: string): Promi
         }
 
         // Get all evidence storage paths for deletion
-        const { data: evidence } = await supabase
+        const { data: evidence } = await dbClient
             .from("report_evidence")
             .select("storage_path")
             .eq("report_id", reportId)
@@ -696,7 +706,7 @@ export async function hardDeleteReport(reportId: string, reason?: string): Promi
         // Delete evidence files from storage
         if (evidence && evidence.length > 0) {
             const filePaths = evidence.map(e => e.storage_path)
-            const { error: storageError } = await supabase
+            const { error: storageError } = await dbClient
                 .storage
                 .from("evidence")
                 .remove(filePaths)
@@ -708,7 +718,7 @@ export async function hardDeleteReport(reportId: string, reason?: string): Promi
         }
 
         // Log the deletion action before deleting the report
-        await supabase.from("report_admin_actions").insert({
+        await dbClient.from("report_admin_actions").insert({
             report_id: reportId,
             admin_id: user.id,
             action_type: "HARD_DELETED",
@@ -724,7 +734,7 @@ export async function hardDeleteReport(reportId: string, reason?: string): Promi
         // 5. Any other related tables
 
         // Delete the report (this will cascade to related tables)
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await dbClient
             .from("incident_reports")
             .delete()
             .eq("id", reportId)

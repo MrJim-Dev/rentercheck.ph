@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client";
+import { createDatabaseClient } from "@/lib/aws/client/database-client";
 
 // 1. Define your actions here
 export enum CreditAction {
@@ -18,7 +18,7 @@ export async function gateAction(
     userId: string,
     referenceId?: string
 ): Promise<void> {
-    const supabase = createClient()
+    const dbClient = createDatabaseClient()
 
     // A. READ: Fetch cost (Cached! ⚡️)
     // For now we'll do a direct DB call but wrapped in a way we can easily add Next.js caching later
@@ -35,7 +35,7 @@ export async function gateAction(
     // C. WRITE: atomic_deduct_credit RPC (1 DB Roundtrip ⚡️)
     // Handles balance check + deduction + log in ONE move.
 
-    // We need a Supabase client with admin/service role if acts are server-side? 
+    // We need a MrJim AWS client with admin/service role if acts are server-side?
     // Or just the user's client if RLS allows it?
     // The RPC 'perform_cost_deduction' uses 'security definer' so it runs as owner.
     // So the input user client works fine as long as RLS on wallets allows 'update' or RPC handles it.
@@ -46,7 +46,7 @@ export async function gateAction(
     // Ideally, for security, the RPC should enforce `auth.uid() = p_user_id` unless it's an admin RPC.
     // But `gateAction` is likely called from Server Actions where we trust the `userId` passed (verified by auth.getUser).
 
-    const { error } = await supabase.rpc('perform_cost_deduction', {
+    const { error } = await dbClient.rpc('perform_cost_deduction', {
         p_user_id: userId,
         p_action_key: action,
         p_cost: cost,
@@ -67,8 +67,8 @@ export const getCachedActionCost = async (action: string) => {
     // export const getActionCost = unstable_cache(async (key) => { ... }, ['action-costs'], { tags: ['config'] })
 
     // For now, let's just fetch efficiently
-    const supabase = createClient()
-    const { data } = await supabase
+    const dbClient = createDatabaseClient()
+    const { data } = await dbClient
         .from('credit_action_costs')
         .select('cost')
         .eq('action_key', action)

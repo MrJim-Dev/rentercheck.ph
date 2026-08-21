@@ -2,7 +2,7 @@
 import { consumeCredits } from "@/lib/actions/credits"
 import type { SearchInput } from "@/lib/matching"
 import { normalizeEmail, normalizeFacebookUrl, normalizeName, normalizePhone } from "@/lib/matching"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 import { CreditAction, getCachedActionCost } from "./gatekeeper"
 
 interface BillableItem {
@@ -25,7 +25,7 @@ export async function gateComplexSearch(
     input: SearchInput,
     userId: string
 ): Promise<void> {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
     // 1. Identify all potential billable items from input
     const candidates: BillableItem[] = []
@@ -106,7 +106,7 @@ export async function gateComplexSearch(
 
     // 2. CHECK LEDGER: Filter out items already paid for
     // We fetch active logs for this user matching our candidate types/values
-    const { data: logs } = await supabase
+    const { data: logs } = await dbClient
         .from('search_access_logs')
         .select('parameter_type, parameter_value')
         .eq('user_id', userId)
@@ -114,7 +114,7 @@ export async function gateComplexSearch(
         .in('parameter_type', candidates.map(c => c.type))
     // We can't easily .in('parameter_value') because values might overlap across types (rare but possible)
     // So we'll fetch all active logs for these types (or we could optimize if list is huge, but typical search is small)
-    // A better query would be OR conditions, but supabase JS syntax for complex OR on (type, value) tuples is tricky.
+    // A better query would be OR conditions, but dbClient JS syntax for complex OR on (type, value) tuples is tricky.
     // Given search history per day is small, fetching valid logs for these TYPES is ok.
 
     const paidSet = new Set<string>()
@@ -150,7 +150,7 @@ export async function gateComplexSearch(
         const expiresAt = new Date()
         expiresAt.setHours(expiresAt.getHours() + 24) // 24 hour expiry
 
-        const { error } = await supabase.from('search_access_logs').insert(
+        const { error } = await dbClient.from('search_access_logs').insert(
             itemsToBill.map(item => ({
                 user_id: userId,
                 parameter_type: item.type,

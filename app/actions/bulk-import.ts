@@ -1,7 +1,7 @@
 "use server"
 
 import type { Enums } from "@/lib/database.types"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 import { revalidatePath } from "next/cache"
 
 export interface BulkImportRow {
@@ -157,9 +157,9 @@ function normalizeDate(dateStr: string): string {
  * Submit multiple incident reports from a parsed CSV
  */
 export async function submitBulkImport(rows: BulkImportRow[]): Promise<BulkImportResult> {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await dbClient.auth.getUser()
     if (authError || !user) {
         return {
             success: false,
@@ -181,7 +181,7 @@ export async function submitBulkImport(rows: BulkImportRow[]): Promise<BulkImpor
             const allPhones = row.phone ? [row.phone] : []
             const allEmails = row.email ? [row.email] : []
 
-            const { data: report, error: insertError } = await supabase
+            const { data: report, error: insertError } = await dbClient
                 .from("incident_reports")
                 .insert({
                     reporter_id: user.id,
@@ -235,7 +235,7 @@ export async function submitBulkImport(rows: BulkImportRow[]): Promise<BulkImpor
             }
 
             if (identifiers.length > 0) {
-                await supabase.from("report_identifiers").insert(identifiers)
+                await dbClient.from("report_identifiers").insert(identifiers)
             }
 
             reportIds.push(report.id)

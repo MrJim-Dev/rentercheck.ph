@@ -42,4 +42,4 @@ We have successfully transitioned from hardcoded credit values to a centralized,
 *   `components/admin/credit-config-table.tsx` (New)
 *   `app/admin/page.tsx` (Updated)
 *   `app/actions/report.ts` (Updated)
-*   `supabase/migrations/20260115_credit_system_config.sql` (New)
+*   Historical source migration `20260115_credit_system_config.sql` (superseded by the AWS schema)

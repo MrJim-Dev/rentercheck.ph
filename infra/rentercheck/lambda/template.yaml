@@ -1,0 +1,227 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: RenterCheck standalone Next.js and MrJim Auth runtime on a private VPC Lambda
+
+Parameters:
+  CodeBucket:
+    Type: String
+  CodeKey:
+    Type: String
+  RuntimeSecretArn:
+    Type: String
+  RdsSecretArn:
+    Type: String
+  StorageBucketName:
+    Type: String
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-08fc3fe44f1507029
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-086c4de33de2152f4,subnet-0a05070fb3d0b2210
+  RdsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-004d91744b6686d31
+  AwsInterfaceEndpointSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-087f72d9bb6d7713f
+  LambdaAdapterLayerArn:
+    Type: String
+    Default: arn:aws:lambda:ap-southeast-1:753240598075:layer:LambdaAdapterLayerArm64:28
+
+Resources:
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RenterCheck web Lambda access to private RDS, S3, and Secrets Manager endpoints
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: rentercheck-web
+        - Key: Project
+          Value: rentercheck
+
+  RdsIngressFromWebLambda:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: RenterCheck web Lambda to private PostgreSQL
+      GroupId: !Ref RdsSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !GetAtt WebSecurityGroup.GroupId
+
+  AwsEndpointIngressFromWebLambda:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: RenterCheck web Lambda to shared AWS interface endpoints
+      GroupId: !Ref AwsInterfaceEndpointSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !GetAtt WebSecurityGroup.GroupId
+
+  WebExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: rentercheck-web-lambda
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: RenterCheckRuntimeSecrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref RuntimeSecretArn
+                  - !Ref RdsSecretArn
+        - PolicyName: RenterCheckEvidenceStorage
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub arn:${AWS::Partition}:s3:::${StorageBucketName}
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - evidence
+                      - evidence/*
+              - Effect: Allow
+                Action:
+                  - s3:AbortMultipartUpload
+                  - s3:DeleteObject
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${StorageBucketName}/evidence/*
+
+  WebLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: /aws/lambda/rentercheck-web
+      RetentionInDays: 30
+
+  WebFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: WebLogGroup
+    Properties:
+      FunctionName: rentercheck-web
+      Description: RenterCheck Next.js application with MrJim Auth and private AWS storage
+      Runtime: nodejs24.x
+      Architectures:
+        - arm64
+      Handler: run.sh
+      Role: !GetAtt WebExecutionRole.Arn
+      MemorySize: 2048
+      Timeout: 30
+      EphemeralStorage:
+        Size: 1024
+      Layers:
+        - !Ref LambdaAdapterLayerArn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt WebSecurityGroup.GroupId
+        SubnetIds: !Ref PrivateSubnetIds
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_PORT: "3000"
+          AWS_LWA_READINESS_CHECK_PATH: /
+          RENTERCHECK_RUNTIME_SECRET_ARN: !Ref RuntimeSecretArn
+          RDS_SECRET_ARN: !Ref RdsSecretArn
+          RDS_HOST: mrjim-postgres.c5egayeywr20.ap-southeast-1.rds.amazonaws.com
+          RDS_PORT: "5432"
+          RDS_DATABASE: rentercheck
+          S3_BUCKET: !Ref StorageBucketName
+          S3_EVIDENCE_PREFIX: evidence
+          HOSTNAME: 0.0.0.0
+          NEXT_TELEMETRY_DISABLED: "1"
+          NODE_ENV: production
+          PORT: "3000"
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: rentercheck-web
+      ProtocolType: HTTP
+      Description: RenterCheck web runtime
+      CorsConfiguration:
+        AllowCredentials: true
+        AllowHeaders:
+          - authorization
+          - content-type
+          - cookie
+          - origin
+          - x-request-id
+          - x-requested-with
+        AllowMethods:
+          - DELETE
+          - GET
+          - HEAD
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+        AllowOrigins:
+          - https://rentercheck.ph
+          - https://www.rentercheck.ph
+          - http://127.0.0.1:3000
+          - http://localhost:3000
+        MaxAge: 86400
+
+  HttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt WebFunction.Arn
+      PayloadFormatVersion: "2.0"
+      TimeoutInMillis: 30000
+
+  HttpApiDefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: $default
+      Target: !Sub integrations/${HttpApiIntegration}
+
+  HttpApiDefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: $default
+      AutoDeploy: true
+
+  HttpApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref WebFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*
+
+Outputs:
+  ApiUrl:
+    Value: !GetAtt HttpApi.ApiEndpoint
+  FunctionName:
+    Value: !Ref WebFunction
+  SecurityGroupId:
+    Value: !GetAtt WebSecurityGroup.GroupId

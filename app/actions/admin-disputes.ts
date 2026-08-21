@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 import { checkIsAdmin } from "./admin"
 
 export type DisputeResult<T = undefined> = {
@@ -40,9 +40,9 @@ export async function getAdminDisputes(): Promise<DisputeResult<AdminDispute[]>>
         return { success: false, error: "Unauthorized" }
     }
 
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await dbClient
         .from('incident_disputes')
         .select(`
             *,

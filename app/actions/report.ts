@@ -2,10 +2,11 @@
 
 import { CreditAction, gateAction } from "@/lib/credits/gatekeeper"
 import type { Database, Enums } from "@/lib/database.types"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 import { revalidatePath } from "next/cache"
 import { sendEmail } from "@/lib/email"
 import { NewReportAdminEmail } from "@/components/emails/new-report-admin"
+import { checkIsAdmin } from "./admin"
 
 // Types for the form submission
 export interface ReportFormData {
@@ -79,10 +80,10 @@ export async function submitIncidentReport(
     formData: ReportFormData
 ): Promise<ActionResult<{ reportId: string }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         // Get the current user
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in to submit a report. Please sign in or create an account to continue." }
@@ -148,7 +149,7 @@ export async function submitIncidentReport(
             .filter(Boolean) as string[]
 
         // Create the incident report with JSONB arrays
-        const { data: report, error: reportError } = await supabase
+        const { data: report, error: reportError } = await dbClient
             .from("incident_reports")
             .insert({
                 reporter_id: user.id,
@@ -228,7 +229,7 @@ export async function submitIncidentReport(
         }
 
         if (identifiers.length > 0) {
-            const { error: identifierError } = await supabase
+            const { error: identifierError } = await dbClient
                 .from("report_identifiers")
                 .insert(identifiers)
 
@@ -281,17 +282,17 @@ export async function uploadEvidence(
     file: File
 ): Promise<ActionResult<{ evidenceId: string; storagePath: string }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         // Get the current user
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in to upload evidence files. Please refresh the page and try again." }
         }
 
         // Verify the report belongs to this user
-        const { data: report, error: reportError } = await supabase
+        const { data: report, error: reportError } = await dbClient
             .from("incident_reports")
             .select("id, status")
             .eq("id", reportId)
@@ -311,8 +312,8 @@ export async function uploadEvidence(
         const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
         const storagePath = `${user.id}/${reportId}/${fileName}`
 
-        // Upload to Supabase Storage
-        const { error: uploadError } = await supabase.storage
+        // Upload to MrJim AWS Storage
+        const { error: uploadError } = await dbClient.storage
             .from("evidence")
             .upload(storagePath, file, {
                 cacheControl: "3600",
@@ -325,7 +326,7 @@ export async function uploadEvidence(
         }
 
         // Create evidence record
-        const { data: evidence, error: evidenceError } = await supabase
+        const { data: evidence, error: evidenceError } = await dbClient
             .from("report_evidence")
             .insert({
                 report_id: reportId,
@@ -343,7 +344,7 @@ export async function uploadEvidence(
         if (evidenceError) {
             console.error("Error creating evidence record:", evidenceError)
             // Try to delete the uploaded file
-            await supabase.storage.from("evidence").remove([storagePath])
+            await dbClient.storage.from("evidence").remove([storagePath])
             return { success: false, error: "Failed to save evidence record. Please try again." }
         }
 
@@ -359,17 +360,17 @@ export async function uploadEvidence(
  */
 export async function deleteEvidence(evidenceId: string): Promise<ActionResult> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         // Get the current user
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in" }
         }
 
         // Get the evidence record
-        const { data: evidence, error: evidenceError } = await supabase
+        const { data: evidence, error: evidenceError } = await dbClient
             .from("report_evidence")
             .select("id, storage_path, report_id")
             .eq("id", evidenceId)
@@ -381,7 +382,7 @@ export async function deleteEvidence(evidenceId: string): Promise<ActionResult> 
         }
 
         // Verify the report is still editable
-        const { data: report } = await supabase
+        const { data: report } = await dbClient
             .from("incident_reports")
             .select("status")
             .eq("id", evidence.report_id)
@@ -392,7 +393,7 @@ export async function deleteEvidence(evidenceId: string): Promise<ActionResult> 
         }
 
         // Delete from storage
-        const { error: storageError } = await supabase.storage
+        const { error: storageError } = await dbClient.storage
             .from("evidence")
             .remove([evidence.storage_path])
 
@@ -401,7 +402,7 @@ export async function deleteEvidence(evidenceId: string): Promise<ActionResult> 
         }
 
         // Delete the record
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await dbClient
             .from("report_evidence")
             .delete()
             .eq("id", evidenceId)
@@ -422,16 +423,16 @@ export async function deleteEvidence(evidenceId: string): Promise<ActionResult> 
  */
 export async function getMyReports(): Promise<ActionResult<Database["public"]["Views"]["my_reports"]["Row"][]>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in" }
         }
 
         // Query incident_reports directly instead of the view for better RLS handling
-        const { data: reports, error: reportsError } = await supabase
+        const { data: reports, error: reportsError } = await dbClient
             .from("incident_reports")
             .select(`
                 *,
@@ -466,16 +467,16 @@ export async function getMyReports(): Promise<ActionResult<Database["public"]["V
  */
 export async function getReportEvidence(reportId: string): Promise<ActionResult<Database["public"]["Tables"]["report_evidence"]["Row"][]>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in" }
         }
 
         // Verify report ownership
-        const { data: report } = await supabase
+        const { data: report } = await dbClient
             .from("incident_reports")
             .select("id")
             .eq("id", reportId)
@@ -486,7 +487,7 @@ export async function getReportEvidence(reportId: string): Promise<ActionResult<
             return { success: false, error: "Report not found or access denied" }
         }
 
-        const { data: evidence, error: evidenceError } = await supabase
+        const { data: evidence, error: evidenceError } = await dbClient
             .from("report_evidence")
             .select("*")
             .eq("report_id", reportId)
@@ -515,16 +516,16 @@ export async function getReportById(reportId: string): Promise<ActionResult<{
     amendmentEvidence: Record<string, Database["public"]["Tables"]["report_evidence"]["Row"][]>
 }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in" }
         }
 
         // Check if user is an admin
-        const { data: adminUser } = await supabase
+        const { data: adminUser } = await dbClient
             .from("admin_users")
             .select("role, is_active")
             .eq("id", user.id)
@@ -533,7 +534,7 @@ export async function getReportById(reportId: string): Promise<ActionResult<{
         const isAdmin = adminUser?.is_active === true
 
         // Get the report (verify ownership or admin access)
-        let reportQuery = supabase
+        let reportQuery = dbClient
             .from("incident_reports")
             .select("*")
             .eq("id", reportId)
@@ -550,7 +551,7 @@ export async function getReportById(reportId: string): Promise<ActionResult<{
         }
 
         // Get evidence (only those NOT attached to amendments)
-        const { data: evidence } = await supabase
+        const { data: evidence } = await dbClient
             .from("report_evidence")
             .select("*")
             .eq("report_id", reportId)
@@ -558,14 +559,14 @@ export async function getReportById(reportId: string): Promise<ActionResult<{
             .order("display_order", { ascending: true })
 
         // Get info requests
-        const { data: infoRequests } = await supabase
+        const { data: infoRequests } = await dbClient
             .from("report_info_requests")
             .select("*")
             .eq("report_id", reportId)
             .order("created_at", { ascending: false })
 
         // Get amendments
-        const { data: amendments } = await supabase
+        const { data: amendments } = await dbClient
             .from("report_amendments")
             .select("*")
             .eq("report_id", reportId)
@@ -575,7 +576,7 @@ export async function getReportById(reportId: string): Promise<ActionResult<{
         const amendmentEvidence: Record<string, Database["public"]["Tables"]["report_evidence"]["Row"][]> = {}
 
         if (amendments && amendments.length > 0) {
-            const { data: amendEvidence } = await supabase
+            const { data: amendEvidence } = await dbClient
                 .from("report_evidence")
                 .select("*")
                 .in("amendment_id", amendments.map(a => a.id))
@@ -614,16 +615,35 @@ export async function getReportById(reportId: string): Promise<ActionResult<{
  */
 export async function getEvidenceUrl(storagePath: string): Promise<ActionResult<{ url: string }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in" }
         }
 
+        const { data: evidence } = await dbClient
+            .from("report_evidence")
+            .select("report_id")
+            .eq("storage_path", storagePath)
+            .maybeSingle()
+        if (!evidence) {
+            return { success: false, error: "Evidence not found" }
+        }
+
+        const { data: report } = await dbClient
+            .from("incident_reports")
+            .select("reporter_id")
+            .eq("id", evidence.report_id)
+            .maybeSingle()
+        const adminCheck = await checkIsAdmin()
+        if (!report || (report.reporter_id !== user.id && !adminCheck.data?.isAdmin)) {
+            return { success: false, error: "Evidence access denied" }
+        }
+
         // Create a signed URL valid for 1 hour
-        const { data, error } = await supabase.storage
+        const { data, error } = await dbClient.storage
             .from("evidence")
             .createSignedUrl(storagePath, 3600)
 
@@ -672,16 +692,16 @@ export async function createAmendment(
     formData: AmendmentFormData
 ): Promise<ActionResult<{ amendmentId: string }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in" }
         }
 
         // Verify the report belongs to this user
-        const { data: report, error: reportError } = await supabase
+        const { data: report, error: reportError } = await dbClient
             .from("incident_reports")
             .select("id, status")
             .eq("id", formData.reportId)
@@ -693,7 +713,7 @@ export async function createAmendment(
         }
 
         // Create the amendment
-        const { data: amendment, error: amendmentError } = await supabase
+        const { data: amendment, error: amendmentError } = await dbClient
             .from("report_amendments")
             .insert({
                 report_id: formData.reportId,
@@ -730,16 +750,16 @@ export async function uploadAmendmentEvidence(
     file: File
 ): Promise<ActionResult<{ evidenceId: string; storagePath: string }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in" }
         }
 
         // Verify the amendment belongs to this user
-        const { data: amendment, error: amendmentError } = await supabase
+        const { data: amendment, error: amendmentError } = await dbClient
             .from("report_amendments")
             .select("id, status")
             .eq("id", amendmentId)
@@ -759,8 +779,8 @@ export async function uploadAmendmentEvidence(
         const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
         const storagePath = `${user.id}/${reportId}/amendments/${amendmentId}/${fileName}`
 
-        // Upload to Supabase Storage
-        const { error: uploadError } = await supabase.storage
+        // Upload to MrJim AWS Storage
+        const { error: uploadError } = await dbClient.storage
             .from("evidence")
             .upload(storagePath, file, {
                 cacheControl: "3600",
@@ -773,7 +793,7 @@ export async function uploadAmendmentEvidence(
         }
 
         // Create evidence record linked to the amendment
-        const { data: evidence, error: evidenceError } = await supabase
+        const { data: evidence, error: evidenceError } = await dbClient
             .from("report_evidence")
             .insert({
                 report_id: reportId,
@@ -791,7 +811,7 @@ export async function uploadAmendmentEvidence(
 
         if (evidenceError) {
             console.error("Error creating evidence record:", evidenceError)
-            await supabase.storage.from("evidence").remove([storagePath])
+            await dbClient.storage.from("evidence").remove([storagePath])
             return { success: false, error: "Failed to save evidence record" }
         }
 
@@ -814,16 +834,16 @@ export async function getReportAmendments(
     amendmentEvidence: Record<string, Database["public"]["Tables"]["report_evidence"]["Row"][]>
 }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in" }
         }
 
         // Verify report ownership
-        const { data: report } = await supabase
+        const { data: report } = await dbClient
             .from("incident_reports")
             .select("id")
             .eq("id", reportId)
@@ -835,7 +855,7 @@ export async function getReportAmendments(
         }
 
         // Get amendments
-        const { data: amendments, error: amendmentsError } = await supabase
+        const { data: amendments, error: amendmentsError } = await dbClient
             .from("report_amendments")
             .select("*")
             .eq("report_id", reportId)
@@ -850,7 +870,7 @@ export async function getReportAmendments(
         const amendmentEvidence: Record<string, Database["public"]["Tables"]["report_evidence"]["Row"][]> = {}
 
         if (amendments && amendments.length > 0) {
-            const { data: evidence } = await supabase
+            const { data: evidence } = await dbClient
                 .from("report_evidence")
                 .select("*")
                 .in("amendment_id", amendments.map(a => a.id))
@@ -886,16 +906,16 @@ export async function getReportAmendments(
  */
 export async function deleteAmendment(amendmentId: string): Promise<ActionResult> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in" }
         }
 
         // Get the amendment
-        const { data: amendment, error: amendmentError } = await supabase
+        const { data: amendment, error: amendmentError } = await dbClient
             .from("report_amendments")
             .select("id, status, report_id")
             .eq("id", amendmentId)
@@ -911,24 +931,24 @@ export async function deleteAmendment(amendmentId: string): Promise<ActionResult
         }
 
         // Delete evidence files first
-        const { data: evidence } = await supabase
+        const { data: evidence } = await dbClient
             .from("report_evidence")
             .select("storage_path")
             .eq("amendment_id", amendmentId)
 
         if (evidence && evidence.length > 0) {
-            await supabase.storage
+            await dbClient.storage
                 .from("evidence")
                 .remove(evidence.map(e => e.storage_path))
 
-            await supabase
+            await dbClient
                 .from("report_evidence")
                 .delete()
                 .eq("amendment_id", amendmentId)
         }
 
         // Delete the amendment
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await dbClient
             .from("report_amendments")
             .delete()
             .eq("id", amendmentId)
@@ -955,17 +975,17 @@ export async function updateIncidentReport(
     formData: ReportFormData
 ): Promise<ActionResult<{ reportId: string }>> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
         // Get authenticated user
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "You must be logged in to update a report" }
         }
 
         // Check if user is an admin
-        const { data: adminUser } = await supabase
+        const { data: adminUser } = await dbClient
             .from("admin_users")
             .select("role, is_active")
             .eq("id", user.id)
@@ -974,7 +994,7 @@ export async function updateIncidentReport(
         const isAdmin = adminUser?.is_active === true
 
         // Get the report (verify ownership or admin access)
-        let reportQuery = supabase
+        let reportQuery = dbClient
             .from("incident_reports")
             .select("*")
             .eq("id", reportId)
@@ -1081,7 +1101,7 @@ export async function updateIncidentReport(
         }
 
         // Update the report
-        const { error: updateError } = await supabase
+        const { error: updateError } = await dbClient
             .from("incident_reports")
             .update(updateData)
             .eq("id", reportId)
@@ -1095,7 +1115,7 @@ export async function updateIncidentReport(
         const editorType = isAdmin ? "ADMIN" : "REPORTER"
         const editReason = isAdmin ? "Admin updated report details" : "Reporter updated report details"
         
-        const { error: historyError } = await supabase
+        const { error: historyError } = await dbClient
             .from("report_edits")
             .insert({
                 report_id: reportId,
@@ -1124,4 +1144,3 @@ export async function updateIncidentReport(
         return { success: false, error: "An unexpected error occurred" }
     }
 }
-

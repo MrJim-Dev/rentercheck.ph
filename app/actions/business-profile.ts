@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 
 export type BusinessType =
     | "SOLE_PROPRIETORSHIP"
@@ -42,14 +42,14 @@ export interface BusinessProfileInput {
  */
 export async function getBusinessProfile(): Promise<{ success: boolean; profile?: BusinessProfile; error?: string }> {
     try {
-        const supabase = await createClient()
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const dbClient = await createClient()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "Not authenticated" }
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await dbClient
             .from("users")
             .select("id, email, full_name, business_name, business_type, dti_sec_number, business_address, contact_number, verification_status, verification_submitted_at, verification_reviewed_at, verification_notes, rental_categories")
             .eq("id", user.id)
@@ -78,14 +78,14 @@ export async function getBusinessProfile(): Promise<{ success: boolean; profile?
  */
 export async function saveBusinessProfile(input: BusinessProfileInput): Promise<{ success: boolean; error?: string }> {
     try {
-        const supabase = await createClient()
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const dbClient = await createClient()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "Not authenticated" }
         }
 
-        const { error } = await supabase
+        const { error } = await dbClient
             .from("users")
             .update({
                 business_name: input.business_name,
@@ -115,15 +115,15 @@ export async function saveBusinessProfile(input: BusinessProfileInput): Promise<
  */
 export async function submitForVerification(input: BusinessProfileInput): Promise<{ success: boolean; error?: string }> {
     try {
-        const supabase = await createClient()
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const dbClient = await createClient()
+        const { data: { user }, error: authError } = await dbClient.auth.getUser()
 
         if (authError || !user) {
             return { success: false, error: "Not authenticated" }
         }
 
         // Check current status
-        const { data: current } = await supabase
+        const { data: current } = await dbClient
             .from("users")
             .select("verification_status")
             .eq("id", user.id)
@@ -153,7 +153,7 @@ export async function submitForVerification(input: BusinessProfileInput): Promis
             return { success: false, error: "Please select at least one rental category." }
         }
 
-        const { error } = await supabase
+        const { error } = await dbClient
             .from("users")
             .update({
                 business_name: input.business_name,
@@ -186,9 +186,9 @@ export async function submitForVerification(input: BusinessProfileInput): Promis
  */
 export async function getPendingVerifications(): Promise<{ success: boolean; users?: BusinessProfile[]; error?: string }> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { data, error } = await supabase
+        const { data, error } = await dbClient
             .from("users")
             .select("id, email, full_name, business_name, business_type, dti_sec_number, business_address, contact_number, verification_status, verification_submitted_at, verification_reviewed_at, verification_notes, rental_categories")
             .eq("verification_status", "PENDING")
@@ -221,9 +221,9 @@ export async function reviewVerification(
     notes?: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const supabase = await createClient()
+        const dbClient = await createClient()
 
-        const { error } = await supabase
+        const { error } = await dbClient
             .from("users")
             .update({
                 verification_status: decision,

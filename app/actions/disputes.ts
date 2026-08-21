@@ -2,8 +2,8 @@
 
 import { DisputeApprovedEmail } from "@/components/emails/dispute-approved"
 import { sendEmail } from "@/lib/email"
-import { createAdminClient } from "@/lib/supabase/admin"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/aws/client/admin-client"
+import { createClient } from "@/lib/aws/client/request-client"
 import { revalidatePath } from "next/cache"
 import { checkIsAdmin } from "./admin"
 
@@ -16,16 +16,16 @@ export type DisputeResult<T = undefined> = {
 }
 
 export async function submitDispute(reportId: string, reason: string, category: DisputeCategory): Promise<DisputeResult<{ disputeId: string }>> {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
     // Check if user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await dbClient.auth.getUser()
     if (authError || !user) {
         return { success: false, error: "You must be logged in to submit a dispute" }
     }
 
     // Check if already disputed
-    const { data: existingDispute } = await supabase
+    const { data: existingDispute } = await dbClient
         .from("incident_disputes")
         .select("id")
         .eq("report_id", reportId)
@@ -37,7 +37,7 @@ export async function submitDispute(reportId: string, reason: string, category: 
     }
 
     // Insert dispute
-    const { data: dispute, error: insertError } = await supabase
+    const { data: dispute, error: insertError } = await dbClient
         .from("incident_disputes")
         .insert({
             report_id: reportId,
@@ -55,7 +55,7 @@ export async function submitDispute(reportId: string, reason: string, category: 
     }
 
     // Update report status to DISPUTED
-    const { error: updateError } = await supabase
+    const { error: updateError } = await dbClient
         .from("incident_reports")
         .update({ status: 'DISPUTED' })
         .eq("id", reportId)
@@ -74,13 +74,13 @@ export async function uploadDisputeEvidence(
     file: File
 ): Promise<DisputeResult<{ evidenceId: string; storagePath: string }>> {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const dbClient = await createClient()
+        const { data: { user } } = await dbClient.auth.getUser()
 
         if (!user) return { success: false, error: "Unauthorized" }
 
         // Verify ownership
-        const { data: dispute } = await supabase
+        const { data: dispute } = await dbClient
             .from("incident_disputes")
             .select("id")
             .eq("id", disputeId)
@@ -99,8 +99,8 @@ export async function uploadDisputeEvidence(
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
         const filePath = `${user.id}/disputes/${disputeId}/${fileName}`
 
-        // Upload to Supabase Storage
-        const { error: uploadError } = await supabase.storage
+        // Upload to MrJim AWS Storage
+        const { error: uploadError } = await dbClient.storage
             .from("evidence")
             .upload(filePath, file, {
                 cacheControl: "3600",
@@ -113,7 +113,7 @@ export async function uploadDisputeEvidence(
         }
 
         // Create evidence record in dispute_evidence table
-        const { data: evidence, error: evidenceError } = await supabase
+        const { data: evidence, error: evidenceError } = await dbClient
             .from("dispute_evidence")
             .insert({
                 dispute_id: disputeId,
@@ -130,7 +130,7 @@ export async function uploadDisputeEvidence(
         if (evidenceError) {
             console.error("Error creating evidence record:", evidenceError)
             // Try to delete the uploaded file
-            await supabase.storage.from("evidence").remove([filePath])
+            await dbClient.storage.from("evidence").remove([filePath])
             return { success: false, error: "Failed to save evidence record" }
         }
 
@@ -148,13 +148,13 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
         return { success: false, error: "Unauthorized" }
     }
 
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
     if (decision === 'APPROVED') {
         // APPROVE DISPUTE = SOFT DELETE REPORT
 
         // 1. Update Dispute Status to APPROVED
-        const { error: updateDisputeError } = await supabase
+        const { error: updateDisputeError } = await dbClient
             .from("incident_disputes")
             .update({ status: 'APPROVED' })
             .eq("id", disputeId)
@@ -164,7 +164,7 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
         }
 
         // 2. Update Report Status to DELETED (Soft Delete)
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await dbClient
             .from("incident_reports")
             .update({ status: 'DELETED' })
             .eq("id", reportId)
@@ -175,7 +175,7 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
 
         // Send Email if Approved
         // Send Email if Approved
-        const { data: disputeData } = await supabase
+        const { data: disputeData } = await dbClient
             .from("incident_disputes")
             .select("disputer_id")
             .eq("id", disputeId)
@@ -199,7 +199,7 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
     } else {
         // REJECT DISPUTE = KEEP REPORT
         // 1. Update Dispute Status
-        const { error: updateDisputeError } = await supabase
+        const { error: updateDisputeError } = await dbClient
             .from("incident_disputes")
             .update({ status: 'REJECTED' })
             .eq("id", disputeId)
@@ -207,13 +207,13 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
         if (updateDisputeError) return { success: false, error: "Failed to update dispute" }
 
         // 2. Revert Report Status
-        const { error: updateReportError } = await supabase
+        const { error: updateReportError } = await dbClient
             .from("incident_reports")
             .update({ status: 'PENDING' })
             .eq("id", reportId)
 
         // 3. Send Email if Rejected
-        const { data: disputeData } = await supabase
+        const { data: disputeData } = await dbClient
             .from("incident_disputes")
             .select("disputer_id")
             .eq("id", disputeId)

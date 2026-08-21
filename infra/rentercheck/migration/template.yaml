@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: RenterCheck migration runner for the MrJim AWS RDS and private S3 bucket
+
+Parameters:
+  CodeBucket:
+    Type: String
+  CodeKey:
+    Type: String
+  RdsSecretArn:
+    Type: String
+  MigrationBucket:
+    Type: String
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-08fc3fe44f1507029
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-086c4de33de2152f4,subnet-0a05070fb3d0b2210
+  RdsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-004d91744b6686d31
+  AwsInterfaceEndpointSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-087f72d9bb6d7713f
+  TargetDatabase:
+    Type: String
+    Default: rentercheck
+  ApiKeyHashKey:
+    Type: String
+    NoEcho: true
+
+Resources:
+  MigrationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RenterCheck migration runner access to private RDS, S3, and Secrets Manager endpoints
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: rentercheck-migration
+        - Key: Project
+          Value: rentercheck
+
+  RdsIngressFromMigrationRunner:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: RenterCheck migration runner to PostgreSQL
+      GroupId: !Ref RdsSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !GetAtt MigrationSecurityGroup.GroupId
+
+  AwsEndpointIngressFromMigrationRunner:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: RenterCheck migration runner to shared AWS interface endpoints
+      GroupId: !Ref AwsInterfaceEndpointSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !GetAtt MigrationSecurityGroup.GroupId
+
+  MigrationExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: rentercheck-migration-lambda
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: RenterCheckMigrationSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref RdsSecretArn
+        - PolicyName: RenterCheckMigrationBucket
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub arn:${AWS::Partition}:s3:::${MigrationBucket}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${MigrationBucket}/*
+
+  MigrationLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: /aws/lambda/rentercheck-migration
+      RetentionInDays: 30
+
+  MigrationFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: MigrationLogGroup
+    Properties:
+      FunctionName: rentercheck-migration
+      Description: One-shot RenterCheck schema, account, database, and evidence migration runner
+      Runtime: nodejs24.x
+      Architectures:
+        - arm64
+      Handler: handler.handler
+      Role: !GetAtt MigrationExecutionRole.Arn
+      MemorySize: 2048
+      Timeout: 900
+      EphemeralStorage:
+        Size: 2048
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt MigrationSecurityGroup.GroupId
+        SubnetIds: !Ref PrivateSubnetIds
+      Environment:
+        Variables:
+          MIGRATION_BUCKET: !Ref MigrationBucket
+          RDS_SECRET_ARN: !Ref RdsSecretArn
+          RDS_HOST: mrjim-postgres.c5egayeywr20.ap-southeast-1.rds.amazonaws.com
+          RDS_PORT: "5432"
+          RDS_ADMIN_DATABASE: mrjim
+          MRJIM_AUTH_API_KEY_HASH_KEY: !Ref ApiKeyHashKey
+          TARGET_DATABASE: !Ref TargetDatabase
+          SOURCE_PAYLOAD_KEY: migration/rentercheck-source.json
+          MANIFEST_KEY: migration/manifest.json
+          EVIDENCE_PREFIX: evidence
+          NODE_OPTIONS: --enable-source-maps
+
+Outputs:
+  FunctionName:
+    Value: !Ref MigrationFunction
+  SecurityGroupId:
+    Value: !GetAtt MigrationSecurityGroup.GroupId

@@ -3,7 +3,7 @@
 import { login } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { createClient } from "@/lib/supabase/client"
+import { getRentercheckBrowserAuthClient as createClient } from "@/lib/mrjim-auth/browser-client"
 import { ArrowRight, Lock, Mail } from "lucide-react"
 import Link from "next/link"
 import { useState, useTransition } from "react"
@@ -108,11 +108,11 @@ export function LoginForm({ returnTo }: { returnTo?: string }) {
                     variant="outline"
                     className="w-full h-10 border-input/50 hover:bg-input/20 hover:text-foreground cursor-pointer mt-4"
                     onClick={async () => {
-                        const supabase = createClient()
+                        const dbClient = createClient()
                         const redirectUrl = returnTo 
                             ? `${location.origin}/auth/callback?next=${encodeURIComponent(returnTo)}`
                             : `${location.origin}/auth/callback`
-                        await supabase.auth.signInWithOAuth({
+                        await dbClient.auth.signInWithOAuth({
                             provider: 'google',
                             options: {
                                 redirectTo: redirectUrl,

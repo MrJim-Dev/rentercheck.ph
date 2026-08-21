@@ -116,7 +116,7 @@ Implemented a complete dispute system allowing users to dispute incident reports
 - ✅ Cascade deletes for data integrity
 
 ## Migration File
-`supabase/migrations/20260116_add_disputes.sql`
+Historical source migration `20260116_add_disputes.sql`
 - Creates both tables
 - Sets up RLS policies
 - Creates indexes for performance

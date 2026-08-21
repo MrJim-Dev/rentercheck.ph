@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/aws/client/request-client"
 
 export interface AdminUser {
     id: string
@@ -24,10 +24,10 @@ export interface UserTransaction {
  * Fetch all users with their credit balances for admin view.
  */
 export async function getAdminUsersList(search?: string) {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
     // First get users
-    let query = supabase
+    let query = dbClient
         .from('users')
         .select('id, email, full_name, avatar_url, created_at')
         .order('created_at', { ascending: false })
@@ -45,7 +45,7 @@ export async function getAdminUsersList(search?: string) {
 
     // Now get wallets for these users
     const userIds = users?.map(u => u.id) || []
-    const { data: wallets, error: walletsError } = await supabase
+    const { data: wallets, error: walletsError } = await dbClient
         .from('credit_wallets')
         .select('user_id, balance')
         .in('user_id', userIds)
@@ -69,10 +69,10 @@ export async function getAdminUsersList(search?: string) {
  * Fetch transaction history for a specific user.
  */
 export async function getUserTransactionHistory(userId: string) {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
     // First get the wallet id
-    const { data: wallet, error: walletError } = await supabase
+    const { data: wallet, error: walletError } = await dbClient
         .from('credit_wallets')
         .select('id')
         .eq('user_id', userId)
@@ -84,7 +84,7 @@ export async function getUserTransactionHistory(userId: string) {
     }
 
     // Get transactions
-    const { data: transactions, error: txError } = await supabase
+    const { data: transactions, error: txError } = await dbClient
         .from('credit_transactions')
         .select('id, amount, type, description, reference_id, created_at')
         .eq('wallet_id', wallet.id)
@@ -103,14 +103,14 @@ export async function getUserTransactionHistory(userId: string) {
  * Manually adjust a user's credit balance.
  */
 export async function adjustUserCredits(userId: string, amount: number, reason: string) {
-    const supabase = await createClient()
+    const dbClient = await createClient()
 
     // 1. Verify admin (In real app, check role)
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await dbClient.auth.getUser()
     if (!user) return { success: false, error: 'Unauthorized' }
 
     // 2. Call the RPC
-    const { data: newBalance, error } = await supabase.rpc('admin_adjust_credits', {
+    const { data: newBalance, error } = await dbClient.rpc('admin_adjust_credits', {
         p_user_id: userId,
         p_amount: amount,
         p_description: reason || 'Admin Adjustment'
