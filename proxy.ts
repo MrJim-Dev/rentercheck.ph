@@ -1,7 +1,7 @@
 import { updateSession } from '@/lib/mrjim-auth/middleware'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === '/privacy') {
     return NextResponse.redirect(new URL('/legal/privacy', request.url), 308)
   }
