@@ -1,18 +1,22 @@
 "use client"
 
-import { signup } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getRentercheckBrowserAuthClient as createClient } from "@/lib/mrjim-auth/browser-client"
 import { ArrowRight, Lock, Mail, User } from "lucide-react"
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
+import type { Session } from "mrjim-auth"
+import { useState } from "react"
+
+function safeDestination(value?: string) {
+    return value && value.startsWith("/") && !value.startsWith("//") ? value : "/"
+}
 
 export function SignupForm({ returnTo }: { returnTo?: string }) {
-    const [isPending, startTransition] = useTransition()
+    const router = useRouter()
+    const [isPending, setIsPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
-
-    console.log('SignupForm - returnTo prop:', returnTo)
 
     async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
@@ -27,19 +31,38 @@ export function SignupForm({ returnTo }: { returnTo?: string }) {
             return
         }
 
-        if (returnTo) {
-            formData.append('returnTo', returnTo)
-            console.log('SignupForm - Added returnTo to formData:', returnTo)
-        } else {
-            console.log('SignupForm - No returnTo provided')
-        }
-
-        startTransition(async () => {
-            const result = await signup(formData)
-            if (result?.error) {
-                setError(result.error)
+        setIsPending(true)
+        const email = String(formData.get("email") ?? "").trim().toLowerCase()
+        const fullName = String(formData.get("fullName") ?? "").trim()
+        try {
+            const response = await fetch("/auth/session", {
+                method: "POST",
+                credentials: "include",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ action: "signup", email, password, fullName }),
+            })
+            const payload = await response.json() as { error?: string; session?: Session | null }
+            if (!response.ok) {
+                setError(payload.error ?? "Account creation failed")
+                return
             }
-        })
+            if (payload.session) {
+                const auth = createClient()
+                const sessionResult = await auth.auth.setSession(payload.session)
+                if (sessionResult.error !== null) {
+                    setError(sessionResult.error.message)
+                    return
+                }
+                router.replace(safeDestination(returnTo))
+                router.refresh()
+            } else {
+                setError("Account created. Check your email to finish signing in.")
+            }
+        } catch {
+            setError("Account creation failed")
+        } finally {
+            setIsPending(false)
+        }
     }
 
     return (

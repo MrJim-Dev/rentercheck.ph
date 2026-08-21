@@ -1,37 +1,56 @@
 "use client"
 
-import { login } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getRentercheckBrowserAuthClient as createClient } from "@/lib/mrjim-auth/browser-client"
 import { ArrowRight, Lock, Mail } from "lucide-react"
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
+import type { Session } from "mrjim-auth"
+import { useState } from "react"
+
+function safeDestination(value?: string) {
+    return value && value.startsWith("/") && !value.startsWith("//") ? value : "/"
+}
 
 export function LoginForm({ returnTo }: { returnTo?: string }) {
-    const [isPending, startTransition] = useTransition()
+    const router = useRouter()
+    const [isPending, setIsPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
-
-    console.log('LoginForm - returnTo prop:', returnTo)
 
     async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
         setError(null)
 
-        const formData = new FormData(e.currentTarget)
-        if (returnTo) {
-            formData.append('returnTo', returnTo)
-            console.log('LoginForm - Added returnTo to formData:', returnTo)
-        } else {
-            console.log('LoginForm - No returnTo provided')
-        }
-
-        startTransition(async () => {
-            const result = await login(formData)
-            if (result?.error) {
-                setError(result.error)
+        setIsPending(true)
+        const form = new FormData(e.currentTarget)
+        const email = String(form.get("email") ?? "").trim().toLowerCase()
+        const password = String(form.get("password") ?? "")
+        try {
+            const response = await fetch("/auth/session", {
+                method: "POST",
+                credentials: "include",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ action: "login", email, password }),
+            })
+            const payload = await response.json() as { error?: string; session?: Session }
+            if (!response.ok || !payload.session) {
+                setError(payload.error ?? "Authentication request failed")
+                return
             }
-        })
+            const auth = createClient()
+            const sessionResult = await auth.auth.setSession(payload.session)
+            if (sessionResult.error !== null) {
+                setError(sessionResult.error.message)
+                return
+            }
+            router.replace(safeDestination(returnTo))
+            router.refresh()
+        } catch {
+            setError("Authentication request failed")
+        } finally {
+            setIsPending(false)
+        }
     }
 
     return (

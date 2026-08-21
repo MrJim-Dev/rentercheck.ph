@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from 'mrjim-auth'
-import { getRentercheckBrowserAuthClient } from '@/lib/mrjim-auth/browser-client'
+import { getRentercheckBrowserAuthClient, syncRentercheckServerSession } from '@/lib/mrjim-auth/browser-client'
 import { usePathname, useRouter } from 'next/navigation'
 
 interface AuthContextType { user: User | null; loading: boolean }
@@ -17,13 +17,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const auth = getRentercheckBrowserAuthClient()
     const initialize = async () => {
       const result = await auth.auth.getSession()
-      setUser(result.data?.session?.user ?? null)
+      const session = result.data?.session ?? null
+      setUser(session?.user ?? null)
       setLoading(false)
+      if (session) void syncRentercheckServerSession(session).catch(() => undefined)
     }
     void initialize()
     const subscription = auth.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null)
       setLoading(false)
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') void syncRentercheckServerSession(session).catch(() => undefined)
+      if (event === 'SIGNED_OUT') void syncRentercheckServerSession(null).catch(() => undefined)
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') router.refresh()
     })
     const onVisibility = () => { if (document.visibilityState === 'visible') void auth.auth.getSession().then((result) => setUser(result.data?.session?.user ?? null)) }
@@ -35,4 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useAuth() { return useContext(AuthContext) }
-export async function signOutClient() { await getRentercheckBrowserAuthClient().auth.signOut() }
+export async function signOutClient() {
+  await getRentercheckBrowserAuthClient().auth.signOut()
+  await syncRentercheckServerSession(null).catch(() => undefined)
+}
