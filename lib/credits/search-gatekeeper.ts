@@ -2,7 +2,7 @@
 import { consumeCredits } from "@/lib/actions/credits"
 import type { SearchInput } from "@/lib/matching"
 import { normalizeEmail, normalizeFacebookUrl, normalizeName, normalizePhone } from "@/lib/matching"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/db/client"
 import { CreditAction, getCachedActionCost } from "./gatekeeper"
 
 interface BillableItem {

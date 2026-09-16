@@ -1,8 +1,8 @@
 'use server'
 
-import { WelcomeEmail } from '@/components/emails/welcome-email'
-import { sendEmail } from '@/lib/email'
-import { createClient } from '@/lib/supabase/server'
+import { clearMrJimSession, createMrJimAuthClient, getCurrentIdentity, identityFromUser } from '@/lib/auth/server'
+import { ensureUserProfile } from '@/lib/db/identity'
+import { sanitizeReturnTo } from '@/lib/auth/redirect'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
@@ -12,80 +12,36 @@ export interface AuthResult {
 }
 
 export async function signup(formData: FormData) {
-  const supabase = await createClient()
-
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
-    fullName: formData.get('fullName') as string,
-    returnTo: formData.get('returnTo') as string | null,
-  }
-
-  console.log('Signup - returnTo from formData:', data.returnTo)
-
-  const { error } = await supabase.auth.signUp({
-    email: data.email,
-    password: data.password,
-    options: {
-      data: {
-        full_name: data.fullName,
-      },
-    },
+  const email = String(formData.get('email') || '').trim()
+  const password = String(formData.get('password') || '')
+  const fullName = String(formData.get('fullName') || '').trim()
+  const client = await createMrJimAuthClient()
+  const { data, error } = await client.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: fullName }, redirectTo: `${process.env.MRJIM_SITE_URL || ''}/auth/callback` },
   })
-
-  if (error) {
-    return { success: false, error: error.message }
-  }
-
-  // Send welcome email
-  await sendEmail({
-    to: data.email,
-    subject: "Welcome to RenterCheck!",
-    react: WelcomeEmail({ name: data.fullName }),
-  })
-
-  revalidatePath('/', 'layout')
-  
-  // Validate and use returnTo only if it's a valid internal path
-  const redirectPath = data.returnTo && data.returnTo.startsWith('/') ? data.returnTo : '/'
-  console.log('Signup - redirecting to:', redirectPath)
-  redirect(redirectPath)
+  if (error) return { success: false, error: error.message }
+  if (data?.user) await ensureUserProfile(identityFromUser(data.user))
+  redirect(sanitizeReturnTo(formData.get('returnTo') as string | null, '/dashboard'))
 }
 
 export async function login(formData: FormData) {
-  const supabase = await createClient()
-
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
-    returnTo: formData.get('returnTo') as string | null,
-  }
-
-  console.log('Login - returnTo from formData:', data.returnTo)
-
-  const { error } = await supabase.auth.signInWithPassword(data)
-
-  if (error) {
-    return { success: false, error: error.message }
-  }
-
-  revalidatePath('/', 'layout')
-  
-  // Validate and use returnTo only if it's a valid internal path
-  const redirectPath = data.returnTo && data.returnTo.startsWith('/') ? data.returnTo : '/'
-  console.log('Login - redirecting to:', redirectPath)
-  redirect(redirectPath)
+  const email = String(formData.get('email') || '').trim()
+  const password = String(formData.get('password') || '')
+  const client = await createMrJimAuthClient()
+  const { data, error } = await client.auth.signInWithPassword({ email, password })
+  if (error) return { success: false, error: error.message }
+  if (data?.user) await ensureUserProfile(identityFromUser(data.user))
+  redirect(sanitizeReturnTo(formData.get('returnTo') as string | null, '/dashboard'))
 }
 
 export async function logout() {
-  const supabase = await createClient()
-  await supabase.auth.signOut()
+  await clearMrJimSession()
   revalidatePath('/', 'layout')
   redirect('/')
 }
 
 export async function getUser() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user
+  return getCurrentIdentity()
 }

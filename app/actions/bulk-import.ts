@@ -1,7 +1,7 @@
 "use server"
 
 import type { Enums } from "@/lib/database.types"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/db/client"
 import { revalidatePath } from "next/cache"
 
 export interface BulkImportRow {

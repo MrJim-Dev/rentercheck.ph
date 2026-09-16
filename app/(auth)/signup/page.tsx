@@ -17,5 +17,5 @@ export default async function SignupPage({
     searchParams: Promise<{ returnTo?: string }>
 }) {
     const params = await searchParams
-    return <SignupForm returnTo={params.returnTo} />
+    return <SignupForm returnTo={params.returnTo} useMrJimAuth />
 }

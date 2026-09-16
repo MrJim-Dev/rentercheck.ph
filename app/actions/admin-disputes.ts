@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/db/client"
 import { checkIsAdmin } from "./admin"
 
 export type DisputeResult<T = undefined> = {

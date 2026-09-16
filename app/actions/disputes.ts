@@ -2,10 +2,11 @@
 
 import { DisputeApprovedEmail } from "@/components/emails/dispute-approved"
 import { sendEmail } from "@/lib/email"
-import { createAdminClient } from "@/lib/supabase/admin"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/db/admin-client"
+import { createClient } from "@/lib/db/client"
 import { revalidatePath } from "next/cache"
 import { checkIsAdmin } from "./admin"
+import { getEvidenceBucket, getObjectStorage } from "@/lib/storage/server"
 
 import { DisputeCategory } from "@/lib/disputes"
 
@@ -99,16 +100,16 @@ export async function uploadDisputeEvidence(
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
         const filePath = `${user.id}/disputes/${disputeId}/${fileName}`
 
-        // Upload to Supabase Storage
-        const { error: uploadError } = await supabase.storage
-            .from("evidence")
-            .upload(filePath, file, {
-                cacheControl: "3600",
-                upsert: false,
+        const storage = await getObjectStorage()
+        try {
+            await storage.putObject({
+                bucket: getEvidenceBucket(),
+                key: filePath,
+                body: new Uint8Array(await file.arrayBuffer()),
+                contentType: file.type || undefined,
+                cacheControl: "max-age=3600",
             })
-
-        if (uploadError) {
-            console.error("Error uploading file:", uploadError)
+        } catch {
             return { success: false, error: "Failed to upload file" }
         }
 
@@ -129,8 +130,11 @@ export async function uploadDisputeEvidence(
 
         if (evidenceError) {
             console.error("Error creating evidence record:", evidenceError)
-            // Try to delete the uploaded file
-            await supabase.storage.from("evidence").remove([filePath])
+            try {
+                await storage.deleteObjects(getEvidenceBucket(), [filePath])
+            } catch {
+                // Leave cleanup to the storage reconciliation job.
+            }
             return { success: false, error: "Failed to save evidence record" }
         }
 
@@ -182,7 +186,7 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
             .single()
 
         if (disputeData?.disputer_id) {
-            const adminClient = createAdminClient()
+            const adminClient = await createAdminClient()
             const { data: { user: disputer } } = await adminClient.auth.admin.getUserById(disputeData.disputer_id)
 
             if (disputer?.email) {
@@ -220,7 +224,7 @@ export async function resolveDispute(disputeId: string, decision: 'APPROVED' | '
             .single()
 
         if (disputeData?.disputer_id) {
-            const adminClient = createAdminClient()
+            const adminClient = await createAdminClient()
             const { data: { user: disputer } } = await adminClient.auth.admin.getUserById(disputeData.disputer_id)
 
             if (disputer?.email) {

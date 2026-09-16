@@ -2,10 +2,11 @@
 
 import { CreditAction, gateAction } from "@/lib/credits/gatekeeper"
 import type { Database, Enums } from "@/lib/database.types"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/db/client"
 import { revalidatePath } from "next/cache"
 import { sendEmail } from "@/lib/email"
 import { NewReportAdminEmail } from "@/components/emails/new-report-admin"
+import { getAuthorizedEvidenceUrl, getEvidenceBucket, getObjectStorage } from "@/lib/storage/server"
 
 // Types for the form submission
 export interface ReportFormData {
@@ -311,16 +312,16 @@ export async function uploadEvidence(
         const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
         const storagePath = `${user.id}/${reportId}/${fileName}`
 
-        // Upload to Supabase Storage
-        const { error: uploadError } = await supabase.storage
-            .from("evidence")
-            .upload(storagePath, file, {
-                cacheControl: "3600",
-                upsert: false,
+        const storage = await getObjectStorage()
+        try {
+            await storage.putObject({
+                bucket: getEvidenceBucket(),
+                key: storagePath,
+                body: new Uint8Array(await file.arrayBuffer()),
+                contentType: file.type || undefined,
+                cacheControl: "max-age=3600",
             })
-
-        if (uploadError) {
-            console.error("Error uploading file:", uploadError)
+        } catch {
             return { success: false, error: "Failed to upload file. Please try again." }
         }
 
@@ -342,8 +343,12 @@ export async function uploadEvidence(
 
         if (evidenceError) {
             console.error("Error creating evidence record:", evidenceError)
-            // Try to delete the uploaded file
-            await supabase.storage.from("evidence").remove([storagePath])
+            try {
+                await storage.deleteObjects(getEvidenceBucket(), [storagePath])
+            } catch {
+                // The database error is the primary failure. A later storage
+                // reconciliation job can remove an orphaned object.
+            }
             return { success: false, error: "Failed to save evidence record. Please try again." }
         }
 
@@ -391,13 +396,11 @@ export async function deleteEvidence(evidenceId: string): Promise<ActionResult> 
             return { success: false, error: "Cannot delete evidence from this report" }
         }
 
-        // Delete from storage
-        const { error: storageError } = await supabase.storage
-            .from("evidence")
-            .remove([evidence.storage_path])
-
-        if (storageError) {
-            console.error("Error deleting file:", storageError)
+        try {
+            const storage = await getObjectStorage()
+            await storage.deleteObjects(getEvidenceBucket(), [evidence.storage_path])
+        } catch {
+            console.error("Error deleting evidence object")
         }
 
         // Delete the record
@@ -622,16 +625,8 @@ export async function getEvidenceUrl(storagePath: string): Promise<ActionResult<
             return { success: false, error: "You must be logged in" }
         }
 
-        // Create a signed URL valid for 1 hour
-        const { data, error } = await supabase.storage
-            .from("evidence")
-            .createSignedUrl(storagePath, 3600)
-
-        if (error || !data) {
-            return { success: false, error: "Failed to get file URL" }
-        }
-
-        return { success: true, data: { url: data.signedUrl } }
+        const url = await getAuthorizedEvidenceUrl(storagePath)
+        return { success: true, data: { url } }
     } catch (error) {
         console.error("Unexpected error in getEvidenceUrl:", error)
         return { success: false, error: "An unexpected error occurred" }
@@ -759,16 +754,16 @@ export async function uploadAmendmentEvidence(
         const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
         const storagePath = `${user.id}/${reportId}/amendments/${amendmentId}/${fileName}`
 
-        // Upload to Supabase Storage
-        const { error: uploadError } = await supabase.storage
-            .from("evidence")
-            .upload(storagePath, file, {
-                cacheControl: "3600",
-                upsert: false,
+        const storage = await getObjectStorage()
+        try {
+            await storage.putObject({
+                bucket: getEvidenceBucket(),
+                key: storagePath,
+                body: new Uint8Array(await file.arrayBuffer()),
+                contentType: file.type || undefined,
+                cacheControl: "max-age=3600",
             })
-
-        if (uploadError) {
-            console.error("Error uploading file:", uploadError)
+        } catch {
             return { success: false, error: "Failed to upload file" }
         }
 
@@ -791,7 +786,11 @@ export async function uploadAmendmentEvidence(
 
         if (evidenceError) {
             console.error("Error creating evidence record:", evidenceError)
-            await supabase.storage.from("evidence").remove([storagePath])
+            try {
+                await storage.deleteObjects(getEvidenceBucket(), [storagePath])
+            } catch {
+                // Leave cleanup to the storage reconciliation job.
+            }
             return { success: false, error: "Failed to save evidence record" }
         }
 
@@ -917,9 +916,8 @@ export async function deleteAmendment(amendmentId: string): Promise<ActionResult
             .eq("amendment_id", amendmentId)
 
         if (evidence && evidence.length > 0) {
-            await supabase.storage
-                .from("evidence")
-                .remove(evidence.map(e => e.storage_path))
+            const storage = await getObjectStorage()
+            await storage.deleteObjects(getEvidenceBucket(), evidence.map(e => e.storage_path))
 
             await supabase
                 .from("report_evidence")
@@ -1124,4 +1122,3 @@ export async function updateIncidentReport(
         return { success: false, error: "An unexpected error occurred" }
     }
 }
-

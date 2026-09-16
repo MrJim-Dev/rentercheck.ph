@@ -5,8 +5,9 @@ import { IncidentRejectedEmail } from "@/components/emails/incident-rejected"
 import { IncidentUnderReviewEmail } from "@/components/emails/incident-under-review"
 import type { Database, Enums } from "@/lib/database.types"
 import { sendEmail } from "@/lib/email"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/db/client"
 import { revalidatePath } from "next/cache"
+import { getAuthorizedEvidenceUrl, getEvidenceBucket, getObjectStorage } from "@/lib/storage/server"
 
 // Response types
 interface ActionResult<T = void> {
@@ -384,17 +385,10 @@ export async function addAdminNote(reportId: string, note: string): Promise<Acti
  */
 export async function getAdminEvidenceUrl(storagePath: string): Promise<ActionResult<{ url: string }>> {
     try {
-        const supabase = await createClient()
-
-        const { data, error } = await supabase.storage
-            .from("evidence")
-            .createSignedUrl(storagePath, 3600) // 1 hour
-
-        if (error || !data) {
-            return { success: false, error: "Failed to get evidence URL" }
-        }
-
-        return { success: true, data: { url: data.signedUrl } }
+        const admin = await checkIsAdmin()
+        if (!admin.success || !admin.data?.isAdmin) return { success: false, error: "Not authorized" }
+        const url = await getAuthorizedEvidenceUrl(storagePath)
+        return { success: true, data: { url } }
     } catch (error) {
         console.error("Unexpected error in getAdminEvidenceUrl:", error)
         return { success: false, error: "An unexpected error occurred" }
@@ -696,13 +690,11 @@ export async function hardDeleteReport(reportId: string, reason?: string): Promi
         // Delete evidence files from storage
         if (evidence && evidence.length > 0) {
             const filePaths = evidence.map(e => e.storage_path)
-            const { error: storageError } = await supabase
-                .storage
-                .from("evidence")
-                .remove(filePaths)
-
-            if (storageError) {
-                console.error("Error deleting evidence files:", storageError)
+            try {
+                const storage = await getObjectStorage()
+                await storage.deleteObjects(getEvidenceBucket(), filePaths)
+            } catch {
+                console.error("Error deleting evidence files")
                 // Continue with deletion even if storage removal fails
             }
         }

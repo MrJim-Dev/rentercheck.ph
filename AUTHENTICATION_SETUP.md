@@ -1,148 +1,111 @@
-# Supabase Authentication Setup
+# Authentication Setup
 
-This project uses Supabase for password-based authentication.
+RenterCheck uses shared `mrjim-auth` backed by the MrJim AWS PostgreSQL
+database. Existing user UUIDs remain the auth subject (`sub`), sessions are
+stored in HttpOnly cookies, and evidence files are stored in private S3.
+Supabase is retained only as migration/rollback material; it is not a runtime
+dependency.
 
-## Setup Instructions
+See [`scripts/migration/README.md`](scripts/migration/README.md) for the full
+runtime and cutover contract. Never expose database URLs, AWS credentials,
+private signing keys, token secrets, or mail-provider keys through a
+`NEXT_PUBLIC_` variable.
 
-### 1. Create a Supabase Project
+## Setup instructions
 
-1. Go to [https://app.supabase.com](https://app.supabase.com)
-2. Create a new project or select an existing one
-3. Wait for the project to be fully initialized
-
-### 2. Configure Environment Variables
+### 1. Configure MrJim Auth and the AWS database
 
 1. Copy `.env.local.example` to `.env.local`:
+
    ```bash
    cp .env.local.example .env.local
    ```
 
-2. Get your Supabase credentials:
-   - Go to Project Settings > API
-   - Copy the **Project URL** → paste as `NEXT_PUBLIC_SUPABASE_URL`
-   - Copy the **anon/public** key → paste as `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+2. Set the MrJim runtime variables from the migration README. The local
+   `/auth/v1` route handles email/password, recovery, and provider flows.
+3. Set `MRJIM_DB_SSL_CA` (or its base64 form) to the verified Amazon RDS CA;
+   do not disable certificate verification.
+4. Configure a verified `MRJIM_AUTH_FROM_EMAIL` and working `RESEND_API_KEY`
+   before testing signup confirmation or password recovery.
 
-3. Save the `.env.local` file
-
-### 3. Enable Email Authentication
-
-1. In your Supabase dashboard, go to **Authentication > Providers**
-2. Make sure **Email** is enabled
-3. Configure email settings:
-   - Enable email confirmations if needed
-   - Set up email templates (optional)
-
-### 4. Start Development Server
+### 2. Start the development server
 
 ```bash
 pnpm dev
 ```
 
-## Project Structure
+## Project structure
 
-```
+```text
 lib/
-├── supabase/
-│   ├── client.ts       # Client-side Supabase client
-│   ├── server.ts       # Server-side Supabase client
-│   └── middleware.ts   # Middleware for session management
 ├── auth/
-│   └── auth-provider.tsx  # Auth context provider
+│   ├── auth-server.ts      # MrJim Auth server and mail adapter
+│   ├── browser-client.ts   # Browser recovery/OAuth client
+│   ├── server.ts           # HttpOnly-cookie auth client
+│   └── auth-provider.tsx   # Auth context provider
+├── db/
+│   ├── pool.ts             # TLS-verified RDS connection pool
+│   └── compat-client.ts    # Allowlisted application query boundary
 app/
-├── actions/
-│   └── auth.ts         # Server actions (login, signup, logout)
-middleware.ts           # Next.js middleware for route protection
+├── actions/auth.ts         # Sign up, sign in, sign out, current identity
+├── auth/v1/[...path]/      # Local MrJim Auth protocol route
+└── api/auth/               # Session, signout, and OAuth entrypoints
 ```
 
 ## Features
 
-- ✅ Password-based authentication
-- ✅ Sign up with email and password
-- ✅ Sign in with email and password
-- ✅ Sign out
-- ✅ Protected routes
-- ✅ Session management
-- ✅ Automatic redirect after login
-- ✅ User state in navigation
+- Password-based sign up and sign in
+- Sign out and HttpOnly-cookie session management
+- Password recovery and update-password flow
+- Optional Google OAuth through MrJim Auth
+- Existing UUID preservation and profile synchronization
 
 ## Usage
 
-### Authentication Actions
-
 ```typescript
-// Login
-import { login } from '@/app/actions/auth'
-await login(formData)
+import { login, signup, logout, getUser } from '@/app/actions/auth'
 
-// Signup
-import { signup } from '@/app/actions/auth'
 await signup(formData)
-
-// Logout
-import { logout } from '@/app/actions/auth'
+await login(formData)
 await logout()
-
-// Get current user
-import { getUser } from '@/app/actions/auth'
 const user = await getUser()
 ```
 
-### Using Auth Context
+The client auth context remains available through:
 
 ```typescript
 'use client'
 import { useAuth } from '@/lib/auth/auth-provider'
-
-function MyComponent() {
-  const { user, loading } = useAuth()
-  
-  if (loading) return <div>Loading...</div>
-  if (!user) return <div>Not logged in</div>
-  
-  return <div>Welcome {user.email}</div>
-}
 ```
 
-## Route Protection
-
-The middleware automatically:
-- Redirects unauthenticated users away from protected routes
-- Redirects authenticated users away from auth pages (login/signup)
-- Refreshes session cookies on every request
-
-## Supabase Configuration
-
-### User Metadata
-
-When signing up, the user's full name is stored in the `user_metadata`:
+When signing up, the user's full name is stored in `user_metadata`:
 
 ```typescript
-{
-  full_name: "John Doe"
-}
+{ full_name: "John Doe" }
 ```
 
-You can access this in your app:
-
-```typescript
-const fullName = user.user_metadata?.full_name
-```
-
-### Custom Policies
-
-If you need to create tables with Row Level Security (RLS), use the Supabase dashboard to set up policies that allow users to access their own data.
+Roles belong in signed auth metadata, not user-editable profile fields.
 
 ## Troubleshooting
 
-### "Invalid API key" error
-- Make sure you copied the correct keys from Supabase
-- Restart your development server after changing `.env.local`
+### Auth key or database connection errors
+
+- Confirm the MrJim Auth publishable key and server signing-key variables match
+  the target project.
+- Confirm the RDS URL uses the fixed AWS endpoint and the verified RDS CA is
+  present.
+- Restart the development server after changing `.env.local`.
 
 ### Redirects not working
-- Clear your browser cookies
-- Check that middleware.ts is at the root level
-- Verify the middleware config matcher
 
-### Email confirmation required
-- Check Authentication > Settings in Supabase
-- Disable "Enable email confirmations" for development
+- Clear the `mrjim-auth-rentercheck` and PKCE cookies.
+- Confirm `MRJIM_SITE_URL`, `MRJIM_AUTH_URL`, and the OAuth redirect origin are
+  consistent.
+
+### Recovery or confirmation email is not delivered
+
+- Confirm the sender is verified and sending-enabled in the mail provider.
+- Confirm `MRJIM_AUTH_FROM_EMAIL` and `RESEND_API_KEY` are present in the
+  server environment.
+- Treat a successful database health check as insufficient until a real email
+  and authenticated browser flow have been verified.

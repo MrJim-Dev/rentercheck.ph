@@ -3,16 +3,13 @@
 import { login } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { createClient } from "@/lib/supabase/client"
 import { ArrowRight, Lock, Mail } from "lucide-react"
 import Link from "next/link"
 import { useState, useTransition } from "react"
 
-export function LoginForm({ returnTo }: { returnTo?: string }) {
+export function LoginForm({ returnTo, useMrJimAuth = false }: { returnTo?: string; useMrJimAuth?: boolean }) {
     const [isPending, startTransition] = useTransition()
     const [error, setError] = useState<string | null>(null)
-
-    console.log('LoginForm - returnTo prop:', returnTo)
 
     async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
@@ -21,9 +18,6 @@ export function LoginForm({ returnTo }: { returnTo?: string }) {
         const formData = new FormData(e.currentTarget)
         if (returnTo) {
             formData.append('returnTo', returnTo)
-            console.log('LoginForm - Added returnTo to formData:', returnTo)
-        } else {
-            console.log('LoginForm - No returnTo provided')
         }
 
         startTransition(async () => {
@@ -34,11 +28,18 @@ export function LoginForm({ returnTo }: { returnTo?: string }) {
         })
     }
 
+    function startSharedAuth() {
+        const next = returnTo ? `&next=${encodeURIComponent(returnTo)}` : ''
+        window.location.assign(`/api/auth/authorize?provider=google&mode=login${next}`)
+    }
+
     return (
         <div className="w-full">
             <div className="mb-8">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground mb-2">Sign in</h1>
-                <p className="text-sm text-muted-foreground">Enter your credentials to access your account</p>
+                <p className="text-sm text-muted-foreground">
+                    {useMrJimAuth ? "Sign in with your RenterCheck account" : "Enter your credentials to access your account"}
+                </p>
                 {error && (
                     <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md">
                         <p className="text-xs text-destructive">{error}</p>
@@ -68,7 +69,7 @@ export function LoginForm({ returnTo }: { returnTo?: string }) {
                         <label className="text-xs font-medium leading-none text-muted-foreground/80">
                             Password
                         </label>
-                        <Link href="#" className="text-xs text-secondary hover:text-accent transition-colors">
+                        <Link href="/forgot-password" className="text-xs text-secondary hover:text-accent transition-colors">
                             Forgot password?
                         </Link>
                     </div>
@@ -107,17 +108,8 @@ export function LoginForm({ returnTo }: { returnTo?: string }) {
                 <Button
                     variant="outline"
                     className="w-full h-10 border-input/50 hover:bg-input/20 hover:text-foreground cursor-pointer mt-4"
-                    onClick={async () => {
-                        const supabase = createClient()
-                        const redirectUrl = returnTo 
-                            ? `${location.origin}/auth/callback?next=${encodeURIComponent(returnTo)}`
-                            : `${location.origin}/auth/callback`
-                        await supabase.auth.signInWithOAuth({
-                            provider: 'google',
-                            options: {
-                                redirectTo: redirectUrl,
-                            },
-                        })
+                    onClick={() => {
+                        startSharedAuth()
                     }}
                     type="button"
                 >

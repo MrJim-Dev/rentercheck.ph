@@ -3,16 +3,13 @@
 import { signup } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { createClient } from "@/lib/supabase/client"
 import { ArrowRight, Lock, Mail, User } from "lucide-react"
 import Link from "next/link"
 import { useState, useTransition } from "react"
 
-export function SignupForm({ returnTo }: { returnTo?: string }) {
+export function SignupForm({ returnTo, useMrJimAuth = false }: { returnTo?: string; useMrJimAuth?: boolean }) {
     const [isPending, startTransition] = useTransition()
     const [error, setError] = useState<string | null>(null)
-
-    console.log('SignupForm - returnTo prop:', returnTo)
 
     async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
@@ -29,9 +26,6 @@ export function SignupForm({ returnTo }: { returnTo?: string }) {
 
         if (returnTo) {
             formData.append('returnTo', returnTo)
-            console.log('SignupForm - Added returnTo to formData:', returnTo)
-        } else {
-            console.log('SignupForm - No returnTo provided')
         }
 
         startTransition(async () => {
@@ -42,11 +36,18 @@ export function SignupForm({ returnTo }: { returnTo?: string }) {
         })
     }
 
+    function startSharedAuth() {
+        const next = returnTo ? `&next=${encodeURIComponent(returnTo)}` : ''
+        window.location.assign(`/api/auth/authorize?provider=google&mode=signup${next}`)
+    }
+
     return (
         <div className="w-full">
             <div className="mb-6">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground mb-2">Create an account</h1>
-                <p className="text-sm text-muted-foreground">Start verifying tenants in minutes</p>
+                <p className="text-sm text-muted-foreground">
+                    {useMrJimAuth ? "Create your RenterCheck account" : "Start verifying tenants in minutes"}
+                </p>
                 {error && (
                     <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md">
                         <p className="text-xs text-destructive">{error}</p>
@@ -141,17 +142,8 @@ export function SignupForm({ returnTo }: { returnTo?: string }) {
                 <Button
                     variant="outline"
                     className="w-full h-10 border-input/50 hover:bg-input/20 hover:text-foreground cursor-pointer mt-4"
-                    onClick={async () => {
-                        const supabase = createClient()
-                        const redirectUrl = returnTo 
-                            ? `${location.origin}/auth/callback?next=${encodeURIComponent(returnTo)}`
-                            : `${location.origin}/auth/callback`
-                        await supabase.auth.signInWithOAuth({
-                            provider: 'google',
-                            options: {
-                                redirectTo: redirectUrl,
-                            },
-                        })
+                    onClick={() => {
+                        startSharedAuth()
                     }}
                     type="button"
                 >

@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/db/client"
 
 export interface SearchHistoryEntry {
     id: string

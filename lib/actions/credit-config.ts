@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/db/client"
 import { revalidatePath } from "next/cache"
 
 export interface CreditActionConfig {

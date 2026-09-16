@@ -178,7 +178,7 @@ export default function PrivacyPage() {
                     <section className="mb-10">
                         <h2 className="text-2xl font-semibold mb-4">9) Storage and Processing Location</h2>
                         <p>
-                            We use Supabase for database and file storage. Our Supabase project is hosted in Singapore (SG). This means personal data may be stored and processed outside the Philippines depending on service provider infrastructure.
+                            We use Amazon RDS PostgreSQL and private Amazon S3 storage in the AWS Asia Pacific (Singapore) region. This means personal data may be stored and processed outside the Philippines depending on our cloud infrastructure.
                         </p>
                     </section>
 

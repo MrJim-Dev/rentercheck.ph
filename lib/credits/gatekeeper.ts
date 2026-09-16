@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/db/client"
 
 // 1. Define your actions here
 export enum CreditAction {
@@ -18,7 +18,7 @@ export async function gateAction(
     userId: string,
     referenceId?: string
 ): Promise<void> {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // A. READ: Fetch cost (Cached! ⚡️)
     // For now we'll do a direct DB call but wrapped in a way we can easily add Next.js caching later
@@ -67,7 +67,7 @@ export const getCachedActionCost = async (action: string) => {
     // export const getActionCost = unstable_cache(async (key) => { ... }, ['action-costs'], { tags: ['config'] })
 
     // For now, let's just fetch efficiently
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data } = await supabase
         .from('credit_action_costs')
         .select('cost')

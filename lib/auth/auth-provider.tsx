@@ -1,12 +1,11 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { User } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/client'
-import { useRouter, usePathname } from 'next/navigation'
+import type { ClientAuthUser } from '@/lib/auth/types'
+import { usePathname } from 'next/navigation'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 interface AuthContextType {
-  user: User | null
+  user: ClientAuthUser | null
   loading: boolean
 }
 
@@ -15,61 +14,47 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
 })
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<ClientAuthUser | null>(null)
   const [loading, setLoading] = useState(true)
-  const router = useRouter()
   const pathname = usePathname()
 
+  const refreshSession = useCallback(async () => {
+    try {
+      const response = await fetch('/api/auth/session', {
+        cache: 'no-store',
+        credentials: 'include',
+      })
+      const payload = await response.json() as { user?: ClientAuthUser | null }
+      setUser(payload.user ?? null)
+    } catch {
+      setUser(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
-    const supabase = createClient()
+    void refreshSession()
 
-    // Get initial session
-    const initializeAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-      setLoading(false)
-    }
-
-    initializeAuth()
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-      
-      // Refresh the router to update server components
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        router.refresh()
-      }
-    })
-
-    // Refresh session on window focus
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          setUser(session?.user ?? null)
-        })
-      }
+      if (document.visibilityState === 'visible') void refreshSession()
     }
+    const handleAuthChange = () => void refreshSession()
 
     window.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('rentercheck-auth-change', handleAuthChange)
 
     return () => {
-      subscription.unsubscribe()
       window.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('rentercheck-auth-change', handleAuthChange)
     }
-  }, [router])
+  }, [refreshSession])
 
-  // Refresh auth state when pathname changes (after navigation)
+  // Refresh auth state after navigation, including the OAuth callback.
   useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-    })
-  }, [pathname])
+    void refreshSession()
+  }, [pathname, refreshSession])
 
   return (
     <AuthContext.Provider value={{ user, loading }}>
@@ -87,6 +72,9 @@ export function useAuth() {
 }
 
 export async function signOutClient() {
-  const supabase = createClient()
-  await supabase.auth.signOut()
+  await fetch('/api/auth/signout', {
+    method: 'POST',
+    credentials: 'include',
+  })
+  window.dispatchEvent(new Event('rentercheck-auth-change'))
 }

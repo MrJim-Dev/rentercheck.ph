@@ -20,7 +20,7 @@ import {
   type SearchResponse,
   type SearchResultMatch,
 } from "@/lib/matching";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 // ============================================
 // SEARCH FUNCTIONS
